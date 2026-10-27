@@ -19,3 +19,6 @@
   - [ ] Formaty: txt, docx, odt, xlsx, pdf (tekst) - ten sam format na wyjściu
   - [ ] Aplikacja web (serwer lokalny) + GUI okienkowe + Android
   - [ ] Przegląd kodu codex na końcu
+- [~] 23:45 (właściciel) „zmień nazwę projektu na inną, niech argon i astra zaproponują coś, bo cichociemny nie może być”: ładna polska nazwa, oddaje cel (anonimizacja), ale bez tych słów wprost, nawiązanie do historii Polski albo opowiadań.
+  - [ ] Propozycje Astry i Argona -> `docs/konsultacje/02-*.md`
+  - [ ] Wybór nazwy (uzasadnienie) i zmiana nazwy katalogu/repo/dokumentów
