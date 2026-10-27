@@ -95,8 +95,25 @@ def _pokrywajace(probka: dict, typ: str, pozycja: int, dlugosc: int) -> list[dic
     ]
 
 
+def _samotne_wystapienia(tekst: str, wzor: str) -> list[int]:
+    """Pozycje wystąpień `wzor` niezanurzonych w dłuższym ciągu alfanumerycznym.
+
+    Prefiks poprawnego REGON-9 wewnątrz 14-cyfrowej pułapki to nie jest
+    samodzielny REGON-9 — takich zanurzonych wystąpień pokrycia nie wymagamy.
+    """
+    pozycje = []
+    start = 0
+    while (pozycja := tekst.find(wzor, start)) >= 0:
+        przed = tekst[pozycja - 1] if pozycja else ""
+        za = tekst[pozycja + len(wzor)] if pozycja + len(wzor) < len(tekst) else ""
+        if not przed.isalnum() and not za.isalnum():
+            pozycje.append(pozycja)
+        start = pozycja + 1
+    return pozycje
+
+
 def test_pulapki_i_numery_z_numery_json(probki: list[dict]):
-    """Numery „poprawne" z numery.json, jeśli użyte w tekstach, muszą mieć encję
+    """Samotnie występujące numery „poprawne" z numery.json muszą mieć encję
     z suma=true; „błędne" (pułapki) nie mogą być przykryte encją swojego typu."""
     numery = json.loads((KORPUS / "numery.json").read_text(encoding="utf-8"))
     for typ, klucz in KLUCZ_NUMEROW.items():
@@ -105,20 +122,16 @@ def test_pulapki_i_numery_z_numery_json(probki: list[dict]):
             listy_poprawnych.append(numery["regon14"]["poprawne"])
         for nr in [n for lista in listy_poprawnych for n in lista]:
             for probka in probki:
-                pozycja = probka["tekst"].find(nr)
-                if pozycja < 0:
-                    continue
-                pokrywajace = _pokrywajace(probka, typ, pozycja, len(nr))
-                assert pokrywajace, f"{probka['id']}: poprawny {typ} {nr} bez encji"
-                assert all(e["suma"] for e in pokrywajace), f"{probka['id']}: {nr} z suma!=true"
+                for pozycja in _samotne_wystapienia(probka["tekst"], nr):
+                    pokrywajace = _pokrywajace(probka, typ, pozycja, len(nr))
+                    assert pokrywajace, f"{probka['id']}: poprawny {typ} {nr} bez encji"
+                    assert all(e["suma"] for e in pokrywajace), f"{probka['id']}: {nr} z suma!=true"
         for nr in numery[klucz]["bledne"]:
             for probka in probki:
-                pozycja = probka["tekst"].find(nr)
-                if pozycja < 0:
-                    continue
-                assert not _pokrywajace(probka, typ, pozycja, len(nr)), (
-                    f"{probka['id']}: pułapka {typ} {nr} przykryta encją"
-                )
+                for pozycja in _samotne_wystapienia(probka["tekst"], nr):
+                    assert not _pokrywajace(probka, typ, pozycja, len(nr)), (
+                        f"{probka['id']}: pułapka {typ} {nr} przykryta encją"
+                    )
 
 
 def test_pokrycie_typow(probki: list[dict]):
