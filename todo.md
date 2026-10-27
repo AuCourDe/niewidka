@@ -10,10 +10,10 @@
 - [~] 23:36 (właściciel) „zbuduj możliwie najprostsze narzędzie do anonimizacji tekstu”: wklejony tekst albo lokalny dokument biurowy -> lokalny model (CPU/GPU) -> ten sam format z dopiskiem ZANONIMIZOWANY; ocena jakości anonimizacji w trakcie + odwracalność (numeracja); web (serwer w organizacji), okienkowa Win/Mac/Linux, Android; polski; suwak „Jakość wykrywania danych” (1-3 przebiegi/modele); sekrety tylko z key vault/pliku; kod nienaganny; konsultacje Argon+Astra na każdym kroku; HLD -> LLD -> kamienie milowe -> plan (testy na początku) -> wytwarzanie; ultraterminal masowo; codex na końcu do przeglądu.
   - [x] Konsultacja architektoniczna Astra (ChatGPT www) + Argon (Gemini www, odpowiedział Flash-Lite) – linki `docs/konsultacje/03-odpowiedzi-www.md`. Dostęp: TYLKO przez Chrome po stronie Windows (Claude in Chrome); `czaty.py` z WSL niezalogowany. Pytanie wklejać przez schowek (`powershell Set-Clipboard`), odpowiedź czytać `javascript_tool` kawałkami po ~1400 znaków (`window.__t.slice`).
   - [x] Synteza konsultacji -> `docs/KONSULTACJE.md` (commit „Nazwa Niewidka, synteza…”)
-  - [~] `docs/HLD.md`, `LLD.md`, `KAMIENIE.md`, `PLAN.md` – zlecone claude-glm (ultraterminal id 1027-235323-claude-glm-8c79, zadanie /tmp/cc-glm-docs.md). Następnie: przegląd HLD/LLD przez Astrę i Argona, potem budowa (też claude-glm, kodowanie wyłącznie tam – polecenie właściciela).
-  - [ ] `docs/LLD.md`
-  - [ ] `docs/KAMIENIE.md` (kamienie milowe)
-  - [ ] `docs/PLAN.md` (plan wykonania, testy jako pierwsze)
+  - [x] `docs/HLD.md`, `LLD.md`, `KAMIENIE.md`, `PLAN.md` – wykonane przez claude-glm (commit ba3cad5, 4 pliki, 574 linie). Następnie: przegląd HLD/LLD przez Astrę i Argona, potem budowa (też claude-glm, kodowanie wyłącznie tam – polecenie właściciela).
+  - [x] `docs/LLD.md` (commit ba3cad5)
+  - [x] `docs/KAMIENIE.md` (kamienie milowe; commit ba3cad5)
+  - [x] `docs/PLAN.md` (plan wykonania, testy jako pierwsze; commit ba3cad5)
   - [ ] Zestaw testowy (polskie próbki + oczekiwane encje) i `KRYTERIA.md`
   - [ ] Rdzeń: wykrywanie (reguły + model), zamiana na znaczniki numerowane, mapa przywracania, ocena jakości
   - [ ] Formaty: txt, docx, odt, xlsx, pdf (tekst) - ten sam format na wyjściu
