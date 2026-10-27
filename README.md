@@ -1,4 +1,4 @@
-# Cichociemny
+# Niewidka
 
 Lokalna anonimizacja danych osobowych w polskim tekście.
 

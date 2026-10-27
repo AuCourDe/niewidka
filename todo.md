@@ -1,4 +1,4 @@
-# Cichociemny - backlog zleceń
+# Niewidka - backlog zleceń
 
 ## 2026-10-27
 - [x] 21:55 (właściciel) „załóż projekt w folderze klienta” do anonimizacji danych, nazwa jednym słowem po polsku z nawiązaniem do historii - Cichociemny.
