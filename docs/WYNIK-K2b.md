@@ -114,5 +114,14 @@ przypis, obraz z tekstem alternatywnym, właściwości, wariant z makrem i z cz�
   granicach zamian ORAZ granicach runów; testy pokrywają zamianę w środku runu, na
   granicy runów i dziedziczenie stylu.
 
+Przegląd adwersarialny adaptera (panel NIM `skonsultuj.py`, 6/13 odpowiedzi) + self-review
+potwierdziły i wyprostowały: (a) `Content_Types Default` usunięte nawet, gdy część
+media z tym rozszerzeniem zostaje (uszkodzenie pliku — Default znika tylko przy braku
+użytkowników), (b) nieczyszczone `cp:category`/`contentStatus` i daty dcterms w core.xml,
+(c) teksty alternatywne obrazów (descr) — czyszczone jako wektor PII. Znane ograniczenie
+(odnotowane, nieobsługiwane w MVP): w niekonformnych plikach `w:ins` może zawierać
+`w:t` bezpośrednio, bez `w:r` — taki tekst nie trafia do segmentu (FN); Word przy zapisie
+normalizuje te pliki. Hiperłącza z anchor (bez r:id) zostają nietknięte celowo.
+
 Dowód: `NIEWIDKA_MODELE_KATALOG=… .venv/bin/python -m pytest tests/ -q` →
-**188 passed, 1 xfailed**, ruff czysty (commity sesji: `b077269`…`70a9506`).
+**195 passed, 1 xfailed**, ruff czysty (commity sesji: `b077269`…`a4bc6a8+`).

@@ -197,7 +197,9 @@ class AdapterDocx:
         )
         czesci["_rels/.rels"] = _przefiltruj_root_rels(zasoby["czesci"]["_rels/.rels"], set(do_usuniecia))
         czesci["[Content_Types].xml"] = _przefiltruj_content_types(
-            zasoby["czesci"]["[Content_Types].xml"], set(do_usuniecia)
+            zasoby["czesci"]["[Content_Types].xml"],
+            set(do_usuniecia),
+            pozostale=set(czesci),
         )
 
         bufor = io.BytesIO()
@@ -251,16 +253,23 @@ def _przefiltruj_root_rels(rels_xml: bytes, usun_czesci: set[str]) -> bytes:
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
-def _przefiltruj_content_types(xml: bytes, usun_czesci: set[str]) -> bytes:
+def _przefiltruj_content_types(
+    xml: bytes, usun_czesci: set[str], pozostale: set[str] | None = None
+) -> bytes:
+    """Default bez części = uszkodzona paczka; Default rozszerzeń miniatury znika
+    tylko, gdy ŻADNA pozostała część (np. media/*.jpeg) go nie używa."""
     korzen = etree.fromstring(xml, _parser())
     CT = "http://schemas.openxmlformats.org/package/2006/content-types"
+    pozostale = pozostale if pozostale is not None else set()
     for override in list(korzen.iter(f"{{{CT}}}Override")):
         czesc = (override.get("PartName") or "").lstrip("/")
         if any(czesc == u or czesc.startswith(u) for u in usun_czesci):
             korzen.remove(override)
     for default in list(korzen.iter(f"{{{CT}}}Default")):
-        # rozszerzenia miniatury nie są już potrzebne; media (png) zostaje
-        if (default.get("Extension") or "").lower() in {"jpeg", "jpg", "emf", "wmf"}:
+        rozszerzenie = (default.get("Extension") or "").lower()
+        if rozszerzenie in {"jpeg", "jpg", "emf", "wmf"} and not any(
+            nazwa.lower().endswith(f".{rozszerzenie}") for nazwa in pozostale
+        ):
             korzen.remove(default)
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
 
@@ -268,9 +277,14 @@ def _przefiltruj_content_types(xml: bytes, usun_czesci: set[str]) -> bytes:
 def _wyczysc_core(core_xml: bytes) -> bytes:
     DC = "http://purl.org/dc/elements/1.1/"
     CP = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+    DCTERMS = "http://purl.org/dc/terms/"
     korzen = etree.fromstring(core_xml, _parser())
     for tag in (f"{{{DC}}}creator", f"{{{DC}}}title", f"{{{DC}}}subject",
-                f"{{{DC}}}description", f"{{{CP}}}lastModifiedBy", f"{{{CP}}}keywords"):
+                f"{{{DC}}}description", f"{{{CP}}}lastModifiedBy", f"{{{CP}}}keywords",
+                f"{{{CP}}}category", f"{{{CP}}}contentStatus"):
         for element in korzen.iter(tag):
             element.text = ""
+    for tag in (f"{{{DCTERMS}}}created", f"{{{DCTERMS}}}modified"):
+        for element in korzen.iter(tag):
+            element.text = "1980-01-01T00:00:00Z"  # stała zamiast śladu pracy
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)

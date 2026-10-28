@@ -331,3 +331,44 @@ class TestTekstyAlternatywne:
         wynik = adapter.zapisz(dok)
         doc_xml = zipfile.ZipFile(io.BytesIO(wynik)).read("word/document.xml").decode("utf-8")
         assert "ul. Lipowa 13/5" not in doc_xml
+
+
+class TestContentTypesIPola:
+    def test_default_zostaje_gdy_czesc_z_tym_rozszerzeniem_jest_w_media(self):
+        from niewidka.formaty.docx_ import _przefiltruj_content_types
+
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="jpeg" ContentType="image/jpeg"/>'
+            "</Types>"
+        )
+        wynik = _przefiltruj_content_types(
+            xml.encode(), set(), pozostale={"word/media/zdjecie.jpeg"}
+        )
+        assert b'Extension="jpeg"' in wynik  # część istnieje — Default musi zostać
+
+    def test_default_znika_gdy_brak_czesci(self):
+        from niewidka.formaty.docx_ import _przefiltruj_content_types
+
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="jpeg" ContentType="image/jpeg"/>'
+            "</Types>"
+        )
+        wynik = _przefiltruj_content_types(xml.encode(), set(), pozostale={"word/media/logo.png"})
+        assert b"jpeg" not in wynik
+
+    def test_core_czysci_kategorie_i_status(self):
+        from niewidka.formaty.docx_ import _wyczysc_core
+
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties">'
+            "<cp:category>Klienci VIP</cp:category><cp:contentStatus>Robocza</cp:contentStatus>"
+            "</cp:coreProperties>"
+        )
+        wynik = _wyczysc_core(xml.encode()).decode("utf-8")
+        assert "Klienci VIP" not in wynik
+        assert "Robocza" not in wynik
