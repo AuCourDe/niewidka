@@ -746,6 +746,13 @@ inicjalizujPakiety();
 budujListeTypow();
 wczytajStan();
 odswiezPakiety();
+/* Ekran pierwszego uruchomienia znika sam, gdy pakiet pojawi się z zewnątrz
+   (IT instaluje z katalogu albo drugie okno pobiera): lekki odpyt tylko,
+   dopóki ekran jest widoczny. */
+setInterval(() => {
+  if (odpytywaniePostepu) return;
+  if (!document.getElementById("ekran-pakietow").hidden) odswiezPakiety();
+}, 2500);
 
 window.addEventListener("beforeunload", (zdarzenie) => {
   if (document.getElementById("tekst").value.trim()) zdarzenie.preventDefault();
