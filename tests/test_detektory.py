@@ -748,3 +748,107 @@ class TestZbudujPoziom:
         reguly = RegulyDetektor()  # rdzeń wstawia swój filtr (_BezDaty) przez ten parametr
         d = zbuduj_poziom(2, katalog_modeli, próg_osoba=0.2, reguly=reguly)
         assert d.czesci[0] is reguly
+
+
+# --- K7b: pakiet Rozszerzony (LFM2.5 tylko dla IP/KARTA/SWIFT/LOGIN) -----------
+
+from niewidka.detektory import (
+    ADAPTER_LFM25_ROZSZERZONY,
+    DetektorUzupełniający,
+    wczytaj_lfm25,
+)
+from niewidka.model import Zakres
+
+
+class AtrapaUzup:
+    """Uzupełniacz zwracający ustalone zakresy (testy bez wag)."""
+
+    def __init__(self, zakresy: list[Zakres]):
+        self.zakresy = zakresy
+        self.nazwa = "atrapa-uzup"
+        self.typy = frozenset(z.typ for z in zakresy) or frozenset({TypEncji.IP})
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        return list(self.zakresy)
+
+
+def test_detektor_uzupelniajacy_typy_uzup_domyslnie_osoba():
+    podstawa = AtrapaDetektor("podstawa", [])  # typy = {OSOBA}, zwraca puste
+    uzup = AtrapaUzup([Zakres(0, 5, TypEncji.OSOBA, 0.9, "x")])
+    d = DetektorUzupełniający("t", [podstawa], uzup)
+    assert d.typy == frozenset({TypEncji.OSOBA})
+
+
+def test_detektor_uzupelniajacy_typy_regulowe_odpadaja():
+    """Uzupełniacz z typami 4 (pakiet Rozszerzony) NIE dodaje OSOBA ani typów
+    regułowych — tylko IP/KARTA/SWIFT/LOGIN, i tylko bez nachodzenia."""
+    podstawa = AtrapaDetektor("podstawa", [])
+    uzup = AtrapaUzup(
+        [
+            Zakres(0, 4, TypEncji.SWIFT, 0.9, "x"),  # puste miejsce: wchodzi
+            Zakres(10, 14, TypEncji.OSOBA, 0.9, "x"),  # OSOBA: odpada
+            Zakres(20, 24, TypEncji.EMAIL, 0.9, "x"),  # typ regułowy: odpada
+            Zakres(30, 34, TypEncji.IP, 0.9, "x"),  # bez kolizji: wchodzi
+        ]
+    )
+    d = DetektorUzupełniający(
+        "t",
+        [podstawa],
+        uzup,
+        typy_uzup=frozenset({TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}),
+    )
+    # atrapa uzup oferuje SWIFT/OSOBA/EMAIL/IP, więc po typach_uzup zostaje IP i SWIFT
+    assert d.typy == frozenset({TypEncji.IP, TypEncji.SWIFT})
+    tekst = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    trafione = {(z.start, z.koniec, z.typ) for z in d.znajdz(tekst)}
+    assert trafione == {(0, 4, TypEncji.SWIFT), (30, 34, TypEncji.IP)}
+
+
+def test_detektor_uzupelniajacy_nachodzenie_z_regulami():
+    """SWIFT nachodzący na zakres reguły (tu atrapa podstawy) odpada w całości."""
+    class PodstawaZeZakresem:
+        nazwa = "podstawa"
+        typy = frozenset({TypEncji.IBAN})
+
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            return [Zakres(0, 10, TypEncji.IBAN, 1.0, "regula")]
+
+    uzup = AtrapaUzup([Zakres(5, 15, TypEncji.SWIFT, 0.9, "x")])
+    d = DetektorUzupełniający("t", [PodstawaZeZakresem()], uzup, typy_uzup=frozenset({TypEncji.SWIFT}))
+    wynik = d.znajdz("a" * 20)
+    assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 10, TypEncji.IBAN)]
+
+
+def test_adapter_lfm25_rozszerzony_typy():
+    mapa = ADAPTER_LFM25_ROZSZERZONY.mapa
+    assert mapa == {
+        ("contact.ip_address",): TypEncji.IP,
+        ("financial.credit_card",): TypEncji.KARTA,
+        ("financial.swift_bic",): TypEncji.SWIFT,
+        ("online.username",): TypEncji.LOGIN,
+    }
+    assert ADAPTER_LFM25_ROZSZERZONY.typy == frozenset(
+        {TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}
+    )
+
+
+def test_wcztaj_lfm25_wariant_rozszerzony(katalog_modeli):
+    from pathlib import Path
+
+    warianty = Path(katalog_modeli) / "lfm25"
+    if not (warianty / "q4-bl32" / "model.onnx").is_file():
+        pytest.skip("brak LFM2.5 q4-bl32")
+    d = wczytaj_lfm25(Path(katalog_modeli), wariant="q4-bl32", rozszerzony=True)
+    assert d.nazwa == ADAPTER_LFM25_ROZSZERZONY.nazwa
+    assert d.typy == frozenset({TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN})
+
+
+@pytest.mark.model
+def test_poziom3_z_pakietem_rozszerzonym(katalog_modeli):
+    from pathlib import Path
+
+    if not (Path(katalog_modeli) / "lfm25" / "q4-bl32" / "model.onnx").is_file():
+        pytest.skip("brak LFM2.5 q4-bl32")
+    d = zbuduj_poziom(3, katalog_modeli, próg_osoba=0.2, pakiet_rozszerzony=True)
+    assert d.nazwa == "poziom3+rozszerzony"
+    assert TypEncji.SWIFT in d.typy and TypEncji.OSOBA in d.typy

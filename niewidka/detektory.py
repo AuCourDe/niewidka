@@ -318,6 +318,22 @@ ADAPTER_LFM25 = AdapterModelu(
 )
 
 
+# K7b pakiet Rozszerzony (decyzja orkiestratora po K2e/K7a): LFM2.5 Q4 działa
+# WYŁĄCZNIE jako detektor typów, których reguły i bardsai nie obsługują —
+# IP, karta płatnicza, SWIFT i loginy — i tylko tam, gdzie zakres nie nachodzi
+# na inne wykrycia. Nie dotyka OSOBA ani typów regułowych (pomiar K2b/K2c/K2e:
+# tam szkodzi).
+ADAPTER_LFM25_ROZSZERZONY = AdapterModelu(
+    nazwa="onnx:lfm25-rozszerzony",
+    mapa={
+        ("contact.ip_address",): TypEncji.IP,
+        ("financial.credit_card",): TypEncji.KARTA,
+        ("financial.swift_bic",): TypEncji.SWIFT,
+        ("online.username",): TypEncji.LOGIN,
+    },
+)
+
+
 # Mapowanie klas LFM2.5 -> typy Niewidki (K2e; pełny schemat 27 typów w
 # ~/models/niewidka/lfm25/label_schema.json). Klasy poza mapą Niewidka
 # dziś nie wykrywa — pomiar K2e raportuje je pod własnymi nazwami LFM2.5.
@@ -361,18 +377,22 @@ def wczytaj_lfm25(
     provider: str = "CPUExecutionProvider",
     okno: int = 510,
     krok: int = 448,
+    rozszerzony: bool = False,
 ) -> OnnxDetektor:
     """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`, K2b).
 
     Wariant wybiera katalog kwantyzacji; oba mają manifest SHA-256 z eksportu.
+    K7b: `rozszerzony=True` = adapter pakietu Rozszerzonego (tylko IP/KARTA/
+    SWIFT/LOGIN); pomiar K2e: te typy to jedyny realny zysk z tego modelu.
     """
     podkatalog = katalog / "lfm25" / wariant
+    adapter = ADAPTER_LFM25_ROZSZERZONY if rozszerzony else ADAPTER_LFM25
     config = json.loads((podkatalog / "config.json").read_text(encoding="utf-8"))
     return OnnxDetektor(
-        nazwa=ADAPTER_LFM25.nazwa,
+        nazwa=adapter.nazwa,
         model=podkatalog / "model.onnx",
         tokenizer=podkatalog / "tokenizer.json",
-        etykiety=ADAPTER_LFM25.mapa,
+        etykiety=adapter.mapa,
         id2etykieta=config.get("id2label", {}),
         okno=okno,
         krok=krok,
@@ -420,6 +440,7 @@ def zbuduj_poziom(
     provider: str = "CPUExecutionProvider",
     próg_osoba: float = PROG_OSOBA_DOMYSLNY,
     reguly: Detektor | None = None,
+    pakiet_rozszerzony: bool = False,
 ) -> Detektor:
     """Poziomy produktu (suwak jakości, K2d) — JEDYNA funkcja składająca poziom;
     używa jej rdzeń (`rdzen.zbuduj_detektor`) i pomiar (`narzedzia.pomiar`), więc
@@ -428,7 +449,10 @@ def zbuduj_poziom(
     1 = reguły + bardsai (bez progu, bez półkroku); 2 = wariant A (`docs/WYNIK-K2d.md`:
     bardsai z progiem pewności OSOBA `próg_osoba` + drugi przebieg okien o pół kroku);
     3 = wariant B (2 + słownik imion GUS, CC0). `reguly` = podmiana warstwy reguł
-    (rdzeń wstawia filtr `_BezDaty` przy `wykrywaj_date=False`).
+    (rdzeń wstawia filtr `_BezDaty` przy `wykrywaj_date=False`). K7b:
+    `pakiet_rozszerzony=True` oblewa poziom 3 LFM2.5 Q4 z pakietu Rozszerzonego
+    (tylko IP/KARTA/SWIFT/LOGIN, bez nachodzenia); podkatalog `lfm25/q4-bl32`
+    jest warunkiem — bez pakietu poziom 3 działa jak dotąd.
     """
     if poziom not in (1, 2, 3):
         raise ValueError(f"poziom poza 1-3: {poziom}")
@@ -443,10 +467,20 @@ def zbuduj_poziom(
         return DetektorKompozyt("poziom1", [warstwa_regul, model])
     if poziom == 2:
         return DetektorKompozyt("poziom2", [warstwa_regul, model])
-    return DetektorUzupełniający(
+    poziom3 = DetektorUzupełniający(
         "poziom3",
         podstawa=[warstwa_regul, model],
         uzup=SlownikImionDetektor(),
+    )
+    if not pakiet_rozszerzony:
+        return poziom3
+    return DetektorUzupełniający(
+        "poziom3+rozszerzony",
+        podstawa=[poziom3],
+        uzup=wczytaj_lfm25(katalog, wariant="q4-bl32", provider=provider, rozszerzony=True),
+        typy_uzup=frozenset(
+            {TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}
+        ),
     )
 
 
@@ -532,8 +566,9 @@ class DetektorKompozyt:
 
 class DetektorUzupełniający:
     """Poziom 2 wariant uzupełniający (K2c): reguły + bardsai jako podstawa,
-    LFM2.5 dodaje OSOBA WYŁĄCZNIE tam, gdzie nie nachodzi na żaden zakres
-    z reguł ani bardsai (bardsai/reguły mają pierwszeństwo granic).
+    LFM2.5 dodaje zakresy WYŁĄCZNIE wybranych typów (`typy_uzup`, domyślnie
+    OSOBA) tam, gdzie nie nachodzą na żaden zakres z podstawy (podstawa ma
+    pierwszeństwo granic). K7b: pakiet Rozszerzony podaje 4 typy poza regułami.
     """
 
     def __init__(
@@ -542,22 +577,24 @@ class DetektorUzupełniający:
         podstawa: list[Detektor],
         uzup: Detektor,
         wariant_b: bool = False,
+        typy_uzup: frozenset[TypEncji] | None = None,
     ):
         self.nazwa = nazwa
         self.podstawa = podstawa
         self.uzup = uzup
         self.wariant_b = wariant_b
+        self.typy_uzup = typy_uzup or frozenset({TypEncji.OSOBA})
         self.typy: frozenset[TypEncji] = frozenset().union(
-            *(c.typy for c in podstawa), *(uzup.typy)
-        )
+            *(c.typy for c in podstawa)
+        ) | (frozenset(uzup.typy) & self.typy_uzup)
 
     def znajdz(self, tekst: str) -> list[Zakres]:
         kandydaci_podstawa = [z for czesc in self.podstawa for z in czesc.znajdz(tekst)]
         kandydaci_uzup = self.uzup.znajdz(tekst)
-        # Dodaj tylko te zakresy LFM2.5, które nie nachodzą na żaden zakres z podstawy
+        # Dodaj tylko wybrane typy i tylko tam, gdzie nie nachodzą na podstawę
         dodatkowe: list[Zakres] = []
         for z in kandydaci_uzup:
-            if z.typ != TypEncji.OSOBA:
+            if z.typ not in self.typy_uzup:
                 continue
             # sprawdź czy nachodzi na cokolwiek z podstawy
             nachodzi = False
