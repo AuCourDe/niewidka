@@ -14,6 +14,7 @@ from __future__ import annotations
 import html
 import multiprocessing
 import os
+import re
 import socket
 import sys
 import threading
@@ -211,10 +212,28 @@ class Most:
         return {"stan": "ok"}
 
 
+def _komunikat_systemowy(tresc: str) -> None:
+    """Ostatnia deska: natywne okno komunikatu, gdy webview sam nie działa."""
+    czysty = re.sub(r"\n{2,}", "\n", re.sub(r"<[^>]+>", "\n", tresc)).strip()
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, czysty, "Niewidka", 0x10)  # MB_ICONERROR
+    except Exception:  # noqa: BLE001 — brak windll (POSIX): stderr, by nie umrzeć po cichu
+        print(czysty, file=sys.stderr)
+
+
 def _pokaz(modul_webview, tresc: str) -> None:
-    """Ekran awarii startu: okno z komunikatem, zamykane przez użytkownika."""
-    modul_webview.create_window("Niewidka", html=tresc, width=640, height=420)
-    modul_webview.start()
+    """Ekran awarii startu: okno z komunikatem; gdy webview sam nie działa,
+    natywny komunikat systemowy (aplikacja bez konsoli nie może umrzeć po cichu)."""
+    if modul_webview is not None:
+        try:
+            modul_webview.create_window("Niewidka", html=tresc, width=640, height=420)
+            modul_webview.start()
+            return
+        except Exception as blad:  # noqa: BLE001 — webview padł: zostaje komunikat systemowy
+            print(f"webview nie zadziałal: {type(blad).__name__}", file=sys.stderr)
+    _komunikat_systemowy(tresc)
 
 
 def uruchom(*, detektor=None, webview=None) -> int:
@@ -225,13 +244,12 @@ def uruchom(*, detektor=None, webview=None) -> int:
     _ukryj_strumienie_bez_konsoli()
     przygotuj_srodowisko()
     modul_webview = webview
-    if modul_webview is None:
-        import webview
-
-        modul_webview = webview
-
-    konfig = wczytaj_konfig()
     try:
+        if modul_webview is None:
+            import webview
+
+            modul_webview = webview
+        konfig = wczytaj_konfig()
         # ładowanie wag tu = kontrola manifestu SHA-256 przy starcie (detektory.py)
         aplikacja = create_app(konfig, detektor=detektor)
     except Exception as blad:  # noqa: BLE001 — okno bez konsoli: awaria musi być widoczna
@@ -256,23 +274,31 @@ def uruchom(*, detektor=None, webview=None) -> int:
     most = Most(konfig, url)
     try:
         pobierz_klucz(konfig)
+        strona, tytul = url, "Niewidka"
     except BrakKlucza:
-        most.okno = modul_webview.create_window(
-            "Niewidka: konfiguracja klucza",
-            html=STRONA_KONFIGURACJI,
-            js_api=most,
-            width=SZEROKOSC_OKNA,
-            height=WYSOKOSC_OKNA,
-        )
-    else:
-        most.okno = modul_webview.create_window(
-            "Niewidka",
-            url=url,
-            js_api=most,
-            width=SZEROKOSC_OKNA,
-            height=WYSOKOSC_OKNA,
-        )
-    modul_webview.start()
+        strona, tytul = None, "Niewidka: konfiguracja klucza"
+    try:
+        if strona is None:
+            most.okno = modul_webview.create_window(
+                tytul,
+                html=STRONA_KONFIGURACJI,
+                js_api=most,
+                width=SZEROKOSC_OKNA,
+                height=WYSOKOSC_OKNA,
+            )
+        else:
+            most.okno = modul_webview.create_window(
+                tytul,
+                url=strona,
+                js_api=most,
+                width=SZEROKOSC_OKNA,
+                height=WYSOKOSC_OKNA,
+            )
+        modul_webview.start()
+    except Exception as blad:  # noqa: BLE001 — awaria okna: komunikat systemowy, nie cisza
+        serwer.zatrzymaj()
+        _pokaz(modul_webview, strona_bledu(f"{type(blad).__name__}: {blad}"))
+        return 1
     serwer.zatrzymaj()  # zamknięcie okna kończy serwer
     return 0
 

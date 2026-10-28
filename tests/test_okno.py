@@ -185,6 +185,30 @@ def test_ekran_konfiguracji_ma_klucz_i_konfig_konfiguracja(srodowisko):
     assert most.konfig.keyring_usluga == USLUGA
 
 
+def test_awaria_importu_webview_ma_komunikat_systemowy(srodowisko, keyring_pamieciowy, monkeypatch):
+    """webview nie do importu: proces okienkowy nie może umrzeć po cichu (bez konsoli)."""
+    monkeypatch.setitem(sys.modules, "webview", None)  # import webview rzuci ImportError
+    zapisane: list[str] = []
+    monkeypatch.setattr(okno, "_komunikat_systemowy", zapisane.append)
+    kod = okno.uruchom(detektor=AtrapaDetektora())
+    assert kod == 1
+    assert zapisane and "Niewidka" in zapisane[0]
+
+
+def test_awaria_okna_webview_ma_fallback_systemowy(srodowisko, keyring_pamieciowy, monkeypatch):
+    """create_window padło (np. brak zasobów webview): komunikat idzie do systemu."""
+
+    class AtrapaPadajaca(AtrapaWebview):
+        def create_window(self, *args, **kwargs):
+            raise RuntimeError("Directory 'webview' does not exist")
+
+    zapisane: list[str] = []
+    monkeypatch.setattr(okno, "_komunikat_systemowy", zapisane.append)
+    kod = okno.uruchom(detektor=AtrapaDetektora(), webview=AtrapaPadajaca())
+    assert kod == 1
+    assert zapisane and "webview" in zapisane[0]
+
+
 def test_teksty_gui_bez_polpauz_i_pauz():
     """Zlecenie 12:55: zero półpauz i pauz w tekstach GUI."""
     for tresc in (okno.STRONA_KONFIGURACJI, okno.strona_bledu("przykładowy komunikat")):
