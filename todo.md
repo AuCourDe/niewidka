@@ -54,7 +54,7 @@
   - [x] Repo prywatne https://github.com/AuCourDe/niewidka (push main)
   - [x] Korpus +120 próbek, autor zewnętrzny (commit `10c77f6`, 182 próbki; ujawnił 3 FN reguł, naprawione `3af2316`)
   - [x] K2b + K3 (claude-glm e79f): LFM2.5 odrzucony pomiarem (unia psuje recall/precision, `docs/WYNIK-K2b.md`); TXT+DOCX z allowlistą i weryfikacją zapisu; 195 passed/1 xfail (zweryfikowane 11:30)
-  - [~] K4 mapa+API (claude-glm c143, /tmp/cc-glm-k4.md)
+  - [x] K4 mapa+API (claude-glm c143, /tmp/cc-glm-k4.md) — zrealizowane 2026-10-28, `docs/WYNIK-K4.md`, 256 passed/1 xfailed, ruff czysty
   - [~] Poziom 2 wariant „uzupełniający” LFM2.5 bez unii (opencode-kilo 5bc6, /tmp/cc-oc-k2c.md) -> `docs/WYNIK-K2c.md`
   - [x] Przegląd bezpieczeństwa DOCX (Gemini agy3): 15 punktów, 7 krytycznych -> `docs/konsultacje/05-przeglad-docx-gemini.md`
   - [ ] K3b zamknięcie wycieków DOCX + kontrola zapisu niezależna od adaptera (claude-glm, startuje po K4; /tmp/cc-glm-k3b.md, log /tmp/cc-k3b-start.log)
@@ -65,15 +65,15 @@
     - [x] Pomiar poziomu 2 → `docs/WYNIK-K2b.md`: **zysku brak — strata** (unia z rozmytymi granicami LFM2.5 psuje dokładne trafienia bardsai: OSOBA 0.971/0.943 → 0.922/0.888 fp32); LFM2.5 nie wchodzi; decyzja orkiestratora zapisana (brama nie blokuje, próg bez zmian, R95 odświeżone OSOBA 0.0736)
     - [x] K3: adaptery TXT i DOCX (runy + tabele + pola tekstowe; czyszczone komentarze/przypisy/nagłówki/stopki/właściwości/miniatura/customXml; w:del usunięte, w:ins treść; hiperłącza http zostają, mailto rozpakowane; allowlista – makra i osadzone obiekty = blokada), dopisek ZANONIMIZOWANO, nazwa `ZANONIMIZOWANY_<krótki-id>.<ext>`, weryfikacja zapisu ZAWSZE = `niewidka/kontrola.py` + round-trip (0 nowych znalezisk); descr obrazów czyszczone; generator wzorców (python-docx); przegląd panelu NIM 6/13 (2 defekty naprawione: Content_Types Default, core.xml); pełny zestaw **195 zielonych** + 1 xfail, ruff czysty; push `9c50dd8`
   - [ ] K5 web (moje-human-frontend, stonowane kolory), K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu
-- [~] (właściciel) ZADANIE K4 — mapa, przywracanie, API: TDD, REUŻYJ istniejące moduły (model, znaczniki, formaty/, kontrola, jakosc), kod prosty, bez duplikacji, komentarze tylko gdy niezbędne. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm) + push. Bez Dockera, bez codex.
-  - [ ] konfig.py: TOML + env (env wygrywa), wszystkie klucze z LLD §14, nic na sztywno
-  - [ ] klucze.py: pobierz_klucz — plik NIEWIDKA_KLUCZ_PLIK (base64 32 B, 0600 POSIX) albo keyring; brak obu = BrakKlucza, zero fallbacku; klucz nigdy w logach/wyjątkach/repr; CLI nowy-plik / do-keyringa
-  - [ ] mapa.py: format LLD §8, AES-256-GCM (cryptography), NWID+wersja+nonce, identyfikator jako AAD; przywroc() po (oznaczenie, wariant), działa po przestawieniu zdań, rozbieżności (znaczniki bez wpisu, wpisy niewykorzystane)
-  - [ ] rdzeń: ukryj(dane, format, poziom) -> (wynik, mapa, raport) + przywroc(...) — jedno API dla API i przyszłego desktopu
-  - [ ] api.py FastAPI wg LLD §12: /api/ukryj (ZIP + X-Niewidka-*), /api/przywroc, /api/stan; 127.0.0.1 z konfiguracji, token sesji, walidacja Host/Origin, limity przed buforowaniem i po dekompresji, RAM, no-store, pula wątków + Semaphore(1) + timeout, kolejka 503 + Retry-After, middleware UUID bez treści, fail-closed detektor; błędy wg LLD §15
-  - [ ] tests/test_api.py: round-trip TXT/DOCX (+po przestawieniu zdań), mapa bez klucza, zły klucz/bajt 422, niezgodny identyfikator 422, kolejka 503, za duży 413, zły format 415, brak tokenu/zły Origin 403, caplog bez treści i klucza
-  - [ ] żywy serwer (uvicorn, wolny port po `ss -tlnp`) + curl ukryj/przywróć TXT i DOCX → docs/WYNIK-K4.md
-  - [ ] pełny pytest (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff → WYNIK-K4.md; statusy K4 w docs/KAMIENIE.md i todo.md
+- [x] (właściciel) ZADANIE K4 — mapa, przywracanie, API: TDD, REUŻYJ istniejące moduły (model, znaczniki, formaty/, kontrola, jakosc), kod prosty, bez duplikacji, komentarze tylko gdy niezbędne. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm) + push. Bez Dockera, bez codex.
+  - [x] konfig.py: TOML + env (env wygrywa), wszystkie klucze z LLD §14 (commit `c5b3328`)
+  - [x] klucze.py: plik 0600/keyring, BrakKlucza bez fallbacku, klucz poza logami/wyjątkami, CLI nowy-plik/do-keyringa (commit `81c74cd`)
+  - [x] mapa.py: AES-256-GCM NWID+wersja+nonce, identyfikator jako AAD, przywroc po (oznaczenie, wariant) + rozbieżności (commit `b1b0b49`)
+  - [x] rdzeń ukryj/przywroc + rejestr formatów, zapisz(dopisek) (commit `34852df`)
+  - [x] api.py FastAPI: 3 endpointy, token, Host/Origin, limity, kolejka 503, UUID bez treści, fail-closed (commit `b866d6f`)
+  - [x] tests/test_api.py: wszystkie scenariusze z zlecenia (16 zielonych)
+  - [x] żywy serwer + curl TXT (diff = identyczny) i DOCX (treść wraca cała) → `docs/WYNIK-K4.md`
+  - [x] pełny pytest 256 passed/1 xfailed + ruff czysty → WYNIK-K4.md; status K4 w KAMIENIE.md (ten wpis)
 - [~] 11:55 (właściciel) „Codex z modelem Astra - możesz go wywołać dwa razy do zbadania kodu albo doradztwa”
   - [ ] Codex/astra #1: adwersarialny przegląd bezpieczeństwa rdzenia po K4+K3b (formaty, kontrola, mapa, klucze, api) — tylko odczyt
   - [ ] Codex/astra #2: przegląd końcowy przed publikacją repo (po K5/K6)

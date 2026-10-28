@@ -74,6 +74,17 @@ znacznikami (forma powierzchniowa każdej pozycji, także po przestawieniu zdań
 mapa bez klucza nie odszyfrowuje; mapa z niezgodnym identyfikatorem → 422; pełna kolejka
 zwraca 503 (dowód: `pytest tests/test_api.py`).
 
+Status (2026-10-28, `docs/WYNIK-K4.md`): **zrealizowany** — konfig.py (TOML+env, LLD §14),
+klucze.py (plik 0600/keyring, `BrakKlucza` bez fallbacku, CLI), mapa.py (AES-256-GCM,
+identyfikator jako AAD, przywracanie po (oznaczenie, wariant) z rozbieżnościami), rdzeń
+`ukryj`/`przywroc` (jedna para dla API i desktopu, kontrola zapisu zawsze, zip-bomb),
+api.py (3 endpointy, token sesji, Host/Origin 403, limity 413 przed buforowaniem i po
+dekompresji, 415/422/500 wg LLD §15, Semaphore(1)+timeout, kolejka 503+Retry-After,
+middleware UUID bez treści). Żywy serwer: TXT round-trip identyczny (diff), DOCX wraca
+w całości; negatywy 403/415 potwierdzone curl. Dowód: `NIEWIDKA_MODELE_KATALOG=…
+pytest tests/ -q` → **256 passed, 1 xfailed**, ruff czysty (`tests/test_api.py` 16
+zielonych).
+
 ## K5 — Web lokalny (→ **MVP**)
 Zakres: `web/` — upload/wklejenie, suwak 1-3, jawny tryb („Na tym urządzeniu"), R95 +
 ostrzeżenia (bez procentowego wskaźnika), pobranie wyniku i mapy, przełącznik przywracania.
