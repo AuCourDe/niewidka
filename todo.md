@@ -16,6 +16,8 @@
   - [x] `docs/PLAN.md` (plan wykonania, testy jako pierwsze; commit ba3cad5)
   - [x] Zestaw testowy (polskie próbki + oczekiwane encje) i `KRYTERIA.md` (2026-10-28: korpus 62 próbek + progi; `docs/WYNIK-K1.md`)
   - [~] Rdzeń: wykrywanie (reguły + model), zamiana na znaczniki numerowane, mapa przywracania, ocena jakości — reguły + scalanie + osoby + znaczniki zrobione (K1, `docs/WYNIK-K1.md`); model ONNX = K2, mapa = K4, ocena jakości = K2
+  - [~] Poprawki z przeglądu Astry+Gemini (docs+kod) – claude-glm id 1028-011253-claude-glm-9d8e (/tmp/cc-glm-lld2.md)
+  - [ ] K2 (bardsai ONNX, pomiar, R95) – /tmp/cc-glm-k2.md, startuje sam po 9d8e (log /tmp/cc-k2-start.log). 🔴 Dysk /mnt/projekty 100% (1,5 GB wolne): LFM2.5 (poziom 2, 1,4 GB) czeka na miejsce – decyzja właściciela
   - [ ] Formaty: txt, docx, odt, xlsx, pdf (tekst) - ten sam format na wyjściu
   - [ ] Aplikacja web (serwer lokalny) + GUI okienkowe + Android
   - [ ] Przegląd kodu codex na końcu
