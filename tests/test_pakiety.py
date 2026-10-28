@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from conftest import dowiazanie
 
 from niewidka import pakiety
 from niewidka.pakiety import BladPakietu
@@ -401,8 +402,8 @@ def test_pobierz_nie_niszczy_ofiary_przez_symlink_czesciowego(katalog_testowy, t
     ofiara = tmp_path / "ofiara.dat"
     ofiara.write_bytes(b"WAzne DANE OFIARY" * 10)
     cel = katalog / pakiet.pliki[0].nazwa
-    cel.symlink_to(ofiara)
-    (cel.parent / (cel.name + pakiety.CZESCIOWY)).symlink_to(ofiara)
+    dowiazanie(cel, ofiara)
+    dowiazanie(cel.parent / (cel.name + pakiety.CZESCIOWY), ofiara)
     klient = httpx.Client(transport=_transport(katalog_testowy["tresci"]))
     pakiety.pobierz(pakiet, katalog, "http://x/", klient=klient)
     assert ofiara.read_bytes() == b"WAzne DANE OFIARY" * 10
@@ -416,7 +417,7 @@ def test_instaluj_offline_nie_niszczy_ofiary_przez_symlink(katalog_testowy, tmp_
     ofiara = tmp_path / "raport.txt"
     ofiara.write_bytes("treść ofiary".encode())
     for plik in pakiet.pliki:
-        (katalog / (Path(plik.nazwa).name + pakiety.CZESCIOWY)).symlink_to(ofiara)
+        dowiazanie(katalog / (Path(plik.nazwa).name + pakiety.CZESCIOWY), ofiara)
     lustro = _lustro(katalog_testowy, tmp_path)
     pakiety.instaluj_z_katalogu(pakiet, katalog, lustro)
     assert ofiara.read_bytes() == "treść ofiary".encode()
@@ -432,7 +433,7 @@ def test_manifest_atomowo_nie_niszczy_ofiary(katalog_testowy, tmp_path):
     podkatalog.mkdir(parents=True)
     ofiara = tmp_path / "ofiara.json"
     ofiara.write_bytes(b"{}")
-    (podkatalog / "manifest.json").symlink_to(ofiara)
+    dowiazanie(podkatalog / "manifest.json", ofiara)
     lustro = _lustro(katalog_testowy, tmp_path)
     pakiety.instaluj_z_katalogu(rozszerzony, katalog, lustro)
     assert ofiara.read_bytes() == b"{}"
@@ -446,7 +447,7 @@ def test_pobierz_odrzucca_symlink_w_sciezce_podkatalogu(katalog_testowy, tmp_pat
     (katalog / "lfm25").mkdir(parents=True)
     obcy = tmp_path / "obcy"
     obcy.mkdir()
-    (katalog / "lfm25" / "q4-bl32").symlink_to(obcy)
+    dowiazanie(katalog / "lfm25" / "q4-bl32", obcy)
     klient = httpx.Client(transport=_transport(katalog_testowy["tresci"]))
     with pytest.raises(BladPakietu):
         pakiety.pobierz(rozszerzony, katalog, "http://x/", klient=klient)

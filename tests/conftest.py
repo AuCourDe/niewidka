@@ -63,3 +63,19 @@ def keyring_pamieciowy():
     keyring.set_keyring(backend)
     yield backend
     keyring.set_keyring(stary)
+
+
+def dowiazanie(link: Path, cel: Path) -> None:
+    """Dowiązanie dla testów ataku. Windows bez uprawnień do symlinków (WinError 1314):
+    katalog dostaje junction (też reparse point, bez uprawnień), plik = pominięcie testu
+    (pełne pokrycie na Linuksie i runnerze CI)."""
+    try:
+        link.symlink_to(cel)
+    except OSError as blad:
+        if os.name != "nt" or getattr(blad, "winerror", None) != 1314:
+            raise
+        if not cel.is_dir():
+            pytest.skip("Windows bez uprawnień do dowiązań symbolicznych plików")
+        import _winapi
+
+        _winapi.CreateJunction(str(cel), str(link))

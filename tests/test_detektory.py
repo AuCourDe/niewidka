@@ -7,6 +7,7 @@ modelu mają marker `model` i są pomijane, gdy wag nie ma w katalogu modeli.
 from __future__ import annotations
 
 import pytest
+from conftest import dowiazanie
 
 from niewidka.detektory import okna_tokenow, zdekoduj_bio
 from niewidka.model import TypEncji
@@ -939,6 +940,6 @@ def test_wczytaj_bardsai_symlink_zamiast_pliku_odpada(tmp_path):
     obcy = tmp_path / "ofiara.txt"
     obcy.write_bytes(b"dane ofiary")
     (katalog / "model.onnx").unlink()
-    (katalog / "model.onnx").symlink_to(obcy)
+    dowiazanie(katalog / "model.onnx", obcy)
     with pytest.raises(BladDetektora):
         wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
