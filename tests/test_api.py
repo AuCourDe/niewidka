@@ -372,3 +372,12 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
     assert "44051401359" not in caplog.text
     assert base64.b64encode(KLUCZ).decode() not in caplog.text
     assert identyfikator_bledu in caplog.text
+
+
+def test_ostrzezenia_lista_zawiera_czesc_archiwum():
+    """K3b: skan surowy raportuje część archiwum — klient ma ją widzieć."""
+    from niewidka.api import _ostrzezenia_lista
+    from niewidka.kontrola import Ostrzezenie
+
+    lista = _ostrzezenia_lista([Ostrzezenie("ORYGINAL", "44051401359", -1, "word/settings.xml")])
+    assert lista == [{"typ": "ORYGINAL", "fragment": "44051401359", "segment": -1, "czesc": "word/settings.xml"}]

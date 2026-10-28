@@ -84,3 +84,17 @@
 - [~] 11:55 (właściciel) „Codex z modelem Astra - możesz go wywołać dwa razy do zbadania kodu albo doradztwa”
   - [ ] Codex/astra #1: adwersarialny przegląd bezpieczeństwa rdzenia po K4+K3b (formaty, kontrola, mapa, klucze, api) — tylko odczyt
   - [ ] Codex/astra #2: przegląd końcowy przed publikacją repo (po K5/K6)
+- [~] 12:40 (właściciel) ZADANIE K5 — interfejs web w `niewidka/web/` (index.html + apka.js + styl.css, bez frameworka, bez CDN, offline), serwowany przez api.py (StaticFiles na /, token sesji wstrzyknięty w HTML, nie w URL)
+  - [ ] Kolejność skilli obowiązkowa przed kodem: moje-human-frontend -> impeccable (shape->audit/critique->polish) -> frontend-design -> web-design-guidelines (audyt plik:linia do docs/WYNIK-K5.md)
+  - [ ] UI: wklej tekst ALBO plik (TXT/DOCX), suwak „Jakość wykrywania danych” 1-3 (Szybko/Dokładniej/Najdokładniej), „Ukryj dane”; wynik: podgląd z wyróżnionymi znacznikami + Kopiuj, pobranie wyniku i mapy .nwidka (jasne „zachowaj mapę”)
+  - [ ] Ocena jakości: R95 jako „szacowane ryzyko pominięcia” per typ, ostrzeżenia wyraźnie, status zablokowany = czerwony komunikat „wyniku NIE wolno wysyłać”
+  - [ ] Zakładka „Przywróć dane”: wynik + mapa -> plik/tekst przywrócony, rozbieżności po ludzku; jawny tryb „Na tym urządzeniu” (dane nie opuszczają komputera); błędy 413/415/422/503 po polsku
+  - [ ] tests/test_web.py (TestClient: strona się serwuje, token tylko w treści, brak zewnętrznych zasobów) + E2E Playwright (wklej->ukryj->znaczniki->przywróć); zrzuty 1440 i 390 do docs/zrzuty/k5-*.png
+  - [ ] pytest całości (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff zielone -> docs/WYNIK-K5.md; commit po zielonym kroku (Co-Authored-By: GLM via claude-glm), pull --rebase, push; bez Dockera, bez codex; NIE zmieniać niewidka/formaty/ ani kontrola.py
+- [~] 12:25 (właściciel) zwece K2d przejęte od opencode 9f61 (brak śladu w repo) — „zbuduj i zmierz dwa warianty poziomu 2”: A) bardsai z obniżonym progiem pewności dla OSOBA (2-3 wartości) + drugi przebieg okien przesuniętych o pół kroku; B) A + słownik polskich imion GUS/dane.gov.pl (licencja otwarta, źródło w docs; plik w niewidka/dane/, max kilka tysięcy najczęstszych) — imię z listy + następne słowo z wielkiej litery = OSOBA, każda forma fleksyjna przez temat imienia.
+  - [ ] detektory.py: próg pewności OSOBA w OnnxDetektor + przebieg półkrokowy okien + wykrywacz słownikowy; testy odmian Jan/Jana/Janem, Anna/Anny/Annie w tests/test_detektory.py
+  - [ ] narzedzia/pomiar.py: tryby --detektor poziom2-a / poziom2-b (+ --prog-osoba)
+  - [ ] niewidka/dane/imiona_gus.txt + źródło i licencja pobrania w docs (skrypt narzędziowy)
+  - [ ] pomiar poziom 1 / A (3 progi) / B na korpusie 182 (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + lista FN poziomu 1 złapanych przez A/B
+  - [ ] docs/WYNIK-K2d.md (OSOBA TP/FP/FN, recall, precision, czas, RAM; werdykt wg KRYTERIA §4, próg bez zmian)
+  - [ ] pełny pytest + ruff zielone; commit tylko własnych plików, pull --rebase, push; bez Dockera; NIE zmieniać niewidka/formaty/, kontrola.py, api.py

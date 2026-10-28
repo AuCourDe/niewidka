@@ -144,7 +144,11 @@ def ukryj(
         wystapienia=wystapienia,
     )
     wynik = adapter.zapisz(dok)
-    ostrzezenia = kontroluj(wynik, f"wynik.{format}", detektor)
+    # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
+    oryginaly = {wyst.oryginal for wyst in wystapienia} | {
+        forma for wpis in wpisy.values() for forma in wpis.formy.values()
+    }
+    ostrzezenia = kontroluj(wynik, f"wynik.{format}", detektor, oryginaly=sorted(oryginaly))
     raport = Raport(
         identyfikator=mapa.identyfikator,
         poziom=poziom,

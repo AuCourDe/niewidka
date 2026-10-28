@@ -68,3 +68,94 @@ class RegulyAtrapa:
         from niewidka.scalanie import scal
 
         return scal(tekst, znajdz_reguly(tekst))
+
+
+# --- skan surowy archiwum (K3b): kontrola NIEZALEŻNA od adaptera --------------
+
+import io
+import zipfile
+
+from narzedzia.generator_dokumentow import zapisz_podstawowy
+
+
+def _docx_przebuduj(dane: bytes, podmien: dict[str, bytes] | None = None, dodaj: dict[str, bytes] | None = None) -> bytes:
+    """DOCX po przebudowie: podmiana istniejących części + dołożenie nowych."""
+    zrodlo = zipfile.ZipFile(io.BytesIO(dane))
+    czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
+    zrodlo.close()
+    czesci.update(podmien or {})
+    czesci.update(dodaj or {})
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        for nazwa, zawartosc in czesci.items():
+            paczka.writestr(nazwa, zawartosc)
+    return bufor.getvalue()
+
+
+def _settings_z_pesel() -> bytes:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f'<w:writeProtection w:author="{PESEL}"/></w:settings>'
+    ).encode()
+
+
+PESEL = "44051401359"
+
+
+class TestSkanSurowy:
+    """Kontrola skanuje SUROWO każdą część archiwum, także tę, której adapter
+    nie parsuje (Gemini: notka pod przeglądem — kontrola przez ten sam adapter
+    ma te same martwe punkty)."""
+
+    def test_pesel_w_atrybucie_czesci_nieczytanej_przez_adapter(self):
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, podmien={"word/settings.xml": _settings_z_pesel()})
+
+        uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa())
+
+        peselowe = [u for u in uwagi if u.typ == "PESEL"]
+        assert peselowe, f"kontrola nie widzi PESEL w settings.xml: {uwagi}"
+        assert any(u.czesc == "word/settings.xml" for u in peselowe)
+
+    def test_oryginal_z_mapy_w_archiwum_ostrzezenie_krytyczne(self):
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, podmien={"word/settings.xml": _settings_z_pesel()})
+
+        uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa(), oryginaly=[PESEL])
+
+        assert any(u.typ == "ORYGINAL" and u.fragment == PESEL for u in uwagi)
+
+    def test_oryginal_w_czesci_nie_xml(self):
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, dodaj={"word/media/skrytka.bin": f"losowe dane {PESEL} koniec".encode()})
+
+        uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa(), oryginaly=[PESEL])
+
+        assert any(u.typ == "ORYGINAL" and u.czesc == "word/media/skrytka.bin" for u in uwagi)
+
+    def test_czysty_wynik_z_oryginalami_zero_ostrzezen(self):
+        """PESEL zamieniony na znacznik i nigdzie w archiwum nieobecny = bez alarmu."""
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        wynik = _zakryj_docx_regulami(dane)
+
+        uwagi = kontroluj(wynik, "w.docx", RegulyAtrapa(), oryginaly=[PESEL, "601 234 567"])
+
+        assert uwagi == [], uwagi
+
+
+def _zakryj_docx_regulami(dane: bytes) -> bytes:
+    """DOCX → reguły → znaczniki (uproszczony przebieg ukryj, bez modeli)."""
+    from niewidka.formaty import adapter_dla
+
+    adapter = adapter_dla("w.docx")
+    dok = adapter.wczytaj(dane)
+    for segment in dok.segmenty:
+        licznik: dict[str, int] = {}
+        zamiany = []
+        for z in znajdz_reguly(segment.tekst):
+            licznik[z.typ.value] = licznik.get(z.typ.value, 0) + 1
+            zamiany.append((z.start, z.koniec, f"[{z.typ.value}_{licznik[z.typ.value]}]"))
+        if zamiany:
+            adapter.wstaw_znaczniki(segment, zamiany)
+    return adapter.zapisz(dok)

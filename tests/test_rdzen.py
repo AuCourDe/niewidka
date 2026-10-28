@@ -171,6 +171,38 @@ def test_kontrola_nowe_znajdziska_blokuja_status():
     assert raport2.ostrzezenia and raport2.status == "ukonczony"
 
 
+def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
+    """K3b: PESEL schowany w części, której adapter nie parsuje (settings.xml),
+    omija wykrywanie i zamianę — kontrola z oryginałami mapy musi go zgłosić."""
+    import io
+    import zipfile
+
+    wzorzec = zapisz_podstawowy(tmp_path / "w.docx").read_bytes()
+    settings = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        b'<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        b'<w:writeProtection w:author="44051401359"/></w:settings>'
+    )
+    zrodlo = zipfile.ZipFile(io.BytesIO(wzorzec))
+    czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
+    zrodlo.close()
+    czesci["word/settings.xml"] = settings
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        for nazwa, zawartosc in czesci.items():
+            paczka.writestr(nazwa, zawartosc)
+
+    _wynik, mapa, raport = ukryj(bufor.getvalue(), "docx", 1, detektor=RegulyDetektor())
+
+    oryginaly = [w.oryginal for w in mapa.wystapienia]
+    assert "44051401359" in oryginaly
+    assert any(
+        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/settings.xml"
+        for o in raport.ostrzezenia
+    )
+    assert raport.status == "zablokowany"
+
+
 def test_ukryj_bez_detektora_i_konfiguracji_blad():
     with pytest.raises(ValueError):
         ukryj(TEKST, "txt", 1)

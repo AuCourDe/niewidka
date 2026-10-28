@@ -86,7 +86,10 @@ def _json_naglowek(wartosc: Any) -> str:
 
 
 def _ostrzezenia_lista(ostrzezenia: list[Ostrzezenie]) -> list[dict]:
-    return [{"typ": o.typ, "fragment": o.fragment, "segment": o.segment} for o in ostrzezenia]
+    return [
+        {"typ": o.typ, "fragment": o.fragment, "segment": o.segment, "czesc": o.czesc}
+        for o in ostrzezenia
+    ]
 
 
 def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
