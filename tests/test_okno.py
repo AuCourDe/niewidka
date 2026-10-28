@@ -6,6 +6,7 @@ zamknięcie okna = zatrzymanie serwera. pywebview mockowany; serwer realny na 12
 from __future__ import annotations
 
 import base64
+import json
 import socket
 import sys
 import urllib.request
@@ -167,14 +168,25 @@ def test_most_blad_magazynu_jest_jawny(srodowisko, keyring_pamieciowy):
     assert "magazyn" in wynik["komunikat"]
 
 
-def test_uruchom_bez_wag_ekran_bledu_i_kod_1(srodowisko, keyring_pamieciowy):
-    # przygotuj_srodowisko ustawi <repo>/modele, którego nie ma: create_app fail-closed
-    atrapa = AtrapaWebview()
+def test_uruchom_bez_wag_aplikacja_wstaje_z_ekranem_pakietow(srodowisko, keyring_pamieciowy):
+    """K7b: brak wag NIE zabija startu — aplikacja wstaje, a brak pakietu
+    prowadzi do ekranu pierwszego uruchomienia w web (GET /api/pakiety = brak)."""
+    keyring.set_password(USLUGA, "mapa", KLUCZ)
+
+    class AtrapaZPakietami(AtrapaWebview):
+        def start(self):
+            url = self.okna[0].kwargs.get("url")
+            if not url:
+                return
+            with urllib.request.urlopen(f"{url}api/pakiety", timeout=5) as odpowiedz:
+                self.dane_pakietow = json.loads(odpowiedz.read())
+
+    atrapa = AtrapaZPakietami()
     kod = okno.uruchom(detektor=None, webview=atrapa)
-    assert kod == 1
-    kwargs = atrapa.okna[0].kwargs
-    assert "html" in kwargs  # ekran błędu, nie URL
-    assert "wag" in kwargs["html"].lower() or "modele" in kwargs["html"].lower()
+    assert kod == 0
+    dane = atrapa.dane_pakietow
+    assert dane["poziomy_dostepne"] == []
+    assert dane["pakiety"][0]["stan"] == "brak"
 
 
 def test_ekran_konfiguracji_ma_klucz_i_konfig_konfiguracja(srodowisko):

@@ -418,3 +418,206 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
     assert {"r95", "n", "k", "opis"} <= set(wpis)
     assert isinstance(wpis["r95"], float)
     assert wpis["opis"]
+
+
+# --- K7b: pakiety modeli przez API -------------------------------------------
+
+import json as _json
+
+from niewidka.pakiety import MenedzerPakietow, wczytaj_pakiety
+
+
+def _pakiet_testowy(tmp_path):
+    """Katalog pakietów z hashami TREŚCI TESTOWYCH + lustro HTTPX w pamięci."""
+    import hashlib
+
+    tresci = {}
+    pliki = []
+    for zrodlo in ("podstawowy-model.onnx", "podstawowy-tokenizer.json"):
+        tresc = f"tresc-{zrodlo}".encode()
+        tresci[zrodlo] = tresc
+        pliki.append(
+            {
+                "nazwa": zrodlo.replace("podstawowy-", ""),
+                "zrodlo": zrodlo,
+                "rozmiar": len(tresc),
+                "sha256": hashlib.sha256(tresc).hexdigest(),
+            }
+        )
+    dane = {
+        "pakiety": [
+            {
+                "id": "podstawowy",
+                "nazwa": "Podstawowy",
+                "opis": "testowy",
+                "wymagany": True,
+                "poziomy": [1, 2, 3],
+                "katalog_rel": "",
+                "pliki": pliki,
+            }
+        ]
+    }
+    plik = tmp_path / "pakiety.json"
+    plik.write_text(_json.dumps(dane), encoding="utf-8")
+    return plik, tresci
+
+
+def _menedzer_testowy(tmp_path):
+    plik, tresci = _pakiet_testowy(tmp_path)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nazwa = str(request.url).rsplit("/", 1)[-1]
+        if nazwa not in tresci:
+            return httpx.Response(404)
+        return httpx.Response(200, content=tresci[nazwa])
+
+    return MenedzerPakietow(
+        wczytaj_pakiety(plik),
+        tmp_path / "modele",
+        "http://x/",
+        klient=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+
+@pytest.mark.anyio
+async def test_pakiety_get_stan_i_poziomy(konfig, tmp_path):
+    app = create_app(
+        konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
+    )
+    async with _klient(app) as klient:
+        odpowiedz = await klient.get("/api/pakiety")
+    assert odpowiedz.status_code == 200
+    dane = odpowiedz.json()
+    assert [p["id"] for p in dane["pakiety"]] == ["podstawowy"]
+    assert dane["pakiety"][0]["stan"] == "brak"
+    assert dane["poziomy_dostepne"] == []
+
+
+@pytest.mark.anyio
+async def test_pakiety_post_wymaga_tokenu_i_hosta(konfig, tmp_path):
+    app = create_app(
+        konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
+    )
+    async with _klient(app) as klient:
+        assert (await klient.post("/api/pakiety", json={"akcja": "pobierz", "pakiet": "podstawowy"})).status_code == 403
+        assert (
+            await klient.post(
+                "/api/pakiety",
+                json={"akcja": "pobierz", "pakiet": "podstawowy"},
+                headers={"X-Niewidka-Token": app.state.token, "host": "zly.example"},
+            )
+        ).status_code == 403
+
+
+@pytest.mark.anyio
+async def test_pakiety_post_pobierz_usun(konfig, tmp_path):
+    menedzer = _menedzer_testowy(tmp_path)
+    app = create_app(konfig, detektor=RegulyDetektor(), menedzer_pakietow=menedzer)
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "pobierz", "pakiet": "podstawowy"},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 202
+        menedzer.czekaj()
+        stan = (await klient.get("/api/pakiety")).json()
+        assert stan["pakiety"][0]["stan"] == "zainstalowany"
+        assert stan["poziomy_dostepne"] == [1, 2, 3]
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "usun", "pakiet": "podstawowy"},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 200
+        stan = (await klient.get("/api/pakiety")).json()
+        assert stan["pakiety"][0]["stan"] == "brak"
+
+
+@pytest.mark.anyio
+async def test_pakiety_post_nieznane_wartosci_422(konfig, tmp_path):
+    app = create_app(
+        konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
+    )
+    async with _klient(app) as klient:
+        assert (
+            await klient.post(
+                "/api/pakiety", json={"akcja": "pobierz", "pakiet": "nie-ma"}, headers=_naglowki(app)
+            )
+        ).status_code == 422
+        assert (
+            await klient.post(
+                "/api/pakiety", json={"akcja": "wskocz"}, headers=_naglowki(app)
+            )
+        ).status_code == 422
+
+
+@pytest.mark.anyio
+async def test_pakiety_post_pobierz_w_toku_409(konfig, tmp_path):
+    menedzer = _menedzer_testowy(tmp_path)
+    menedzer._w_toku = True  # symulacja pobierania w toku
+    app = create_app(konfig, detektor=RegulyDetektor(), menedzer_pakietow=menedzer)
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "pobierz", "pakiet": "podstawowy"},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_pakiety_instaluj_offline_z_katalogu(konfig, tmp_path):
+    plik, tresci = _pakiet_testowy(tmp_path)
+    lustro = tmp_path / "lustro"
+    lustro.mkdir()
+    for zrodlo, tresc in tresci.items():
+        (lustro / zrodlo).write_bytes(tresc)
+    menedzer = MenedzerPakietow(
+        wczytaj_pakiety(plik), tmp_path / "modele", "http://x/", klient=httpx.Client()
+    )
+    app = create_app(konfig, detektor=RegulyDetektor(), menedzer_pakietow=menedzer)
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 200
+        stan = (await klient.get("/api/pakiety")).json()
+        assert stan["pakiety"][0]["stan"] == "zainstalowany"
+        # zły katalog: 422 z komunikatem bez treści plików
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(tmp_path / "pustka")},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_ukryj_bez_wymaganego_pakietu_409_jasny_blad(konfig, tmp_path):
+    """Poziom bez wymaganego pakietu = jasny błąd (polecenie K7b pkt 3), nie 500."""
+    app = create_app(konfig, detektor=None, menedzer_pakietow=_menedzer_testowy(tmp_path))
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"tekst": "Jan Kowalski, PESEL 44051401359.", "poziom": "2"},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 409
+    assert odpowiedz.json()["brak_pakietu"] == ["podstawowy"]
+    assert "Podstawowy" in odpowiedz.json()["blad"]
+
+
+@pytest.mark.anyio
+async def test_stan_z_pakietami_poziomy_dostepne(konfig, tmp_path):
+    menedzer = _menedzer_testowy(tmp_path)
+    app = create_app(konfig, detektor=RegulyDetektor(), menedzer_pakietow=menedzer)
+    async with _klient(app) as klient:
+        dane = (await klient.get("/api/stan")).json()
+        assert dane["poziomy_dostepne"] == []  # pakiet testowy nie zainstalowany
+        menedzer.pobierz("podstawowy")
+        menedzer.czekaj()
+        dane = (await klient.get("/api/stan")).json()
+        assert dane["poziomy_dostepne"] == [1, 2, 3]

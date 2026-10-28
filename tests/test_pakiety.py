@@ -257,3 +257,96 @@ def test_instaluj_z_katalogu_zly_plik_zglasza_blad(tmp_path):
     with pytest.raises(BladPakietu):
         pakiety.instaluj_z_katalogu(pakiet, tmp_path / "m", zrodlo)
 
+
+
+# --- K7b: MenedzerPakietow (stan dla API/UI, jedno pobieranie naraz) ----------
+
+from niewidka.pakiety import MenedzerPakietow
+
+
+@pytest.fixture()
+def menedzer(katalog_testowy, tmp_path):
+    klient = httpx.Client(transport=_transport(katalog_testowy["tresci"]))
+    return MenedzerPakietow(
+        katalog_testowy["lista"], tmp_path / "m", "http://x/", klient=klient
+    )
+
+
+def test_menedzer_lista_stanow(menedzer):
+    wpisy = menedzer.lista()
+    assert [w["id"] for w in wpisy] == ["podstawowy", "rozszerzony"]
+    assert wpisy[0]["stan"] == "brak" and wpisy[0]["wymagany"] is True
+    assert wpisy[0]["rozmiar_bajtow"] > 0 and wpisy[0]["poziomy"] == [1, 2, 3]
+
+
+def test_menedzer_pobierz_i_poziomy_dostepne(menedzer):
+    assert menedzer.poziomy_dostepne() == []  # bez pakietu żadnego poziomu nie ma
+    assert menedzer.brakujacy_wymagany() == ["podstawowy"]
+    assert menedzer.pobierz("podstawowy") is True
+    menedzer.czekaj()
+    assert menedzer.poziomy_dostepne() == [1, 2, 3]
+    assert menedzer.brakujacy_wymagany() == []
+    wpisy = {w["id"]: w for w in menedzer.lista()}
+    assert wpisy["podstawowy"]["stan"] == "zainstalowany"
+    assert menedzer.postep.pakiet is None  # pobieranie się skończyło
+
+
+def test_menedzer_jedno_pobieranie_naraz(menedzer):
+    assert menedzer.pobierz("podstawowy") is True
+    assert menedzer.pobierz("rozszerzony") is False  # w toku
+    menedzer.czekaj()
+    assert menedzer.pobierz("rozszerzony") is True
+    menedzer.czekaj()
+    wpisy = {w["id"]: w for w in menedzer.lista()}
+    assert wpisy["rozszerzony"]["stan"] == "zainstalowany"
+
+
+def test_menedzer_postep_w_toku(menedzer):
+    # zsynchronizujmy się z wątkiem pobierania przez postęp
+    menedzer.pobierz("podstawowy")
+    while menedzer.postep.pakiet is None and not menedzer.zakonczone():
+        pass  # wątek startował
+    widoczny = menedzer.postep
+    assert widoczny.razem > 0
+    menedzer.czekaj()
+
+
+def test_menedzer_blad_pobierania_jest_jawny(tmp_path, katalog_testowy):
+    def handler_404(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"], tmp_path / "m", "http://x/", klient=httpx.Client(
+            transport=httpx.MockTransport(handler_404)
+        )
+    )
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    assert "podstawowy" in (menedzer.postep.blad or "")
+
+
+def test_menedzer_usun(menedzer):
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    menedzer.usun("podstawowy")
+    wpisy = {w["id"]: w for w in menedzer.lista()}
+    assert wpisy["podstawowy"]["stan"] == "brak"
+
+
+def test_menedzer_nieznany_pakiet(menedzer):
+    assert menedzer.pobierz("nie-ma") is False
+    with pytest.raises(KeyError):
+        menedzer.usun("nie-ma")
+
+
+def test_menedzer_instaluj_z_katalogu(menedzer, katalog_testowy, tmp_path):
+    lustro = tmp_path / "lustrz"
+    for tresc in katalog_testowy["tresci"].values():
+        # nazwy plików w lustrze pochodzą z pola zrodlo
+        for plik in [p for pakiet in katalog_testowy["lista"] for p in pakiet.pliki]:
+            if katalog_testowy["tresci"][plik.zrodlo] == tresc:
+                lustro.mkdir(parents=True, exist_ok=True)
+                (lustro / plik.zrodlo).write_bytes(tresc)
+    menedzer.instaluj("podstawowy", lustro)
+    wpisy = {w["id"]: w for w in menedzer.lista()}
+    assert wpisy["podstawowy"]["stan"] == "zainstalowany"

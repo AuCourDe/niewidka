@@ -41,6 +41,13 @@ from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
 from niewidka.mapa import BladMapy, odszyfruj, zaszyfruj
+from niewidka.pakiety import (
+    BladPakietu,
+    MenedzerPakietow,
+    katalog_modeli,
+    wczytaj_pakiety,
+    zrodlo,
+)
 from niewidka.rdzen import ArchiwumZaDuze, przywroc, ukryj, zbuduj_detektor
 
 logger = logging.getLogger("niewidka.api")
@@ -49,6 +56,19 @@ _MB = 1024 * 1024
 _TOKEN_NAGLOWEK = "x-niewidka-token"
 _KATALOG_WEB = Path(__file__).parent / "web"
 _POZIOMY = (1, 2, 3)  # suwak jakości (K2d: 2 = wariant A, 3 = wariant B)
+
+
+class BrakWymaganegoPakietu(Exception):
+    """Poziom suwaka wymaga pakietu, którego nie ma (K7b → 409 z listą pakietów)."""
+
+    def __init__(self, brakujace: list[str], nazwy: list[str] | None = None):
+        self.brakujace = brakujace
+        self.nazwy = nazwy or brakujace
+        super().__init__(
+            "brakuje pakietu modeli: "
+            + ", ".join(self.nazwy)
+            + "; pobierz go w Ustawieniach albo przy pierwszym uruchomieniu"
+        )
 
 
 class KolejkaPelna(Exception):
@@ -222,13 +242,22 @@ def _licznik_typow(ostrzezenia: list[Ostrzezenie]) -> dict[str, int]:
     return licznik
 
 
-def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
-    """Aplikacja API; `detektor` wstrzyknięty (testy/desktop) albo z wag (NIEWIDKA_MODELE_KATALOG)."""
+def create_app(
+    konfig: Konfig | None = None,
+    detektor: Any = None,
+    menedzer_pakietow: MenedzerPakietow | None = None,
+) -> FastAPI:
+    """Aplikacja API; `detektor` wstrzyknięty (testy/desktop) albo z wag
+    (NIEWIDKA_MODELE_KATALOG). K7b: brak wag NIE zabija startu — aplikacja wstaje,
+    a ukrywanie odpowiada 409 z listą brakujących pakietów (ekran pierwszego
+    uruchomienia prowadzi do pobrania); `menedzer_pakietow` wstrzykiwany w testach."""
     konfig = konfig or wczytaj_konfig()
     wstrzykniety = detektor
     if wstrzykniety is None:
-        # brak wag = awaria startu (fail-closed); pozostałe poziomy buduje leniwie _detektor_dla
-        wstrzykniety = zbuduj_detektor(konfig.poziom, konfig)
+        try:
+            wstrzykniety = zbuduj_detektor(konfig.poziom, konfig)
+        except Exception:  # noqa: BLE001 — brak pakietu/wag: łagodny start (patrz wyżej)
+            wstrzykniety = None
 
     # multipart bez zrzynania na dysk: spool ≥ limit, który i tak pilnujemy przed buforowaniem
     MultiPartParser.spool_max_size = konfig.max_rozmiar_mb * _MB
@@ -250,16 +279,33 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     # K4b pkt 7: skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
     # mapa musi być jednym z nich (stare/przechwycone szyfrogramy nie podlegają odszyfrowaniu)
     app.state.szyfrogramy: dict[str, str] = {}
+    if menedzer_pakietow is None:
+        menedzer_pakietow = MenedzerPakietow(
+            wczytaj_pakiety(), katalog_modeli(), zrodlo()
+        )
+    app.state.pakiety = menedzer_pakietow
 
     def _detektor_dla(poziom: int):
         """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
         poziomy (testy/desktop); produkcyjne budowane leniwie i cache'owane — budowa
-        i tak jest serializowana przez Semaphore(1) kolejki."""
+        i tak jest serializowana przez Semaphore(1) kolejki. K7b: brak wymaganego
+        pakietu = jasny `BrakWymaganegoPakietu` (409), nie 500."""
         if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
             return detektor
         zbudowany = app.state.detektory.get(poziom)
         if zbudowany is None:
-            zbudowany = zbuduj_detektor(poziom, konfig)
+            try:
+                zbudowany = zbuduj_detektor(poziom, konfig)
+            except Exception as blad:
+                brakujace = app.state.pakiety.brakujacy_wymagany()
+                if brakujace:
+                    nazwy = [
+                        w["nazwa"]
+                        for w in app.state.pakiety.lista()
+                        if w["id"] in brakujace
+                    ]
+                    raise BrakWymaganegoPakietu(brakujace, nazwy) from blad
+                raise
             app.state.detektory[poziom] = zbudowany
         return zbudowany
     originy = {
@@ -362,6 +408,62 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             status_code=503,
             headers={"retry-after": str(konfig.timeout_s)},
         )
+
+    @app.exception_handler(BrakWymaganegoPakietu)
+    async def _brak_wymaganego_pakietu(request: Request, blad: BrakWymaganegoPakietu):
+        # K7b: poziom bez wymaganego pakietu = jasny błąd z listą pakietów do pobrania
+        return JSONResponse(
+            {"blad": str(blad), "brak_pakietu": blad.brakujace}, status_code=409
+        )
+
+    @app.exception_handler(BladPakietu)
+    async def _blad_pakietu(request: Request, blad: BladPakietu):
+        # instalacja offline z rozbieżnym SHA-256: fail-closed, pliki nie trafiają
+        # do katalogu wag; komunikat bez treści plików
+        return JSONResponse({"blad": str(blad)}, status_code=422)
+
+    @app.get("/api/pakiety")
+    async def endpoint_pakiety() -> dict:
+        """Stan pakietów + postęp bieżącej operacji (K7b); bez tokena: dane
+        nieosobowe, ale za POST-em stoi sesyjny token jak wszędzie."""
+        pakiety_stan = app.state.pakiety
+        odpowiedz = {
+            "pakiety": pakiety_stan.lista(),
+            "poziomy_dostepne": pakiety_stan.poziomy_dostepne(),
+            "postep": {
+                "pakiet": pakiety_stan.postep.pakiet,
+                "pobrane": pakiety_stan.postep.pobrane,
+                "razem": pakiety_stan.postep.razem,
+                "blad": pakiety_stan.postep.blad,
+            },
+        }
+        return odpowiedz
+
+    @app.post("/api/pakiety")
+    async def endpoint_pakiety_akcja(request: Request) -> JSONResponse:
+        """pobierz (w tle, 202) | usun (200) | instaluj z katalogu IT (200)."""
+        try:
+            zlecenie = await request.json()
+        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
+            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        akcja = zlecenie.get("akcja")
+        identyfikator = zlecenie.get("pakiet")
+        pakiety_stan = app.state.pakiety
+        znane = {w["id"] for w in pakiety_stan.lista()}
+        if akcja not in ("pobierz", "usun", "instaluj") or (akcja and identyfikator not in znane):
+            raise HTTPException(status_code=422, detail="nieznana akcja albo pakiet")
+        if akcja == "pobierz":
+            if not pakiety_stan.pobierz(identyfikator):
+                raise HTTPException(status_code=409, detail="pobieranie już trwa")
+            return JSONResponse({"stan": "pobieranie"}, status_code=202)
+        if akcja == "usun":
+            pakiety_stan.usun(identyfikator)
+            return JSONResponse({"stan": "usunieto"})
+        katalog = zlecenie.get("katalog")
+        if not katalog:
+            raise HTTPException(status_code=422, detail="instaluj wymaga katalogu")
+        pakiety_stan.instaluj(identyfikator, Path(katalog))
+        return JSONResponse({"stan": "zainstalowano"})
 
     @app.exception_handler(BladKontroli)
     async def _blad_kontroli(request: Request, blad: BladKontroli):
@@ -483,6 +585,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             "modele": modele,
             "poziom": konfig.poziom,
             "poziomy": list(_POZIOMY),  # dostępne poziomy suwaka
+            "poziomy_dostepne": app.state.pakiety.poziomy_dostepne(),  # K7b: z pakietami
             "r95": r95_poziomy(),  # R95 per poziom — interfejs pokazuje dla wybranego
             "limity": {
                 "rozmiar_mb": konfig.max_rozmiar_mb,

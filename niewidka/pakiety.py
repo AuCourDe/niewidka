@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -269,3 +270,120 @@ def instaluj_z_katalogu(
         if postep is not None:
             postep(plik.rozmiar, pakiet.rozmiar)
     _zapisz_manifest(pakiet, katalog)
+
+
+@dataclass
+class PostepPobierania:
+    """Stan bieżącej operacji (pobieranie albo instalacja) do API i UI."""
+
+    pakiet: str | None = None  # id pakietu w trakcie; None = nic trwa
+    pobrane: int = 0
+    razem: int = 0
+    blad: str | None = None
+
+
+class MenedzerPakietow:
+    """Stan pakietów + jedno pobieranie naraz w wątku tła (K7b).
+
+    Operacje rdzenia (`pobierz`, `usun`, `instaluj_z_katalogu`) wołane z wątku;
+    postęp publikowany w `PostepPobierania` dla GET /api/pakiety. `poziomy_dostepne`
+    pilnuje pakietu wymaganego: bez niego żaden poziom suwaka nie działa.
+    """
+
+    def __init__(
+        self,
+        lista: list[Pakiet],
+        katalog: Path,
+        zrodlo_bazowe: str,
+        klient: httpx.Client | None = None,
+    ):
+        self._pakiety = {p.id: p for p in lista}
+        self._katalog = Path(katalog)
+        self._zrodlo = zrodlo_bazowe
+        self._klient = klient
+        self._zajete = threading.Lock()
+        self._w_toku = False
+        self.postep = PostepPobierania()
+
+    def lista(self) -> list[dict]:
+        return [
+            {
+                "id": p.id,
+                "nazwa": p.nazwa,
+                "opis": p.opis,
+                "wymagany": p.wymagany,
+                "poziomy": p.poziomy,
+                "wymaga": p.wymaga,
+                "rozmiar_bajtow": p.rozmiar,
+                "stan": stan(p, self._katalog),
+            }
+            for p in self._pakiety.values()
+        ]
+
+    def poziomy_dostepne(self) -> list[int]:
+        for p in self._pakiety.values():
+            if p.wymagany and stan(p, self._katalog) == "zainstalowany":
+                return p.poziomy
+        return []
+
+    def brakujacy_wymagany(self) -> list[str]:
+        return [
+            p.id
+            for p in self._pakiety.values()
+            if p.wymagany and stan(p, self._katalog) != "zainstalowany"
+        ]
+
+    def zakonczone(self) -> bool:
+        return not self._w_toku
+
+    def pobierz(self, identyfikator: str) -> bool:
+        """Uruchamia pobieranie w wątku tła; False gdy inne już trwa albo pakiet
+        nieznany (K7b: operacja długotrwała, POST odpowiada 202 od razu)."""
+        if identyfikator not in self._pakiety or self._w_toku:
+            return False
+        pakiet = self._pakiety[identyfikator]
+        with self._zajete:
+            if self._w_toku:
+                return False
+            self._w_toku = True
+        self.postep = PostepPobierania(pakiet=pakiet.id, razem=pakiet.rozmiar)
+
+        def praca():
+            try:
+                pobierz(
+                    pakiet,
+                    self._katalog,
+                    self._zrodlo,
+                    klient=self._klient,
+                    postep=self._przyjmij_postep,
+                )
+                self.postep.pakiet = None
+            except BladPakietu as blad:
+                self.postep.blad = str(blad)
+            except httpx.HTTPError as blad:
+                self.postep.blad = f"{pakiet.id}: pobieranie nie powiodło się: {blad}"
+            finally:
+                self._w_toku = False
+
+        threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()
+        return True
+
+    def instaluj(self, identyfikator: str, katalog_zrodlowy: Path) -> None:
+        """Instalacja offline (IT); synchronnie — kopia lokalna jest szybka."""
+        pakiet = self._pakiety[identyfikator]
+        instaluj_z_katalogu(pakiet, self._katalog, katalog_zrodlowy)
+
+    def usun(self, identyfikator: str) -> None:
+        usun(self._pakiety[identyfikator], self._katalog)
+
+    def _przyjmij_postep(self, pobrane: int, razem: int) -> None:
+        self.postep.pobrane = pobrane
+        self.postep.razem = razem
+
+    def czekaj(self, limit_s: float = 60) -> None:
+        """Tylko dla testów: czeka na koniec operacji w tle."""
+        import time
+
+        koniec = time.monotonic() + limit_s
+        while self._w_toku and time.monotonic() < koniec:
+            time.sleep(0.01)
