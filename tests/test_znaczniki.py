@@ -23,12 +23,28 @@ def test_numeracja_per_typ_a_osoby_wspolnie():
     ]
     nadaj_oznaczenia(encje)
     assert [e.oznaczenie for e in encje] == ["PESEL_1", "OSOBA_1", "OSOBA_1", "PESEL_2"]
+    # Stabilny wariant formy (Astra pkt 2, Gemini pkt 3): każdy kształt powierzchniowy
+    # osoby ma swój numer Fk; pozostale typy bez wariantu.
+    assert encje[1].wariant == "F1"
+    assert encje[2].wariant == "F2"
+    assert encje[0].wariant is None and encje[3].wariant is None
+
+
+def test_ta_sama_forma_dzieli_wariant():
+    encje = [
+        _encja(TypEncji.OSOBA, "Jan Kowalski", 0, klucz="jan|kowalsk"),
+        _encja(TypEncji.OSOBA, "Jana Kowalskiego", 20, klucz="jan|kowalsk"),
+        _encja(TypEncji.OSOBA, "Jana Kowalskiego", 50, klucz="jan|kowalsk"),
+    ]
+    nadaj_oznaczenia(encje)
+    assert encje[1].wariant == encje[2].wariant == "F2"
 
 
 def test_osoby_bez_klucza_to_osobne_grupy():
     encje = [_encja(TypEncji.OSOBA, "X Y", 0), _encja(TypEncji.OSOBA, "Z W", 10)]
     nadaj_oznaczenia(encje)
     assert [e.oznaczenie for e in encje] == ["OSOBA_1", "OSOBA_2"]
+    assert encje[0].wariant == encje[1].wariant == "F1"
 
 
 def test_zamiana_w_segmencie():
@@ -39,7 +55,7 @@ def test_zamiana_w_segmencie():
     ]
     nadaj_oznaczenia(encje)
     nowy, kolejne = zamien_w_segment(tekst, encje)
-    assert nowy == "[OSOBA_1], PESEL [PESEL_1]."
+    assert nowy == "[OSOBA_1_F1], PESEL [PESEL_1]."
     assert kolejne == [0, 1]
 
 

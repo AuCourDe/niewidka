@@ -38,6 +38,7 @@ class Encja:
     tekst: str  # tekst powierzchniowy znaleziska
     oznaczenie: str | None = None  # "OSOBA_1" po grupowaniu i numeracji
     klucz_grupy: str | None = None  # klucz grupowania osób
+    wariant: str | None = None  # "F2" — stabilny numer formy powierzchniowej (osoby)
 
 
 @dataclass

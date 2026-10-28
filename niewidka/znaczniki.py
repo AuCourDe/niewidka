@@ -1,27 +1,34 @@
-"""Znaczniki [TYP_N] — nadawanie numerów i zamiana w segmentach (LLD §7).
+"""Znaczniki [TYP_N] / [OSOBA_N_Fk] — nadawanie numerów i zamiana (LLD §7).
 
 „N" liczy się per typ w kolejności wystąpienia w dokumencie; [OSOBA_1] wspólne
-dla wszystkich form tej osoby (klucz_grupy z osoby.py). Dopisek celowo nie
-zawiera nawiasów kwadratowych — kontrola wyniku szuka wzorca [TYP_N]
-(przegląd Gemini pkt 7).
+dla wszystkich form tej osoby (klucz_grupy z osoby.py). Osoby dostają dodatkowo
+stabilny wariant formy powierzchniowej — [OSOBA_1_F2] — dzięki czemu przywracanie
+kluczem (oznaczenie, wariant) nie zależy od pozycji ani kolejności wystąpień
+i przetrwa parafrazę tekstu przez chmurowe AI (przegląd Astry pkt 2, Gemini
+pkt 3). Dopisek celowo nie zawiera nawiasów kwadratowych — kontrola wyniku
+szuka wzorca znacznika (przegląd Gemini pkt 7) — i obiecuje odtworzenie tylko
+danych zastąpionych znacznikami (Astra pkt 2).
 """
 
-from niewidka.model import Encja
+from niewidka.model import Encja, TypEncji
 
 DOPISEK = (
     "ZANONIMIZOWANO w Niewidka. Dokument zawiera znaczniki anonimizacji; "
-    "oryginał odtworzysz plikiem mapy i kluczem."
+    "zastąpione dane odtworzysz plikiem mapy i kluczem."
 )
 
 
 def nadaj_oznaczenia(encje: list[Encja]) -> None:
-    """Ustawia encja.oznaczenie; encje muszą być w kolejności dokumentu.
+    """Ustawia encja.oznaczenie i encja.wariant; encje muszą być w kolejności dokumentu.
 
     OSOBY o tym samym klucz_grupy dzielą numer; bez klucza każda dostaje
-    własny.
+    własny. Każda unikalna forma powierzchniowa osoby ma stabilny numer
+    wariantu Fk (nadawany wg pierwszego wystąpienia; ta sama forma = to samo
+    Fk). Pozostałe typy bez wariantu.
     """
     liczniki: dict[str, int] = {}
     numery: dict[str, str] = {}
+    formy: dict[str, dict[str, str]] = {}  # identyfikator grupy -> forma -> "Fk"
     for pozycja, encja in enumerate(encje):
         typ = encja.zakres.typ.value
         identyfikator = f"{typ}\x00{encja.klucz_grupy or f'#{pozycja}'}"
@@ -29,6 +36,11 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
             liczniki[typ] = liczniki.get(typ, 0) + 1
             numery[identyfikator] = f"{typ}_{liczniki[typ]}"
         encja.oznaczenie = numery[identyfikator]
+        if encja.zakres.typ is TypEncji.OSOBA:
+            formy_grupy = formy.setdefault(identyfikator, {})
+            if encja.tekst not in formy_grupy:
+                formy_grupy[encja.tekst] = f"F{len(formy_grupy) + 1}"
+            encja.wariant = formy_grupy[encja.tekst]
 
 
 def zamien_w_segment(
@@ -47,5 +59,10 @@ def zamien_w_segment(
             raise ValueError("encja bez oznaczenia — najpierw nadaj_oznaczenia")
         kolejne.append(poczatek_kolejnego + numer)
     for encja in reversed(posortowane):
-        wynik = wynik[: encja.zakres.start] + f"[{encja.oznaczenie}]" + wynik[encja.zakres.koniec :]
+        znacznik = (
+            f"[{encja.oznaczenie}]"
+            if encja.wariant is None
+            else f"[{encja.oznaczenie}_{encja.wariant}]"
+        )
+        wynik = wynik[: encja.zakres.start] + znacznik + wynik[encja.zakres.koniec :]
     return wynik, kolejne

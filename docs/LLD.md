@@ -170,8 +170,8 @@ psuje dopasowania (przegląd Astry pkt 2, Gemini pkt 3). Zamiana od końca segme
 
 ```python
 def nadaj_oznaczenia(encje: list[Encja]) -> None
-    # ustawia oznaczenie i wariant ("F1", "F2", …) dla encji z klucz_grupy;
-    # encje bez klucza (pozostałe typy) dostają wariant=None
+    # ustawia oznaczenie i wariant ("F1", "F2", …) dla osób (typ OSOBA — z kluczem
+    # grupy albo bez); encje pozostałych typów dostają wariant=None
 def zamien_w_segment(segment_tekst: str, encje: list[Encja]) -> tuple[str, list[int]]
     # tekst ze znacznikami + "kolejny" (globalny numer wystąpienia znacznika) dla mapy
 ```
