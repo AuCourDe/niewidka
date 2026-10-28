@@ -336,10 +336,12 @@ async def test_zly_origin_403(konfig):
 
 
 @pytest.mark.anyio
-async def test_stan_bez_tokenu(konfig):
+async def test_stan_wymaga_tokenu_a_z_tokenu_ma_pola(konfig):
+    """K7c pkt 5 (audyt): GET /api/stan pilnuje tokenu jak POST-y."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
-        odpowiedz = await klient.get("/api/stan")
+        assert (await klient.get("/api/stan")).status_code == 403
+        odpowiedz = await klient.get("/api/stan", headers=_naglowki(app))
     assert odpowiedz.status_code == 200
     stan = odpowiedz.json()
     assert stan["wersja"]
@@ -485,7 +487,7 @@ async def test_pakiety_get_stan_i_poziomy(konfig, tmp_path):
         konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
     )
     async with _klient(app) as klient:
-        odpowiedz = await klient.get("/api/pakiety")
+        odpowiedz = await klient.get("/api/pakiety", headers=_naglowki(app))
     assert odpowiedz.status_code == 200
     dane = odpowiedz.json()
     assert [p["id"] for p in dane["pakiety"]] == ["podstawowy"]
@@ -521,7 +523,7 @@ async def test_pakiety_post_pobierz_usun(konfig, tmp_path):
         )
         assert odpowiedz.status_code == 202
         menedzer.czekaj()
-        stan = (await klient.get("/api/pakiety")).json()
+        stan = (await klient.get("/api/pakiety", headers=_naglowki(app))).json()
         assert stan["pakiety"][0]["stan"] == "zainstalowany"
         assert stan["poziomy_dostepne"] == [1, 2, 3]
         odpowiedz = await klient.post(
@@ -530,7 +532,7 @@ async def test_pakiety_post_pobierz_usun(konfig, tmp_path):
             headers=_naglowki(app),
         )
         assert odpowiedz.status_code == 200
-        stan = (await klient.get("/api/pakiety")).json()
+        stan = (await klient.get("/api/pakiety", headers=_naglowki(app))).json()
         assert stan["pakiety"][0]["stan"] == "brak"
 
 
@@ -584,7 +586,7 @@ async def test_pakiety_instaluj_offline_z_katalogu(konfig, tmp_path):
             headers=_naglowki(app),
         )
         assert odpowiedz.status_code == 200
-        stan = (await klient.get("/api/pakiety")).json()
+        stan = (await klient.get("/api/pakiety", headers=_naglowki(app))).json()
         assert stan["pakiety"][0]["stan"] == "zainstalowany"
         # zły katalog: 422 z komunikatem bez treści plików
         odpowiedz = await klient.post(
@@ -615,11 +617,11 @@ async def test_stan_z_pakietami_poziomy_dostepne(konfig, tmp_path):
     menedzer = _menedzer_testowy(tmp_path)
     app = create_app(konfig, detektor=RegulyDetektor(), menedzer_pakietow=menedzer)
     async with _klient(app) as klient:
-        dane = (await klient.get("/api/stan")).json()
+        dane = (await klient.get("/api/stan", headers=_naglowki(app))).json()
         assert dane["poziomy_dostepne"] == []  # pakiet testowy nie zainstalowany
         menedzer.pobierz("podstawowy")
         menedzer.czekaj()
-        dane = (await klient.get("/api/stan")).json()
+        dane = (await klient.get("/api/stan", headers=_naglowki(app))).json()
         assert dane["poziomy_dostepne"] == [1, 2, 3]
 
 
@@ -629,7 +631,7 @@ async def test_stan_bez_detektora_wstaje_i_mowi_o_braku(konfig, tmp_path):
     None.nazwa wywalał endpoint na 500)."""
     app = create_app(konfig, detektor=None, menedzer_pakietow=_menedzer_testowy(tmp_path))
     async with _klient(app) as klient:
-        odpowiedz = await klient.get("/api/stan")
+        odpowiedz = await klient.get("/api/stan", headers=_naglowki(app))
     assert odpowiedz.status_code == 200
     assert odpowiedz.json()["modele"] == []
     assert odpowiedz.json()["poziomy_dostepne"] == []
@@ -685,3 +687,25 @@ async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
     identyfikator = z.headers["x-niewidka-identyfikator"]
     wynik_txt = czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"].decode()
     assert "stefan_wodorost" not in wynik_txt
+
+
+@pytest.mark.anyio
+async def test_get_pakiety_i_stan_wymagaja_tokenu_hosta_origin(konfig, tmp_path):
+    """K7c pkt 5 (audyt): GET /api/pakiety ujawniał postep.blad (z hasłem lustra
+    w URL) bez tokenu; teraz te GET-y pilnują tokenu i Host/Origin jak POST."""
+    app = create_app(
+        konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
+    )
+    async with _klient(app) as klient:
+        assert (await klient.get("/api/pakiety")).status_code == 403
+        assert (await klient.get("/api/stan")).status_code == 403
+        assert (
+            await klient.get("/api/pakiety", headers={"host": "obcy.example"})
+        ).status_code == 403
+        assert (
+            await klient.get(
+                "/api/stan", headers=_naglowki(app, Origin="http://zlosliwy.example")
+            )
+        ).status_code == 403
+        assert (await klient.get("/api/pakiety", headers=_naglowki(app))).status_code == 200
+        assert (await klient.get("/api/stan", headers=_naglowki(app))).status_code == 200

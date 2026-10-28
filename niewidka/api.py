@@ -323,8 +323,13 @@ def create_app(
 
     @app.middleware("http")
     async def straznik_i_limity(request: Request, call_next):
-        """Token sesji + Host/Origin dla POST-ów; limity przed buforowaniem treści."""
-        if request.method == "POST" and request.url.path.startswith("/api/"):
+        """Token sesji + Host/Origin dla POST-ów /api/ i GET-ów pakietów/stanu
+        (K7c pkt 5: status pakietów bywa nośnikiem sekreta z lustra); limity
+        przed buforowaniem treści."""
+        strazliwe_gety = ("/api/pakiety", "/api/stan")
+        if (
+            request.method == "POST" and request.url.path.startswith("/api/")
+        ) or (request.method == "GET" and request.url.path in strazliwe_gety):
             host = (request.headers.get("host") or "").split(":")[0]
             origin = request.headers.get("origin")
             token = request.headers.get(_TOKEN_NAGLOWEK)

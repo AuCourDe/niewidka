@@ -476,8 +476,14 @@ class MenedzerPakietow:
                 )
             except BladPakietu as blad:
                 self.postep.blad = str(blad)
-            except httpx.HTTPError as blad:
-                self.postep.blad = f"{pakiet.id}: pobieranie nie powiodło się: {blad}"
+            except httpx.HTTPStatusError as blad:
+                # K7c pkt 5 (audyt): kontrolowany komunikat — bez URL (bywa z
+                # login:hasło lustra) i bez tekstu wyjątku; tylko kod HTTP
+                self.postep.blad = (
+                    f"{pakiet.id}: pobieranie nie powiodło się (HTTP {blad.response.status_code})"
+                )
+            except (httpx.HTTPError, OSError):
+                self.postep.blad = f"{pakiet.id}: pobieranie nie powiodło się (błąd sieci)"
             finally:
                 self.postep.pakiet = None
                 self._w_toku = False

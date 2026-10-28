@@ -448,3 +448,24 @@ def test_pobierz_odrzucca_symlink_w_sciezce_podkatalogu(katalog_testowy, tmp_pat
     with pytest.raises(BladPakietu):
         pakiety.pobierz(rozszerzony, katalog, "http://x/", klient=klient)
     assert not (obcy / "model.onnx").exists()
+
+
+def test_blad_pobierania_kontrolowany_bez_hasla_i_url(tmp_path, katalog_testowy):
+    """K7c pkt 5 (audyt): 503 z lustra nie może wynieść URL z login:hasło do
+    postep.blad (czytanego przez GET /api/pakiety)."""
+    def handler_503(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://login:SekretneHaslo@lustro.example/pliki",
+        klient=httpx.Client(transport=httpx.MockTransport(handler_503)),
+    )
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    blad = menedzer.postep.blad or ""
+    assert "SekretneHaslo" not in blad
+    assert "lustro.example" not in blad
+    assert "http" not in blad
+    assert "podstawowy" in blad and "503" in blad

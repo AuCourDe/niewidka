@@ -646,7 +646,8 @@ function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
 
 async function odswiezPakiety() {
   try {
-    const odpowiedz = await fetch("/api/pakiety");
+    const odpowiedz = await fetch("/api/pakiety", { headers: NAGLOWKI });
+    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
     stanPakietow = await odpowiedz.json();
   } catch {
     return; // serwer nieodpowiada: nic nie zmieniamy
@@ -727,7 +728,8 @@ function inicjalizujPakiety() {
 
 async function wczytajStan() {
   try {
-    const odpowiedz = await fetch("/api/stan");
+    const odpowiedz = await fetch("/api/stan", { headers: NAGLOWKI });
+    if (!odpowiedz.ok) return;
     const stan = await odpowiedz.json();
     limity = stan.limity;
     document.getElementById("wersja").textContent = `v${stan.wersja}`;

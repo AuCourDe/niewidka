@@ -112,8 +112,9 @@ async def test_strona_mieci_elementy_funkcjonalne(klient):
 
 
 @pytest.mark.anyio
-async def test_api_trasy_priorytet_przed_statycznymi(klient):
-    odpowiedz = await klient.get("/api/stan")
+async def test_api_trasy_priorytet_przed_statycznymi(klient, app):
+    """K7c pkt 5: /api/stan pilnuje tokenu (jak POST-y); UI wysyła go w meta."""
+    odpowiedz = await klient.get("/api/stan", headers={"X-Niewidka-Token": app.state.token})
     assert odpowiedz.status_code == 200
     assert odpowiedz.json()["wersja"]
 
@@ -165,3 +166,12 @@ async def test_pakiety_elementy_funkcjonalne(klient):
     assert '"/api/pakiety"' in apka
     assert "ekran-pakietow" in apka and "poziomy_dostepne" in apka
     assert "Pobierz pakiet podstawowy w Ustawieniach" in apka  # podpowiedź suwaka
+
+
+@pytest.mark.anyio
+async def test_gety_pakietow_i_stanu_wysylaja_token(klient):
+    """K7c pkt 5 (audyt): GET /api/pakiety i /api/stan wymagają tokenu, więc UI
+    MUSI wysyłać nagłówki sesji też w tych odpytaniach (nie tylko w POST-ach)."""
+    apka = (await klient.get("/apka.js")).text
+    assert 'fetch("/api/pakiety", { headers: NAGLOWKI })' in apka
+    assert 'fetch("/api/stan", { headers: NAGLOWKI })' in apka
