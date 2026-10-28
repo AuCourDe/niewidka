@@ -649,3 +649,93 @@ def test_menedzer_zmiana_z_zewnatrz_odswiezana_w_tle(menedzer, katalog_testowy, 
     monkeypatch.setattr(menedzer, "odswiez_w_tle", lambda: odpalone.append(1))
     assert menedzer.lista()[0]["stan"] == "brak"
     assert odpalone == [1], "zmiana obecności plików ma odpalać odświeżenie w tle"
+
+
+# --- K7c pkt 10: przekierowania pod kontrolą ----------------------------------
+
+def _transport_przekierowanie(dokad, trafione: list[str]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        trafione.append(str(request.url))
+        return httpx.Response(302, headers={"location": dokad})
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.fixture()
+def katalog_testowy_naglowkowy(katalog_testowy):
+    """Tresci serwowane po JEDNYM przekierowaniu (drugi handler zwraca pliki)."""
+    return katalog_testowy
+
+
+def test_przekierowanie_do_loopback_odrzucone(katalog_testowy, tmp_path):
+    """Audyt #10: przejęte lustro odsyła 302 na http://127.0.0.1:12345/private;
+    pobieranie nie może wykonać ślepego żądania do lokalnej usługi."""
+    pakiet = katalog_testowy["lista"][0]
+    trafione: list[str] = []
+    klient = httpx.Client(
+        transport=_transport_przekierowanie("http://127.0.0.1:12345/private", trafione)
+    )
+    with pytest.raises(BladPakietu):
+        pakiety.pobierz(pakiet, tmp_path / "m", "https://github.com/x/", klient=klient)
+    assert not any("127.0.0.1:12345" in u for u in trafione), "żądanie SSRF wykonane"
+
+
+def test_przekierowanie_https_na_http_poza_lustrem_odrzucone(katalog_testowy, tmp_path):
+    pakiet = katalog_testowy["lista"][0]
+    trafione: list[str] = []
+    klient = httpx.Client(
+        transport=_transport_przekierowanie("http://zlosliwy.example/plik", trafione)
+    )
+    with pytest.raises(BladPakietu):
+        pakiety.pobierz(pakiet, tmp_path / "m", "https://github.com/x/", klient=klient)
+    assert not any("zlosliwy.example" in u for u in trafione)
+
+
+def test_przekierowanie_do_sieci_prywatnej_przez_https_odrzucone(katalog_testowy, tmp_path):
+    pakiet = katalog_testowy["lista"][0]
+    trafione: list[str] = []
+    klient = httpx.Client(
+        transport=_transport_przekierowanie("https://10.1.2.3/ukryte", trafione)
+    )
+    with pytest.raises(BladPakietu):
+        pakiety.pobierz(pakiet, tmp_path / "m", "https://github.com/x/", klient=klient)
+    assert not any("10.1.2.3" in u for u in trafione)
+
+
+def test_przekierowanie_wewnatrz_lustra_http_dopuszczone(katalog_testowy, tmp_path):
+    """Lustro IT (NIEWIDKA_MODELE_ZRODLO, także http i loopback) może przekierowywać
+    w obrębie własnego hosta — scenariusz z K7b (python -m http.server na 127.0.0.1)."""
+    pakiet = katalog_testowy["lista"][0]
+    tresci = katalog_testowy["tresci"]
+    skoki = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal skoki
+        nazwa = str(request.url).rsplit("/", 1)[-1]
+        if nazwa not in tresci and skoki < 8:
+            skoki += 1
+            return httpx.Response(302, headers={"location": f"/pliki/{nazwa}"})
+        return httpx.Response(200, content=tresci.get(nazwa, b""))
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    katalog = tmp_path / "m"
+    pakiety.pobierz(pakiet, katalog, "http://127.0.0.1:39950", klient=klient)
+    assert pakiety.stan(pakiet, katalog) == "zainstalowany"
+
+
+def test_przekierowanie_do_publicznego_https_dopuszczone(katalog_testowy, tmp_path):
+    """Publiczny HTTPS poza lustrem jest dozwolony (cdn pakietów); dosłowne
+    publiczne IP, by test nie zależał od DNS."""
+    pakiet = katalog_testowy["lista"][0]
+    tresci = katalog_testowy["tresci"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nazwa = str(request.url).rsplit("/", 1)[-1]
+        if str(request.url).startswith("https://github.com/x/"):
+            return httpx.Response(302, headers={"location": f"https://93.184.216.34/obj/{nazwa}"})
+        return httpx.Response(200, content=tresci.get(nazwa, b""))
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    katalog = tmp_path / "m"
+    pakiety.pobierz(pakiet, katalog, "https://github.com/x/", klient=klient)
+    assert pakiety.stan(pakiet, katalog) == "zainstalowany"

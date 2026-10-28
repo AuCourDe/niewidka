@@ -16,8 +16,10 @@ wyłącznie onnxruntime), a JSON parsuje json.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
+import socket
 import stat
 import sys
 import threading
@@ -230,6 +232,45 @@ def _podziel_postep(postep, rozmiary: list[int]):
     return wywolaj, po_pliku
 
 
+# --- K7c pkt 10 (audyt): przekierowania pod kontrolą --------------------------
+
+_SKOKI_MAKS = 5
+
+
+def _host_prywatny(host: str) -> bool:
+    """Loopback/sieci prywatne/link-local/rezerwowane; nierozpoznawalny host
+    traktujemy ostrożnie jako prywatny."""
+    try:
+        adresy = [ipaddress.ip_address(host)]
+    except ValueError:
+        try:
+            adresy = [
+                ipaddress.ip_address(pozycja[4][0]) for pozycja in socket.getaddrinfo(host, None)
+            ]
+        except (socket.gaierror, OSError, ValueError):
+            return True
+    return any(
+        a.is_loopback or a.is_private or a.is_link_local or a.is_reserved or a.is_multicast
+        for a in adresy
+    )
+
+
+def _waliduj_przekierowanie(adres: str, host_zrodla: str) -> None:
+    """Każdy krok przekierowania (K7c pkt 10): HTTPS, chyba że cel jest hostem
+    skonfigurowanego lustra IT (NIEWIDKA_MODELE_ZRODLO może być http, także
+    loopback); nigdy sieci prywatne poza lustrem (ślepy SSRF)."""
+    u = httpx.URL(adres)
+    host = u.host or ""
+    na_lustre = host == host_zrodla
+    if u.scheme == "https":
+        if not na_lustre and _host_prywatny(host):
+            raise BladPakietu("przekierowanie do sieci prywatnej odrzucone")
+        return
+    if u.scheme == "http" and na_lustre:
+        return
+    raise BladPakietu("przekierowanie poza HTTPS (poza lustrem IT) odrzucone")
+
+
 def _pobierz_plik(
     klient: httpx.Client,
     url: str,
@@ -237,6 +278,7 @@ def _pobierz_plik(
     suma_oczekiwana: str,
     katalog: Path,
     rozmiar: int,
+    host_zrodla: str,
     limit_czasu_s: int = 1800,
     przerwano=None,
     postep=None,
@@ -244,7 +286,9 @@ def _pobierz_plik(
     """Strumieniowe pobranie jednego pliku z wznawianiem; publikacja zweryfikowanych
     bajtów (_opublikuj). Plik częściowy otwierany bez podążania za dowiązaniami.
     K7c pkt 8 (audyt): twardy limit bajtów = rozmiar z katalogu (też przy Range),
-    całkowity limit czasu i anulowanie sprawdzane przy KAŻDYM kawałku."""
+    całkowity limit czasu i anulowanie sprawdzane przy KAŻDYM kawałku.
+    K7c pkt 10 (audyt): przekierowania prowadzone RĘCZNIE z walidacją każdego
+    kroku (_waliduj_przekierowanie) — follow_redirects=False."""
     czesciowy = cel.with_name(cel.name + CZESCIOWY)
     if _jest_dowiazaniem(czesciowy):
         czesciowy.unlink()  # podstawione dowiązanie nie jest naszym plikiem częściowym
@@ -255,47 +299,59 @@ def _pobierz_plik(
     if start:
         naglowki["range"] = f"bytes={start}-"
     cel.parent.mkdir(parents=True, exist_ok=True)
-    with klient.stream("GET", url, headers=naglowki, follow_redirects=True) as odpowiedz:
-        odpowiedz.raise_for_status()
-        if odpowiedz.status_code != 206:
-            start = 0  # serwer bez Range: od nowa
-            czesciowy.unlink(missing_ok=True)
-        try:
-            z = int(odpowiedz.headers.get("content-length", "0"))
-        except ValueError:
-            z = 0
-        razem = start + z
-        # przerwane pobieranie zostawia częściowy: kolejne pobranie wznowi;
-        # O_APPEND|O_NOFOLLOW: nie piszemy przez podstawiony symlink
-        try:
-            fd = (
-                os.open(
-                    czesciowy,
-                    os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+    for skok in range(_SKOKI_MAKS):
+        with klient.stream("GET", url, headers=naglowki, follow_redirects=False) as odpowiedz:
+            if odpowiedz.status_code in (301, 302, 303, 307, 308):
+                lokalizacja = odpowiedz.headers.get("location")
+                if not lokalizacja:
+                    raise BladPakietu("przekierowanie bez lokalizacji")
+                nastepny = str(httpx.URL(url).join(lokalizacja))
+                _waliduj_przekierowanie(nastepny, host_zrodla)
+                url = nastepny
+                continue
+            odpowiedz.raise_for_status()
+            if odpowiedz.status_code != 206:
+                start = 0  # serwer bez Range: od nowa
+                czesciowy.unlink(missing_ok=True)
+            try:
+                z = int(odpowiedz.headers.get("content-length", "0"))
+            except ValueError:
+                z = 0
+            razem = start + z
+            # przerwane pobieranie zostawia częściowy: kolejne pobranie wznowi;
+            # O_APPEND|O_NOFOLLOW: nie piszemy przez podstawiony symlink
+            try:
+                fd = (
+                    os.open(
+                        czesciowy,
+                        os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+                    )
+                    if start
+                    else _otworz_nowy(czesciowy)
                 )
-                if start
-                else _otworz_nowy(czesciowy)
-            )
-        except OSError as blad:
-            raise BladPakietu(f"plik częściowy nieosiągalny: {cel.name}") from blad
-        with os.fdopen(fd, "ab" if start else "wb") as uchwyt:
-            gotowe = start
-            start_czasu = time.monotonic()
-            for kawalek in odpowiedz.iter_bytes():
-                if przerwano is not None and przerwano():
-                    raise BladPakietu("pobieranie przerwane")
-                if time.monotonic() - start_czasu > limit_czasu_s:
-                    raise BladPakietu(
-                        "pobieranie przekroczyło całkowity limit czasu; kolejna próba wznowi"
-                    )
-                if gotowe + len(kawalek) > rozmiar:
-                    raise BladPakietu(
-                        f"serwer wysłał więcej bajtów niż rozmiar z katalogu pakietów: {cel.name}"
-                    )
-                uchwyt.write(kawalek)
-                gotowe += len(kawalek)
-                if postep is not None:
-                    postep(gotowe, razem)
+            except OSError as blad:
+                raise BladPakietu(f"plik częściowy nieosiągalny: {cel.name}") from blad
+            with os.fdopen(fd, "ab" if start else "wb") as uchwyt:
+                gotowe = start
+                start_czasu = time.monotonic()
+                for kawalek in odpowiedz.iter_bytes():
+                    if przerwano is not None and przerwano():
+                        raise BladPakietu("pobieranie przerwane")
+                    if time.monotonic() - start_czasu > limit_czasu_s:
+                        raise BladPakietu(
+                            "pobieranie przekroczyło całkowity limit czasu; kolejna próba wznowi"
+                        )
+                    if gotowe + len(kawalek) > rozmiar:
+                        raise BladPakietu(
+                            f"serwer wysłał więcej bajtów niż rozmiar z katalogu pakietów: {cel.name}"
+                        )
+                    uchwyt.write(kawalek)
+                    gotowe += len(kawalek)
+                    if postep is not None:
+                        postep(gotowe, razem)
+            break  # treść pobrana; dalsze skoki tylko po przekierowaniach
+    else:
+        raise BladPakietu("za dużo przekierowań")
     try:
         _opublikuj(czesciowy.read_bytes(), cel, suma_oczekiwana, katalog)
     except BladPakietu:
@@ -342,7 +398,9 @@ def pobierz(
 ) -> None:
     """Pobiera wszystkie pliki pakietu; pomija te już zgodne z SHA-256."""
     wlasny = klient is None
-    klient = klient or httpx.Client(follow_redirects=True, timeout=600)
+    # K7c pkt 10: przekierowania prowadzone ręcznie (walidacja każdego kroku)
+    klient = klient or httpx.Client(follow_redirects=False, timeout=600)
+    host_zrodla = httpx.URL(zrodlo_bazowe).host or ""
     limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
     try:
         para = _podziel_postep(postep, [p.rozmiar for p in pakiet.pliki])
@@ -362,6 +420,7 @@ def pobierz(
                 plik.sha256,
                 katalog,
                 rozmiar=plik.rozmiar,
+                host_zrodla=host_zrodla,
                 limit_czasu_s=limit,
                 przerwano=przerwano,
                 postep=postep_pliku,
