@@ -197,6 +197,12 @@ def rozciagnij_do_slow(zakresy: list[tuple[int, int]], tekst: str) -> list[tuple
     """
     wynik = []
     for start, koniec in zakresy:
+        # Tokeny BPE niosą wiodącą spację w offsecie ('ĠPiot' -> (14,19)); bez
+        # przycięcia rozciąganie uciekłoby na poprzednie słowo (K2b).
+        while start < koniec and tekst[start].isspace():
+            start += 1
+        while koniec > start and tekst[koniec - 1].isspace():
+            koniec -= 1
         while start > 0 and tekst[start - 1].isalnum():
             start -= 1
         while koniec < len(tekst) and tekst[koniec].isalnum():

@@ -537,3 +537,22 @@ class TestRozciagnijDoSlow:
 
     def test_puste(self):
         assert rozciagnij_do_slow([], "cokolwiek") == []
+
+
+class TestRozciagnijDoSlowTrim:
+    """Tokeny BPE (LFM2.5, K2b) mają offsety z wiodącą spacją ('ĠPiot' -> (14,19));
+    bez przycięcia whitespace rozciągnięcie ucieka na poprzednie słowo."""
+
+    def test_offset_z_wiodaca_spacja_nie_ucieka_na_poprzednie_slowo(self):
+        tekst = "Umowę podpisał Piotr Nowak w obecności."
+        # 'ĠPiot' offset (14,19): 14 = spacja; start musi się przesunąć na 15, nie na 6.
+        assert rozciagnij_do_slow([(14, 19)], tekst) == [(15, 20)]
+
+    def test_offset_z_wewnetrzna_spacja_dwa_slowa(self):
+        tekst = "Umowę podpisał Piotr Nowak w obecności."
+        # 'ĠPiotr Nowak' offset (14,26) — po przycięciu: 'Piotr Nowak' = (15,26).
+        assert rozciagnij_do_slow([(14, 26)], tekst) == [(15, 26)]
+
+    def test_zwykle_zakresy_niezmienione(self):
+        tekst = "Jan Kowalski poszedł."
+        assert rozciagnij_do_slow([(0, 12)], tekst) == [(0, 12)]
