@@ -100,6 +100,7 @@ Set-Content -Path $StartPy -Encoding ascii -Value "import sys`r`nfrom niewidka.o
 Write-Host "== 7. Wagi bardsai + manifest SHA-256 =="
 $Modele = Join-Path (Join-Path $KatalogBudowy "dist") "Niewidka\modele"
 New-Item -ItemType Directory -Force -Path $Modele | Out-Null
+Copy-Item (Join-Path $Wagi "manifest.json") $Modele -Force  # sam manifest tez musi lezec w katalogu wag
 $Manifest = Get-Content -Raw (Join-Path $Wagi "manifest.json") | ConvertFrom-Json
 foreach ($Plik in $Manifest.pliki.PSObject.Properties) {
   Copy-Item (Join-Path $Wagi $Plik.Name) $Modele -Force
