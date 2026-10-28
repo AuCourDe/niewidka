@@ -37,6 +37,29 @@ def test_inicjaly_nie_lacza_sie_z_imieniem():
     assert encje[0].klucz_grupy != encje[1].klucz_grupy
 
 
+def test_inicjaly_przy_dwoch_imionach_osobne_od_obu():
+    # Kontrprzykład (Astra pkt 10): inicjał nie dołącza do żadnego z dwóch
+    # kandydatów o tym samym rdzeniu — zostaje osobną grupą.
+    encje = [_osoba("Jan Kowalski"), _osoba("Piotr Kowalski"), _osoba("J. Kowalski")]
+    pogrupuj(encje)
+    assert len({e.klucz_grupy for e in encje}) == 3
+
+
+def test_dwa_same_nazwiska_bez_imion_to_osobne_grupy():
+    # Kontrprzykład: bez żadnego imienia każde samo nazwisko zostaje osobno.
+    encje = [_osoba("Kowalskiego"), _osoba("Kowalski")]
+    pogrupuj(encje)
+    assert encje[0].klucz_grupy != encje[1].klucz_grupy
+
+
+def test_samo_nazwisko_łączy_sie_z_jedynym_inicjałem():
+    # Granica reguły Astry pkt 10: asocjacja wsteczna (Gemini pkt 13) działa
+    # przy DOKŁADNIE jednym kandydacie o rdzeniu — inicjał nim jest.
+    encje = [_osoba("J. Kowalski"), _osoba("najemca Kowalskiego")]
+    pogrupuj(encje)
+    assert encje[0].klucz_grupy == encje[1].klucz_grupy
+
+
 def test_odwrocony_szyk_przymiotnikowe_nazwisko():
     encje = [_osoba("Jan Kowalski"), _osoba("Kowalski Jan"), _osoba("Jana Kowalskiego")]
     pogrupuj(encje)
