@@ -54,6 +54,11 @@ class KolejkaPelna(Exception):
     """Wszystkie sloty zajęte i kolejka pełna (LLD §15 → 503 + Retry-After)."""
 
 
+class PracaPrzekroczylaCzas(Exception):
+    """Praca przekroczyła limit czasu; slot zostaje zajęty do jej faktycznego
+    końca (K4b pkt 11 → 503, nie 500)."""
+
+
 class BladKontroli(Exception):
     """Kontrola zapisu zablokowała wynik (K4b pkt 1 → 422 BEZ dokumentu)."""
 
@@ -115,7 +120,11 @@ class LimitBajtow:
 
 @dataclass
 class Kolejka:
-    """Jedna inferencja naraz (Semaphore w puli wątków), `kolejka` oczekujących."""
+    """Jedna inferencja naraz (Semaphore w puli wątków), `kolejka` oczekujących.
+
+    K4b pkt 11: semafor trzyma ZADANIE pracy, nie czekające żądanie — po
+    timeoucie żądanie dostaje 503, a slot zostaje zajęty do FAKTYCZNEGO końca
+    pracy (anulowanie oczekiwania nie zatrzymuje wątku executora)."""
 
     maks: int
     timeout_s: int
@@ -135,16 +144,32 @@ class Kolejka:
                 raise KolejkaPelna()
             self.czekajacy += 1
             try:
-                async with self._slot():
-                    return await asyncio.wait_for(asyncio.to_thread(praca), limit)
+                return await self._oczekiwane(praca, limit)
             finally:
                 self.czekajacy -= 1
-        # slot wolny: acquire nie zawiesza się, więc między locked() a wejściem nie ma wyścigu
+        # slot wolny: to żądanie zakłada własne zadanie pod semaforem
+        return await self._oczekiwane(praca, limit)
+
+    async def _oczekiwane(self, praca, limit: int):
+        zadanie = asyncio.create_task(self._z_slotem(praca))
+        zadanie.add_done_callback(_pochlonnij_wyjatek)
+        zakonczone, _ = await asyncio.wait({zadanie}, timeout=limit)
+        if zadanie not in zakonczone:
+            raise PracaPrzekroczylaCzas()  # zadanie pracuje dalej, trzyma slot
+        return zadanie.result()
+
+    async def _z_slotem(self, praca):
         async with self._slot():
-            return await asyncio.wait_for(asyncio.to_thread(praca), limit)
+            return await asyncio.to_thread(praca)
 
     def stan(self) -> dict[str, int]:
         return {"czekajacy": self.czekajacy, "maks": self.maks}
+
+
+def _pochlonnij_wyjatek(zadanie: asyncio.Task) -> None:
+    """Zadanie porzucone po timeoucie: pobiera wyjątek, żeby pętla zdarzeń milczała."""
+    if not zadanie.cancelled():
+        zadanie.exception()
 
 
 def _json_naglowek(wartosc: Any) -> str:
@@ -272,6 +297,18 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     async def _kolejka_pelna(request: Request, blad: KolejkaPelna):
         return JSONResponse(
             {"blad": "kolejka pełna, spróbuj ponownie za chwilę"},
+            status_code=503,
+            headers={"retry-after": str(konfig.timeout_s)},
+        )
+
+    @app.exception_handler(PracaPrzekroczylaCzas)
+    async def _praca_przekroczyla_czas(request: Request, blad: PracaPrzekroczylaCzas):
+        # K4b pkt 11: 503 z retry-after — praca nadal trwa i trzyma slot
+        return JSONResponse(
+            {
+                "blad": "praca nad dokumentem przekroczyła limit czasu; "
+                "poczekaj, aż serwer ją dokończy"
+            },
             status_code=503,
             headers={"retry-after": str(konfig.timeout_s)},
         )

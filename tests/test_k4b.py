@@ -6,8 +6,10 @@ Kolejność sekcji = priorytet zlecenia K4b.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
+import threading
 import zipfile
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from narzedzia.generator_dokumentow import zapisz_podstawowy
 from niewidka.api import create_app
 from niewidka.detektory import RegulyDetektor
 from niewidka.konfig import Konfig
+from niewidka.model import TypEncji
 
 KLUCZ = bytes(range(32))
 PESEL = "44051401359"
@@ -443,6 +446,25 @@ async def test_pkt9_chunked_ponad_limit_413_bez_spoolowania(konfig, monkeypatch)
     assert not rollovery, "treść dotarła do parsera — rollover na dysk się wydarzył"
 
 
+@pytest.mark.anyio
+async def test_pkt9_przywroc_ma_limit_przed_buforowaniem(konfig):
+    """K4b pkt 9: /api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
+
+    async def strumien():
+        kawalek = b"m" * 65536
+        for _ in range(18):
+            yield kawalek
+
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/przywroc",
+            headers=_naglowki(app, **{"content-type": "multipart/form-data; boundary=x"}),
+            content=strumien(),
+        )
+    assert odpowiedz.status_code == 413
+
+
 # --- pkt 10: ZIP — odczyt porcjami z budżetem, weryfikacja długości, metody -----
 
 import struct
@@ -519,19 +541,48 @@ async def test_pkt10_bomba_przez_api_413(konfig):
             headers=_naglowki(app),
         )
     assert odpowiedz.status_code == 413
-    """K4b pkt 9: /api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
 
-    async def strumien():
-        kawalek = b"m" * 65536
-        for _ in range(18):
-            yield kawalek
 
-    app = create_app(konfig, detektor=RegulyDetektor())
+# --- pkt 11: slot zwalniany dopiero po faktycznym końcu pracy -------------------
+
+
+@pytest.mark.anyio
+async def test_pkt11_timeout_zostawia_slot_zajety_do_konca_pracy(klucz_plik):
+    """K4b pkt 11: timeout zwraca 503, ale wątek pracuje dalej i slot zostaje
+    zajęty do faktycznego końca — następne żądanie NIE wchodzi równolegle."""
+    konfig = Konfig(klucz_plik=klucz_plik, kolejka=0, timeout_s=1)
+    start = threading.Event()
+    zakonczone = threading.Event()
+
+    class Wolny:
+        nazwa = "wolny"
+        typy = frozenset({TypEncji.INNE})
+
+        def znajdz(self, tekst):
+            start.set()
+            zakonczone.wait(10)  # praca trwa dłużej niż timeout
+            return []
+
+    app = create_app(konfig, detektor=Wolny())
     async with _klient(app) as klient:
-        odpowiedz = await klient.post(
-            "/api/przywroc",
-            headers=_naglowki(app, **{"content-type": "multipart/form-data; boundary=x"}),
-            content=strumien(),
+        pierwsze = asyncio.create_task(
+            klient.post("/api/ukryj", data={"tekst": "spokojny tekst."}, headers=_naglowki(app))
         )
-    assert odpowiedz.status_code == 413
+        await asyncio.to_thread(start.wait)  # praca zajęła slot
+        timeout_odpowiedz = await pierwsze
+        assert timeout_odpowiedz.status_code == 503  # timeout → 503 (nie cisza, nie 500)
+        assert not zakonczone.is_set(), "wątek powinien wciąż pracować po timeoucie"
+        drugie = await klient.post(
+            "/api/ukryj", data={"tekst": "spokojny tekst."}, headers=_naglowki(app)
+        )
+        assert drugie.status_code == 503, "slot zwolniony mimo że praca trwa"
+        zakonczone.set()  # praca może się skończyć
+        for _ in range(200):  # czekamy, aż semafor FAKTYCZNIE puści
+            if not app.state.kolejka._slot().locked():
+                break
+            await asyncio.sleep(0.05)
+        trzecie = await klient.post(
+            "/api/ukryj", data={"tekst": "spokojny tekst."}, headers=_naglowki(app)
+        )
+        assert trzecie.status_code == 200, "po realnym końcu pracy slot wolny"
 
