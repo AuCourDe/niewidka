@@ -7,6 +7,7 @@ adapterami detektorów (bardsai w katalogu głównym, LFM2.5 w lfm25/q4-bl32/).
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import httpx
@@ -348,6 +349,7 @@ def test_menedzer_instaluj_z_katalogu(menedzer, katalog_testowy, tmp_path):
                 lustro.mkdir(parents=True, exist_ok=True)
                 (lustro / plik.zrodlo).write_bytes(tresc)
     menedzer.instaluj("podstawowy", lustro)
+    menedzer.czekaj()  # K7c pkt 8: instalacja idzie w tle
     wpisy = {w["id"]: w for w in menedzer.lista()}
     assert wpisy["podstawowy"]["stan"] == "zainstalowany"
 
@@ -376,6 +378,7 @@ def test_menedzer_on_zmiana_po_kazdej_operacji(katalog_testowy, tmp_path):
     menedzer.czekaj()
     menedzer.usun("podstawowy")
     menedzer.instaluj("podstawowy", _lustro(katalog_testowy, tmp_path))
+    menedzer.czekaj()  # K7c pkt 8: instalacja idzie w tle
     assert zmiany == ["zmiana", "zmiana", "zmiana"]
 
 
@@ -469,3 +472,145 @@ def test_blad_pobierania_kontrolowany_bez_hasla_i_url(tmp_path, katalog_testowy)
     assert "lustro.example" not in blad
     assert "http" not in blad
     assert "podstawowy" in blad and "503" in blad
+
+
+# --- K7c pkt 8: twarde limity pobierania i instalacji w tle -------------------
+
+def test_limit_czasu_z_env():
+    assert pakiety.limit_czasu_domyslny({}) == 1800
+    assert pakiety.limit_czasu_domyslny({"NIEWIDKA_PAKIETY_LIMIT_CZASU_S": "60"}) == 60
+    with pytest.raises(ValueError):
+        pakiety.limit_czasu_domyslny({"NIEWIDKA_PAKIETY_LIMIT_CZASU_S": "duzo"})
+
+
+def test_pobierz_twardy_limit_bajtow(katalog_testowy, tmp_path):
+    """Audyt #8: serwer deklaruje 1 B, wysyła megabajty; zapis ma pilnować
+    rozmiaru z katalogu PRZED każdym zapisem."""
+    pakiet = katalog_testowy["lista"][0]
+    plik = pakiet.pliki[0]
+
+    def handler_lzik(request: httpx.Request) -> httpx.Response:
+        tresc = katalog_testowy["tresci"][plik.zrodlo] + b"X" * 4096
+        return httpx.Response(200, content=tresc)
+
+    katalog = tmp_path / "m"
+    klient = httpx.Client(transport=httpx.MockTransport(handler_lzik))
+    with pytest.raises(BladPakietu, match="rozmiar"):
+        pakiety.pobierz(pakiet, katalog, "http://x/", klient=klient)
+    assert pakiety.stan(pakiet, katalog) == "brak"
+
+
+def test_pobierz_limit_bajtow_przy_wznowieniu(katalog_testowy, tmp_path):
+    """Limit obowiązuje też przy Range: start + nowo pobrane ≤ rozmiar z katalogu."""
+    pakiet = katalog_testowy["lista"][0]
+    plik = pakiet.pliki[0]
+    calosc = katalog_testowy["tresci"][plik.zrodlo]
+    katalog = tmp_path / "m"
+    cel = katalog / plik.nazwa
+    cel.parent.mkdir(parents=True)
+    czesciowy = cel.with_name(cel.name + pakiety.CZESCIOWY)
+    czesciowy.write_bytes(calosc[:-1])  # brakuje ostatniego bajtu
+
+    def handler_dopisuje(request: httpx.Request) -> httpx.Response:
+        # ignoruje Range, wysyła ostatni bajt + 5 bajtów za dużo
+        return httpx.Response(206, content=calosc[-1:] + b"X" * 5,
+                              headers={"content-range": f"bytes {len(calosc)-1}-/x"})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_dopisuje))
+    with pytest.raises(BladPakietu, match="rozmiar"):
+        pakiety.pobierz(pakiet, katalog, "http://x/", klient=klient)
+
+
+def test_pobierz_calkowity_limit_czasu(katalog_testowy, tmp_path):
+    """Audyt #8: timeout odczytu dotyczy fragmentu, nie całego transferu —
+    strumień wysyłający kawałki częściej niż timeout ma zostać przerwany."""
+    pakiet = katalog_testowy["lista"][0]
+    tresc = katalog_testowy["tresci"][pakiet.pliki[0].zrodlo]
+
+    def strumien():
+        for i in range(0, len(tresc), 4):
+            time.sleep(0.05)
+            yield tresc[i : i + 4]
+
+    def handler_wolny(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=strumien())
+
+    katalog = tmp_path / "m"
+    klient = httpx.Client(transport=httpx.MockTransport(handler_wolny))
+    start = time.monotonic()
+    with pytest.raises(BladPakietu, match="czas"):
+        pakiety.pobierz(pakiet, katalog, "http://x/", klient=klient, limit_czasu_s=0.1)
+    assert time.monotonic() - start < 2
+
+
+def test_instaluj_z_katalogu_odrzuca_plik_inny_niz_w_katalogu(tmp_path, katalog_testowy):
+    """Limit bajtów przy instalacji offline: plik źródłowy większy niż katalog
+    wag = odmowa przed kopiowaniem (zapełnianie dysku przez lustro IT)."""
+    pakiet = katalog_testowy["lista"][0]
+    lustro = tmp_path / "lustrz"
+    lustro.mkdir()
+    for plik in pakiet.pliki:
+        tresc = katalog_testowy["tresci"][plik.zrodlo]
+        if plik is pakiet.pliki[0]:
+            tresc = tresc + b"DODATKOWE BAJTY Z LUSTRA"
+        (lustro / plik.zrodlo).write_bytes(tresc)
+    with pytest.raises(BladPakietu, match="rozmiar"):
+        pakiety.instaluj_z_katalogu(pakiet, tmp_path / "m", lustro)
+
+
+def test_menedzer_instaluj_w_tle_anulowanie(katalog_testowy, tmp_path):
+    """K7c pkt 8: instalacja offline idzie do wątku tła (nie blokuje pętli API)
+    z tym samym limitem bajtów; anulowanie kończy operację."""
+    import threading as _threading
+
+    brama = _threading.Event()
+    moze_isc = _threading.Event()
+    oryginalna = pakiety.instaluj_z_katalogu
+
+    def wolna_instalacja(*args, **kwargs):
+        brama.set()
+        moze_isc.wait(2)
+        return oryginalna(*args, **kwargs)
+
+    pakiety.instaluj_z_katalogu, oryginalna_kopia = wolna_instalacja, pakiety.instaluj_z_katalogu
+    try:
+        menedzer = MenedzerPakietow(
+            katalog_testowy["lista"],
+            tmp_path / "m",
+            "http://x/",
+            klient=httpx.Client(transport=_transport(katalog_testowy["tresci"])),
+        )
+        menedzer.instaluj("podstawowy", _lustro(katalog_testowy, tmp_path))
+        assert brama.wait(1), "instalacja ma ruszyć w tle"
+        assert not menedzer.zakonczone(), "instalacja ma być w tle (API nie blokowane)"
+        assert menedzer.pobierz("rozszerzony") is False, "jedna operacja naraz"
+        menedzer.anuluj()
+        menedzer.czekaj()
+        assert "przerwan" in (menedzer.postep.blad or "")
+    finally:
+        pakiety.instaluj_z_katalogu = oryginalna_kopia
+
+
+def test_menedzer_anuluj_pobieranie(katalog_testowy, tmp_path):
+    pakiet = katalog_testowy["lista"][0]
+    tresc = katalog_testowy["tresci"][pakiet.pliki[0].zrodlo]
+
+    def strumien():
+        for i in range(0, len(tresc), 2):
+            time.sleep(0.05)
+            yield tresc[i : i + 2]
+
+    def handler_wolny(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=strumien())
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://x/",
+        klient=httpx.Client(transport=httpx.MockTransport(handler_wolny)),
+    )
+    assert menedzer.pobierz("podstawowy") is True
+    menedzer.anuluj()
+    menedzer.czekaj()
+    assert "przerwan" in (menedzer.postep.blad or "")
+    assert menedzer.postep.pakiet is None  # można ponowić (pkt 11)

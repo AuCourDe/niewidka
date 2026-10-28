@@ -451,7 +451,9 @@ def create_app(
 
     @app.post("/api/pakiety")
     async def endpoint_pakiety_akcja(request: Request) -> JSONResponse:
-        """pobierz (w tle, 202) | usun (200) | instaluj z katalogu IT (200)."""
+        """pobierz (w tle, 202) | usun (200) | instaluj z katalogu IT (w tle, 202,
+        K7c pkt 8) | anuluj bieżącą operację (200). Błędy operacji w tle lądują
+        w postep.blad (GET /api/pakiety)."""
         try:
             zlecenie = await request.json()
         except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
@@ -460,7 +462,12 @@ def create_app(
         identyfikator = zlecenie.get("pakiet")
         pakiety_stan = app.state.pakiety
         znane = {w["id"] for w in pakiety_stan.lista()}
-        if akcja not in ("pobierz", "usun", "instaluj") or (akcja and identyfikator not in znane):
+        if akcja not in ("pobierz", "usun", "instaluj", "anuluj"):
+            raise HTTPException(status_code=422, detail="nieznana akcja albo pakiet")
+        if akcja == "anuluj":
+            pakiety_stan.anuluj()
+            return JSONResponse({"stan": "przerywanie"})
+        if identyfikator not in znane:
             raise HTTPException(status_code=422, detail="nieznana akcja albo pakiet")
         if akcja == "pobierz":
             if not pakiety_stan.pobierz(identyfikator):
@@ -472,8 +479,9 @@ def create_app(
         katalog = zlecenie.get("katalog")
         if not katalog:
             raise HTTPException(status_code=422, detail="instaluj wymaga katalogu")
-        pakiety_stan.instaluj(identyfikator, Path(katalog))
-        return JSONResponse({"stan": "zainstalowano"})
+        if not pakiety_stan.instaluj(identyfikator, Path(katalog)):
+            raise HTTPException(status_code=409, detail="inna operacja na pakietach trwa")
+        return JSONResponse({"stan": "instalowanie"}, status_code=202)
 
     @app.exception_handler(BladKontroli)
     async def _blad_kontroli(request: Request, blad: BladKontroli):

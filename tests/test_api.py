@@ -585,16 +585,19 @@ async def test_pakiety_instaluj_offline_z_katalogu(konfig, tmp_path):
             json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
             headers=_naglowki(app),
         )
-        assert odpowiedz.status_code == 200
+        assert odpowiedz.status_code == 202  # K7c pkt 8: instalacja w tle
+        menedzer.czekaj()
         stan = (await klient.get("/api/pakiety", headers=_naglowki(app))).json()
         assert stan["pakiety"][0]["stan"] == "zainstalowany"
-        # zły katalog: 422 z komunikatem bez treści plików
+        # zły katalog: błąd operacji w tle w postep.blad, bez treści plików
         odpowiedz = await klient.post(
             "/api/pakiety",
             json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(tmp_path / "pustka")},
             headers=_naglowki(app),
         )
-        assert odpowiedz.status_code == 422
+        assert odpowiedz.status_code == 202
+        menedzer.czekaj()
+        assert "brak pliku" in (menedzer.postep.blad or "")
 
 
 @pytest.mark.anyio

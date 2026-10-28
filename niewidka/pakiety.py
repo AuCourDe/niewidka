@@ -21,6 +21,7 @@ import os
 import stat
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -129,6 +130,20 @@ def zrodlo(env: dict[str, str] | None = None) -> str:
     return env.get("NIEWIDKA_MODELE_ZRODLO") or ZRODLO_DOMYSLNE
 
 
+def limit_czasu_domyslny(env: dict[str, str] | None = None) -> int:
+    """Całkowity limit czasu JEDNEJ operacji pobierania/instalacji (K7c pkt 8,
+    audyt: timeout odczytu httpx dotyczy fragmentu, nie całego transferu).
+    Konfigurowalny NIEWIDKA_PAKIETY_LIMIT_CZASU_S; domyślnie 1800 s."""
+    env = os.environ if env is None else env
+    surowa = env.get("NIEWIDKA_PAKIETY_LIMIT_CZASU_S", "1800")
+    try:
+        return int(surowa)
+    except ValueError:
+        raise ValueError(
+            f"NIEWIDKA_PAKIETY_LIMIT_CZASU_S: oczekiwano liczby, jest {surowa!r}"
+        ) from None
+
+
 def _sha256(plik: Path) -> str:
     skrot = hashlib.sha256()
     with plik.open("rb") as uchwyt:
@@ -221,15 +236,22 @@ def _pobierz_plik(
     cel: Path,
     suma_oczekiwana: str,
     katalog: Path,
+    rozmiar: int,
+    limit_czasu_s: int = 1800,
+    przerwano=None,
     postep=None,
 ) -> None:
     """Strumieniowe pobranie jednego pliku z wznawianiem; publikacja zweryfikowanych
-    bajtów (_opublikuj). Plik częściowy otwierany bez podążania za dowiązaniami."""
+    bajtów (_opublikuj). Plik częściowy otwierany bez podążania za dowiązaniami.
+    K7c pkt 8 (audyt): twardy limit bajtów = rozmiar z katalogu (też przy Range),
+    całkowity limit czasu i anulowanie sprawdzane przy KAŻDYM kawałku."""
     czesciowy = cel.with_name(cel.name + CZESCIOWY)
     if _jest_dowiazaniem(czesciowy):
         czesciowy.unlink()  # podstawione dowiązanie nie jest naszym plikiem częściowym
     naglowki = {}
     start = czesciowy.stat().st_size if czesciowy.is_file() else 0
+    if start > rozmiar:
+        raise BladPakietu(f"plik częściowy większy niż rozmiar z katalogu: {cel.name}")
     if start:
         naglowki["range"] = f"bytes={start}-"
     cel.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +280,18 @@ def _pobierz_plik(
             raise BladPakietu(f"plik częściowy nieosiągalny: {cel.name}") from blad
         with os.fdopen(fd, "ab" if start else "wb") as uchwyt:
             gotowe = start
+            start_czasu = time.monotonic()
             for kawalek in odpowiedz.iter_bytes():
+                if przerwano is not None and przerwano():
+                    raise BladPakietu("pobieranie przerwane")
+                if time.monotonic() - start_czasu > limit_czasu_s:
+                    raise BladPakietu(
+                        "pobieranie przekroczyło całkowity limit czasu; kolejna próba wznowi"
+                    )
+                if gotowe + len(kawalek) > rozmiar:
+                    raise BladPakietu(
+                        f"serwer wysłał więcej bajtów niż rozmiar z katalogu pakietów: {cel.name}"
+                    )
                 uchwyt.write(kawalek)
                 gotowe += len(kawalek)
                 if postep is not None:
@@ -304,14 +337,19 @@ def pobierz(
     zrodlo_bazowe: str,
     klient: httpx.Client | None = None,
     postep=None,
+    limit_czasu_s: int | None = None,
+    przerwano=None,
 ) -> None:
     """Pobiera wszystkie pliki pakietu; pomija te już zgodne z SHA-256."""
     wlasny = klient is None
     klient = klient or httpx.Client(follow_redirects=True, timeout=600)
+    limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
     try:
         para = _podziel_postep(postep, [p.rozmiar for p in pakiet.pliki])
         postep_pliku, po_pliku = para if para else (None, None)
         for plik in pakiet.pliki:
+            if przerwano is not None and przerwano():
+                raise BladPakietu("pobieranie przerwane")
             cel = katalog / plik.nazwa
             if cel.is_file() and not cel.is_symlink() and _sha256(cel) == plik.sha256:
                 if po_pliku is not None:
@@ -323,6 +361,9 @@ def pobierz(
                 cel,
                 plik.sha256,
                 katalog,
+                rozmiar=plik.rozmiar,
+                limit_czasu_s=limit,
+                przerwano=przerwano,
                 postep=postep_pliku,
             )
             if po_pliku is not None:
@@ -359,15 +400,32 @@ def instaluj_z_katalogu(
     katalog: Path,
     zrodlo_katalog: Path,
     postep=None,
+    limit_czasu_s: int | None = None,
+    przerwano=None,
 ) -> None:
     """Instalacja offline (IT): katalog z plikami o nazwach jak w źródle;
     weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu (K7c pkt 3/4:
-    te same bajty są haszowane i publikowane, bez podążania za dowiązaniami)."""
+    te same bajty są haszowane i publikowane, bez podążania za dowiązaniami).
+    K7c pkt 8: limit bajtów = rozmiar z katalogu wag (plik lustra większy =
+    odmowa PRZED kopiowaniem), limit czasu i anulowanie jak przy pobieraniu."""
+    limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
+    start_czasu = time.monotonic()
     for plik in pakiet.pliki:
+        if przerwano is not None and przerwano():
+            raise BladPakietu("instalacja przerwana")
+        if time.monotonic() - start_czasu > limit:
+            raise BladPakietu("instalacja przekroczyła całkowity limit czasu")
         wzor = zrodlo_katalog / plik.zrodlo
         if wzor.is_symlink() or not wzor.is_file():
             raise BladPakietu(f"brak pliku {plik.zrodlo} w katalogu źródłowym")
-        _opublikuj(wzor.read_bytes(), katalog / plik.nazwa, plik.sha256, katalog)
+        if wzor.stat().st_size != plik.rozmiar:
+            raise BladPakietu(
+                f"plik w katalogu źródłowym ma inny rozmiar niż katalog pakietów: {plik.zrodlo}"
+            )
+        bajty = wzor.read_bytes()
+        if len(bajty) != plik.rozmiar:
+            raise BladPakietu(f"plik źródłowy zmienił rozmiar w trakcie odczytu: {plik.zrodlo}")
+        _opublikuj(bajty, katalog / plik.nazwa, plik.sha256, katalog)
         if postep is not None:
             postep(plik.rozmiar, pakiet.rozmiar)
     _zapisz_manifest(pakiet, katalog)
@@ -405,6 +463,7 @@ class MenedzerPakietow:
         self._klient = klient
         self._zajete = threading.Lock()
         self._w_toku = False
+        self._przerwano = threading.Event()
         self.postep = PostepPobierania()
         self._on_zmiana = on_zmiana
 
@@ -456,34 +515,65 @@ class MenedzerPakietow:
     def pobierz(self, identyfikator: str) -> bool:
         """Uruchamia pobieranie w wątku tła; False gdy inne już trwa albo pakiet
         nieznany (K7b: operacja długotrwała, POST odpowiada 202 od razu)."""
-        if identyfikator not in self._pakiety or self._w_toku:
+        pakiet = self._pakiety.get(identyfikator)
+        if pakiet is None:
             return False
+        return self._uruchom_w_tle(
+            pakiet,
+            lambda: pobierz(
+                pakiet,
+                self._katalog,
+                self._zrodlo,
+                klient=self._klient,
+                postep=self._przyjmij_postep,
+                przerwano=self._przerwano.is_set,
+            ),
+            "pobieranie",
+        )
+
+    def anuluj(self) -> None:
+        """K7c pkt 8: prosi bieżącą operację o przerwanie (sprawdzane przy każdym
+        kawałku); efekty widoczne w postep.blad po jej zakończeniu."""
+        self._przerwano.set()
+
+    def instaluj(self, identyfikator: str, katalog_zrodlowy: Path) -> bool:
+        """Instalacja offline w tle (K7c pkt 8, audyt: kopia lokalna blokowała
+        pętlę API); False gdy inna operacja trwa. Limit bajtów/czasu jak przy
+        pobieraniu; błędy lądują w postep.blad."""
         pakiet = self._pakiety[identyfikator]
+        return self._uruchom_w_tle(
+            pakiet,
+            lambda: instaluj_z_katalogu(
+                pakiet,
+                self._katalog,
+                katalog_zrodlowy,
+                postep=self._przyjmij_postep,
+                przerwano=self._przerwano.is_set,
+            ),
+            "instalacja",
+        )
+
+    def _uruchom_w_tle(self, pakiet: Pakiet, operacja, etykieta: str) -> bool:
         with self._zajete:
             if self._w_toku:
                 return False
             self._w_toku = True
         self.postep = PostepPobierania(pakiet=pakiet.id, razem=pakiet.rozmiar)
+        self._przerwano.clear()
 
         def praca():
             try:
-                pobierz(
-                    pakiet,
-                    self._katalog,
-                    self._zrodlo,
-                    klient=self._klient,
-                    postep=self._przyjmij_postep,
-                )
+                operacja()
             except BladPakietu as blad:
                 self.postep.blad = str(blad)
             except httpx.HTTPStatusError as blad:
                 # K7c pkt 5 (audyt): kontrolowany komunikat — bez URL (bywa z
                 # login:hasło lustra) i bez tekstu wyjątku; tylko kod HTTP
                 self.postep.blad = (
-                    f"{pakiet.id}: pobieranie nie powiodło się (HTTP {blad.response.status_code})"
+                    f"{pakiet.id}: {etykieta} nie powiodło się (HTTP {blad.response.status_code})"
                 )
             except (httpx.HTTPError, OSError):
-                self.postep.blad = f"{pakiet.id}: pobieranie nie powiodło się (błąd sieci)"
+                self.postep.blad = f"{pakiet.id}: {etykieta} nie powiodła się (błąd sieci)"
             finally:
                 self.postep.pakiet = None
                 self._w_toku = False
@@ -491,12 +581,6 @@ class MenedzerPakietow:
 
         threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()
         return True
-
-    def instaluj(self, identyfikator: str, katalog_zrodlowy: Path) -> None:
-        """Instalacja offline (IT); synchronnie — kopia lokalna jest szybka."""
-        pakiet = self._pakiety[identyfikator]
-        instaluj_z_katalogu(pakiet, self._katalog, katalog_zrodlowy)
-        self._zglos_zmiane()
 
     def usun(self, identyfikator: str) -> None:
         usun(self._pakiety[identyfikator], self._katalog)
@@ -508,8 +592,6 @@ class MenedzerPakietow:
 
     def czekaj(self, limit_s: float = 60) -> None:
         """Tylko dla testów: czeka na koniec operacji w tle."""
-        import time
-
         koniec = time.monotonic() + limit_s
         while self._w_toku and time.monotonic() < koniec:
             time.sleep(0.01)
