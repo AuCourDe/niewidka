@@ -102,3 +102,9 @@
 - [~] 12:45 (właściciel) „pokaż zrzuty jak będą” + „wersja okienkowa na windows? potem dopiero linux / mac / android”
   - [ ] Zrzuty K5 pokazać właścicielowi (kopia do C na pulpicie) do oceny tak/nie
   - [ ] K6 Windows przed Linux/Mac/Android
+- [~] 12:55 (właściciel) „zrzut dobre”; logo Niewidki jako znikająca czapka (kontur czapki na napisie, przez kontur widać napis, albo z liter słowa); teksty GUI poprawia ARGON (bardziej ludzkie, przystępne, BEZ PÓŁPAUZ – zabronione); sekcja „jak to działa”: prosta dla nietechnicznych + szczegóły techniczne (poziomy 2/3, CPU/GPU, metody wykrywania/zakrywania) + PRZEDE WSZYSTKIM lista wykrywanych danych + adnotacja, że model może nie wykryć wszystkiego/pomylić się/zamaskować nie-dane; „narzędzie wspierające”. Przyspieszyć: agy3, agy4, claude-glm, 800 zapytań OpenRouter free, Codex 4 razy.
+  - [ ] Logo: warianty SVG (agy3 + agy4), wybór właściciela, wpięcie w nagłówek i favicon
+  - [ ] Lista zdań/słów GUI (plik:miejsce) -> Argon (www) -> poprawki; zero półpauz i pauz w tekstach
+  - [ ] Sekcja „Jak to działa” (prosta + techniczna + lista danych + zastrzeżenia) — treść od Argona
+  - [ ] Codex/astra: łącznie do 4 wywołań (#1 K4 mapa/klucze/api teraz)
+
