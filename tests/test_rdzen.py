@@ -172,21 +172,17 @@ def test_kontrola_nowe_znajdziska_blokuja_status():
 
 
 def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
-    """K3b: PESEL schowany w części, której adapter nie parsuje (settings.xml),
-    omija wykrywanie i zamianę — kontrola z oryginałami mapy musi go zgłosić."""
+    """K3b: PESEL schowany w części, której adapter nie parsuje i nie czyści
+    (media), omija wykrywanie i zamianę — kontrola z oryginałami mapy go zgłasza.
+    (Pierwotna pułapka w settings.xml przestała wyciekać po naprawie Gemini pkt 8.)"""
     import io
     import zipfile
 
     wzorzec = zapisz_podstawowy(tmp_path / "w.docx").read_bytes()
-    settings = (
-        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        b'<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-        b'<w:writeProtection w:author="44051401359"/></w:settings>'
-    )
     zrodlo = zipfile.ZipFile(io.BytesIO(wzorzec))
     czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
     zrodlo.close()
-    czesci["word/settings.xml"] = settings
+    czesci["word/media/skrytka.bin"] = b"\x00\x01 PESEL 44051401359 \xff"
     bufor = io.BytesIO()
     with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
         for nazwa, zawartosc in czesci.items():
@@ -197,7 +193,7 @@ def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
     oryginaly = [w.oryginal for w in mapa.wystapienia]
     assert "44051401359" in oryginaly
     assert any(
-        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/settings.xml"
+        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/media/skrytka.bin"
         for o in raport.ostrzezenia
     )
     assert raport.status == "zablokowany"

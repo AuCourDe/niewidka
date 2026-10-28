@@ -23,6 +23,7 @@ from niewidka.znaczniki import DOPISEK
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+VML = "urn:schemas-microsoft-com:vml"
 
 
 def _q(nazwa: str) -> str:
@@ -38,6 +39,9 @@ USUWANE = (
     "docProps/app",  # właściwości aplikacji (firma itd.)
     "docProps/thumbnail",  # miniatura pierwszej strony
     "customXml/",  # custom XML — wektor wstrzyknięcia danych (Astra pkt 5)
+    "word/people",  # autorzy komentarzy z e-mailami (Gemini pkt 13)
+    "docProps/custom",  # właściwości niestandardowe systemów obiegu (Gemini pkt 13)
+    "word/glossary",  # Szybkie części / AutoTekst (Gemini pkt 13)
 )
 
 
@@ -155,6 +159,8 @@ class AdapterDocx:
         WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
         for doc_pr in drzewo.iter(f"{{{WP}}}docPr"):
             doc_pr.set("descr", "")
+            doc_pr.set("name", "")
+            doc_pr.set("title", "")
         for link in list(drzewo.iter(_q("hyperlink"))):
             id_relacji = link.get(f"{{{R}}}id")
             cel = _cel_relacji(rels_xml, id_relacji)
@@ -164,6 +170,39 @@ class AdapterDocx:
                     link.addprevious(dziecko)  # tekst zostaje, opakowanie znika
                 rodzic.remove(link)
                 zasoby["usun_relacje"].add(id_relacji)
+        # zakładki (Gemini pkt 9): nazwy z PII → neutralne _Bm1..; systemowe _* zostają
+        zakladki: dict[str, str] = {}
+        for bm in drzewo.iter(_q("bookmarkStart")):
+            nazwa = bm.get(_q("name"), "")
+            if not nazwa or nazwa.startswith("_"):
+                continue
+            zakladki.setdefault(nazwa, f"_Bm{len(zakladki) + 1}")
+            bm.set(_q("name"), zakladki[nazwa])
+        # kotwice hiperłączy (Gemini pkt 14) — ta sama neutralizacja;
+        # kotwica na nieznaną zakładkę → _Bm0
+        for link in drzewo.iter(_q("hyperlink")):
+            anchor = link.get(_q("anchor"))
+            if anchor:
+                link.set(_q("anchor"), zakladki.get(anchor, "_Bm0"))
+        # kontrolki treści (Gemini pkt 10): alias/tag z PII — węzły znikają
+        for nazwa in ("alias", "tag"):
+            for element in list(drzewo.iter(_q(nazwa))):
+                element.getparent().remove(element)
+        # smart tagi (Gemini pkt 15): metadane w:attr lecą z w:smartTagPr, treść zostaje
+        for pr in list(drzewo.iter(_q("smartTagPr"))):
+            pr.getparent().remove(pr)
+        for st in list(drzewo.iter(_q("smartTag"))):
+            rodzic = st.getparent()
+            for dziecko in list(st):
+                st.addprevious(dziecko)
+            rodzic.remove(st)
+        # metadane grafiki VML (Gemini pkt 12): title/alt/descr na kształtach i obrazach
+        for element in drzewo.iter():
+            if not element.tag.startswith(f"{{{VML}"):
+                continue
+            for atrybut in list(element.attrib):
+                if atrybut.rsplit("}", 1)[-1] in ("title", "alt", "descr"):
+                    del element.attrib[atrybut]
 
     def _segmenty(self, drzewo: etree._Element) -> list[Segment]:
         segmenty = []
@@ -299,6 +338,12 @@ def _cel_relacji(rels_xml: bytes, id_relacji: str | None) -> str | None:
 def _przefiltruj_rels(rels_xml: bytes, usun_id: set[str], usun_czesci: set[str]) -> bytes:
     korzen = etree.fromstring(rels_xml, _parser())
     for relacja in list(korzen):
+        cel = relacja.get("Target") or ""
+        if cel.lower().startswith(("http://", "https://")):
+            # Gemini pkt 11: zewnętrzny URL bez query stringa i fragmentu (PII)
+            czysty = cel.split("?", 1)[0].split("#", 1)[0]
+            if czysty != cel:
+                relacja.set("Target", czysty)
         if relacja.get("Id") in usun_id or _relacja_celu_w(relacja.get("Target"), usun_czesci):
             korzen.remove(relacja)
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
