@@ -1,7 +1,9 @@
 """Pomiar recall/precision detektora na korpusie (K0, zasady w KRYTERIA.md).
 
 Dopasowanie dokładne: TP = identyczne (start, koniec, typ); pokrycie częściowe
-liczy się jednocześnie jako FN i FP. Uruchomienie z katalogu repo:
+liczy się jednocześnie jako FN i FP; detekcja podejrzana (`podejrzana=True`,
+KRYTERIA §1.3) bez dopasowania liczy się osobno jako PN — nie zaniża precision.
+Uruchomienie z katalogu repo:
 
     .venv/bin/python -m narzedzia.pomiar --detektor reguly
 """
@@ -40,6 +42,7 @@ class WynikTypu:
     tp: int = 0
     fp: int = 0
     fn: int = 0
+    pn: int = 0  # podejrzane nadmaskowanie (KRYTERIA §1.3), poza precision
 
 
 class DetektorPusty:
@@ -84,12 +87,20 @@ def zmierz(probki: list[Probka], detektor) -> dict[str, WynikTypu]:
         return wyniki.setdefault(typ, WynikTypu())
 
     for probka in probki:
-        detekcje = {(z.start, z.koniec, z.typ.value) for z in detektor.znajdz(probka.tekst)}
+        detekcje = detektor.znajdz(probka.tekst)
         oczekiwane = {(e.start, e.koniec, e.typ) for e in probka.encje}
-        for trafienie in detekcje:
-            wynik(trafienie[2]).tp += trafienie in oczekiwane
-            wynik(trafienie[2]).fp += trafienie not in oczekiwane
-        for brak in oczekiwane - detekcje:
+        trafione: set[tuple[int, int, str]] = set()
+        for z in detekcje:
+            klucz = (z.start, z.koniec, z.typ.value)
+            trafione.add(klucz)
+            w = wynik(klucz[2])
+            if klucz in oczekiwane:
+                w.tp += 1
+            elif z.podejrzana:
+                w.pn += 1
+            else:
+                w.fp += 1
+        for brak in oczekiwane - trafione:
             wynik(brak[2]).fn += 1
     return wyniki
 
@@ -109,18 +120,19 @@ def _mikro(wyniki: dict[str, WynikTypu], typy: set[str] | None = None) -> WynikT
             suma.tp += w.tp
             suma.fp += w.fp
             suma.fn += w.fn
+            suma.pn += w.pn
     return suma
 
 
 def wypisz_raport(wyniki: dict[str, WynikTypu]) -> None:
-    print("| typ | TP | FP | FN | recall | precision |")
-    print("|---|---|---|---|---|---|")
+    print("| typ | TP | FP | PN | FN | recall | precision |")
+    print("|---|---|---|---|---|---|---|")
     for typ in sorted(wyniki):
         w = wyniki[typ]
         r = recall(w)
         p = precision(w)
         print(
-            f"| {typ} | {w.tp} | {w.fp} | {w.fn} "
+            f"| {typ} | {w.tp} | {w.fp} | {w.pn} | {w.fn} "
             f"| {'n/d' if r is None else f'{r:.3f}'} | {'n/d' if p is None else f'{p:.3f}'} |"
         )
     bez_osoby = {t for t in wyniki if t != "OSOBA"}
@@ -129,7 +141,7 @@ def wypisz_raport(wyniki: dict[str, WynikTypu]) -> None:
     for nazwa, zbiorczy in (("łącznie (K1, bez OSOBA)", k1), ("łącznie (wszystkie)", calosc)):
         r, p = recall(zbiorczy), precision(zbiorczy)
         print(
-            f"| **{nazwa}** | {zbiorczy.tp} | {zbiorczy.fp} | {zbiorczy.fn} "
+            f"| **{nazwa}** | {zbiorczy.tp} | {zbiorczy.fp} | {zbiorczy.pn} | {zbiorczy.fn} "
             f"| {'n/d' if r is None else f'{r:.3f}'} | {'n/d' if p is None else f'{p:.3f}'} |"
         )
 

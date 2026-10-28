@@ -8,6 +8,10 @@ def _zakresy(tekst: str):
     return [(z.start, z.koniec, z.typ) for z in znajdz(tekst)]
 
 
+def _podejrzane(tekst: str):
+    return [z for z in znajdz(tekst) if z.podejrzana]
+
+
 # --- cykl A: PESEL ----------------------------------------------------------
 
 def test_pesel_poprawny_znaleziony():
@@ -19,8 +23,22 @@ def test_pesel_poprawny_znaleziony():
     assert wynik[0].zrodlo == "regula"
 
 
-def test_pesel_bledna_suma_nie_znaleziony():
-    assert _zakresy("PESEL: 44051401358, wniosek.") == []
+def test_pesel_bledna_suma_podejrzany_nie_odrzucony():
+    # Przegląd Astry pkt 14: błędna suma = encja z flagą „podejrzana", nie
+    # odrzucenie — literówka w prawdziwym numerze nie może zniknąć cicho.
+    wynik = znajdz("PESEL: 44051401358, wniosek.")
+    assert [(z.start, z.koniec) for z in wynik] == [(7, 18)]
+    assert wynik[0].podejrzana is True
+    assert wynik[0].suma_kontrolna is False
+    assert wynik[0].pewnosc == 0.5
+    assert wynik[0].typ is TypEncji.PESEL
+
+
+def test_pesel_poprawny_nie_jest_podejrzany():
+    wynik = znajdz("PESEL: 44051401359, wniosek.")
+    assert wynik[0].podejrzana is False
+    assert wynik[0].suma_kontrolna is True
+    assert wynik[0].pewnosc == 1.0
 
 
 def test_pesel_w_dluzszej_liczbie_nie_znaleziony():
@@ -40,8 +58,10 @@ def test_nip_ciagly_znaleziony():
     assert (5, 15, TypEncji.NIP) in _zakresy("NIP: 1234563218, zakład.")
 
 
-def test_nip_bledna_suma_nie_znaleziony():
-    assert _zakresy("NIP: 1234563219, zakład.") == []
+def test_nip_bledna_suma_podejrzany():
+    wynik = _podejrzane("NIP: 1234563219, zakład.")
+    assert wynik[0].typ is TypEncji.NIP
+    assert wynik[0].podejrzana is True
 
 
 def test_regon_9_i_14_cyfrowy():
@@ -49,8 +69,10 @@ def test_regon_9_i_14_cyfrowy():
     assert (6, 20, TypEncji.REGON) in _zakresy("REGON 12345678512347 oddziału.")
 
 
-def test_regon_bledna_suma_nie_znaleziony():
-    assert _zakresy("REGON 192598183 firmy.") == []
+def test_regon_bledna_suma_podejrzany():
+    wynik = _podejrzane("REGON 192598183 firmy.")
+    assert wynik[0].typ is TypEncji.REGON
+    assert wynik[0].podejrzana is True
 
 
 def test_iban_ze_spacjami():
@@ -60,8 +82,10 @@ def test_iban_ze_spacjami():
     assert wynik[0].suma_kontrolna is True
 
 
-def test_iban_bledna_suma_nie_znaleziony():
-    assert _zakresy("Konto: PL61 1090 1014 0000 0712 1981 2875.") == []
+def test_iban_bledna_suma_podejrzany():
+    wynik = _podejrzane("Konto: PL61 1090 1014 0000 0712 1981 2875.")
+    assert wynik[0].typ is TypEncji.IBAN
+    assert wynik[0].podejrzana is True
 
 
 def test_dowod_ze_spacja():
@@ -71,8 +95,10 @@ def test_dowod_ze_spacja():
     assert wynik[0].suma_kontrolna is True
 
 
-def test_dowod_bledna_suma_nie_znaleziony():
-    assert _zakresy("Dowód ABC212346 stracił ważność.") == []
+def test_dowod_bledna_suma_podejrzany():
+    wynik = _podejrzane("Dowód ABC212346 stracił ważność.")
+    assert wynik[0].typ is TypEncji.DOKUMENT
+    assert wynik[0].podejrzana is True
 
 
 # --- cykl C: EMAIL, TELEFON, ADRES, DATA ------------------------------------

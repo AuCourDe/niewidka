@@ -26,9 +26,10 @@ class Zakres:
     start: int  # znak w segment.tekst, włącznie
     koniec: int  # wyłącznie
     typ: TypEncji
-    pewnosc: float  # 0..1; reguły z sumą kontrolną = 1.0
+    pewnosc: float  # 0..1; reguły z sumą kontrolną = 1.0, podejrzane = 0.5
     zrodlo: str  # "regula", "onnx:bardsai", "onnx:lfm25"
     suma_kontrolna: bool = False
+    podejrzana: bool = False  # wzorzec pasuje, suma kontrolna błędna (Astra pkt 14)
 
 
 @dataclass

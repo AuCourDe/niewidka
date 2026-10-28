@@ -63,4 +63,5 @@ def _zwyciezca(grupa: list[Zakres]) -> Zakres:
         pewnosc=etykieta.pewnosc,
         zrodlo=etykieta.zrodlo,
         suma_kontrolna=etykieta.suma_kontrolna,
+        podejrzana=etykieta.podejrzana,
     )

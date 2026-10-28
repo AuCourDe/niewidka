@@ -67,6 +67,34 @@ pokrywają się z formami, które reguły obsłużyły świadomie. Znane słabo�
 ## Powtarzalność
 
 ```
-.venv/bin/pytest tests/ -q          # 71 testów zielonych
+.venv/bin/pytest tests/ -q          # 76 testów zielonych (po dopisku niżej)
 .venv/bin/python -m narzedzia.pomiar --detektor reguly
 ```
+
+---
+
+## Dopisek 2026-10-28 — podejrzane nadmaskowanie (przegląd Astry pkt 14)
+
+Otwarta decyzja „Astra #14" z sekcji powyżej **rozstrzygnięta** na polecenie właściciela:
+numer z błędną sumą kontrolną nie jest odrzucany — dostaje encję z flagą `podejrzana=True`
+(pewność 0.5) i wchodzi do maskowania. Definicja pomiaru doprecyzowana w `KRYTERIA.md`
+§1.3 (**tylko definicja**: nadmaskowanie z flagą liczone jako PN, nie FP; progi nietknięte;
+powód zmiany zapisany w KRYTERIA). Pomiar powtórzony po zmianie zachowania:
+
+| typ | TP | FP | PN | FN | recall | próg recall | precision | próg precision | werdykt |
+|---|---|---|---|---|---|---|---|---|---|
+| PESEL | 5 | 0 | 3 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| NIP | 5 | 0 | 2 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| REGON | 5 | 0 | 2 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| IBAN | 4 | 0 | 2 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| DOKUMENT | 3 | 0 | 2 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| EMAIL | 4 | 0 | 0 | 0 | 1.000 | = 1.00 | 1.000 | = 1.00 | **spełnia** |
+| TELEFON | 4 | 0 | 0 | 0 | 1.000 | ≥ 0.90 | 1.000 | ≥ 0.95 | **spełnia** |
+| ADRES | 6 | 0 | 0 | 0 | 1.000 | ≥ 0.80 | 1.000 | ≥ 0.90 | **spełnia** |
+| DATA | 4 | 0 | 0 | 0 | 1.000 | ≥ 0.90 | 1.000 | ≥ 0.95 | **spełnia** |
+| **łącznie (K1, bez OSOBA)** | **40** | **0** | **11** | **0** | **1.000** | ≥ 0.90 | **1.000** | ≥ 0.95 | **spełnia** |
+| OSOBA (poza bramą K1) | 0 | 0 | 0 | 23 | 0.000 | — (K2) | n/d | — | poza zakresem reguł |
+
+Wszystkie 11 pułapek z błędną sumą (PESEL 3, NIP 2, REGON 2, IBAN 2, DOWÓD 2) jest
+zamaskowanych z flagą — dokładnie zamierzone nadmaskowanie; brama K1 (40/40 pewnych TP,
+0 pewnych FP na pułapkach) dalej spełniona.

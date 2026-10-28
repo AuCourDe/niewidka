@@ -2,7 +2,10 @@
 
 Walidatory dostają tekst znormalizowany (bez spacji i myślników, wielkimi
 literami). Znacznik `suma_kontrolna=True` oznacza najwyższy priorytet przy
-scalaniu i pewność 1.0; reguły bez walidatora mają pewność 0.9.
+scalaniu i pewność 1.0; reguły bez walidatora mają pewność 0.9. Dopasowanie
+z BŁĘDNĄ sumą kontrolną nie jest odrzucane — dostaje flagę `podejrzana`
+i pewność 0.5 i wchodzi do maskowania (przegląd Astry pkt 14: literówka
+w prawdziwym numerze nie może zniknąć cicho).
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import stdnum.pl.regon
 from niewidka.model import TypEncji, Zakres
 
 PEWNOŚC_BEZ_SUMY = 0.9
+PEWNOŚC_PODEJRZANE = 0.5  # wzorzec pasuje, suma kontrolna błędna (LLD §3)
 
 # Dowód osobisty: python-stdnum go nie obejmuje — własny walidator (LLD §3).
 # Wagi 7,3,1,9,7,3,1,7,3; litery A=10..Z=35; suma iloczynów mod 10 równa się
@@ -157,20 +161,23 @@ def _pewnosc(regula: Regula) -> float:
 
 
 def znajdz(tekst: str) -> list[Zakres]:
-    """Kandydaci ze wszystkich reguł (bez scalania), sortowane wg pozycji."""
+    """Kandydaci ze wszystkich reguł (bez scalania), sortowane wg pozycji.
+
+    Zła suma kontrolna daje encję podejrzaną, nie odrzucenie (Astra pkt 14).
+    """
     kandydaci = []
     for regula in REGULY:
         for dopasowanie in regula.wzorzec.finditer(tekst):
-            if regula.walidator and not regula.walidator(dopasowanie.group(0)):
-                continue
+            suma_ok = not regula.walidator or regula.walidator(dopasowanie.group(0))
             kandydaci.append(
                 Zakres(
                     start=dopasowanie.start(),
                     koniec=dopasowanie.end(),
                     typ=regula.typ,
-                    pewnosc=_pewnosc(regula),
+                    pewnosc=_pewnosc(regula) if suma_ok else PEWNOŚC_PODEJRZANE,
                     zrodlo="regula",
-                    suma_kontrolna=regula.suma_kontrolna,
+                    suma_kontrolna=regula.suma_kontrolna and suma_ok,
+                    podejrzana=not suma_ok,
                 )
             )
     return sorted(kandydaci, key=lambda z: (z.start, z.koniec))

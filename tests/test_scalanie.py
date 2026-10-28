@@ -1,13 +1,14 @@
 """Testy scalania kandydatów (LLD §5 + przegląd Astry pkt 1)."""
 
 import random
+from itertools import pairwise
 
 from niewidka.model import TypEncji, Zakres
 from niewidka.scalanie import scal
 
 
-def _zakres(start, koniec, typ=TypEncji.INNE, pewnosc=0.9, suma=False, zrodlo="regula"):
-    return Zakres(start, koniec, typ, pewnosc, zrodlo, suma)
+def _zakres(start, koniec, typ=TypEncji.INNE, pewnosc=0.9, suma=False, zrodlo="regula", podejrzana=False):
+    return Zakres(start, koniec, typ, pewnosc, zrodlo, suma, podejrzana)
 
 
 def test_rozlaczne_przechodza_bez_zmian():
@@ -120,4 +121,23 @@ def test_własność_maskowanie_to_unia_wejścia():
             pozycje.append((z.start, z.koniec))
         assert wyjście == wejście  # ani dziury, ani nadmiaru
         assert pozycje == sorted(pozycje)
-        assert all(k1 <= s2 for (_, k1), (s2, _) in zip(pozycje, pozycje[1:]))
+        assert all(k1 <= s2 for (_, k1), (s2, _) in pairwise(pozycje))
+
+
+def test_sama_podejrzana_przechodzi_z_flaga():
+    wynik = scal("x" * 11, [_zakres(0, 11, TypEncji.PESEL, 0.5, podejrzana=True)])
+    assert wynik[0].podejrzana is True
+
+
+def test_podejrzana_nakryta_sumą_traci_etykietę_a_obszar_zostaje():
+    # Etykieta zwycięska jest pewna, ale maskowany obszar i tak obejmuje całą unię —
+    # podejrzany fragment nie może zostać odsłonięty (przegląd Astry pkt 1 + 14).
+    kandydaci = [
+        _zakres(0, 20, TypEncji.PESEL, 0.5, podejrzana=True),
+        _zakres(4, 14, TypEncji.NIP, 1.0, suma=True),
+    ]
+    wynik = scal("x" * 30, kandydaci)
+    assert len(wynik) == 1
+    assert (wynik[0].start, wynik[0].koniec) == (0, 20)
+    assert wynik[0].typ is TypEncji.NIP
+    assert wynik[0].podejrzana is False
