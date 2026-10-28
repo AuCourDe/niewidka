@@ -10,6 +10,7 @@ import pytest
 
 from niewidka.detektory import okna_tokenow, zdekoduj_bio
 from niewidka.model import TypEncji
+from niewidka.scalanie import scal
 
 
 class TestOknaTokenow:
@@ -38,7 +39,7 @@ class TestOknaTokenow:
     def test_zakladka_ciagla_bez_dziur(self):
         # Sąsiednie okna nachodzą dokładnie o (okno - krok) tokenów.
         okna = okna_tokenow(1500, okno=510, krok=448)
-        for (a_start, a_koniec), (b_start, b_koniec) in zip(okna, okna[1:]):
+        for (a_start, a_koniec), (b_start, b_koniec) in itertools.pairwise(okna):
             assert b_start == a_koniec - (510 - 448) or b_koniec == 1500
             assert b_start < a_koniec  # zakładka niepusta
 
@@ -128,3 +129,202 @@ class TestZdekodujBio:
         ]
         zakresy = zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA})
         assert zakresy[0][3] == pytest.approx(0.40)
+
+
+# --- Krok B: interfejs Detektor, OnnxDetektor, adapter bardsai (atrapy) ---
+
+import hashlib
+import itertools
+import json
+from dataclasses import dataclass
+from typing import ClassVar
+
+from niewidka.detektory import (
+    ADAPTER_BARDSAI,
+    BladDetektora,
+    OnnxDetektor,
+    RegulyDetektor,
+)
+from niewidka.reguly import znajdz as znajdz_reguly
+
+
+@dataclass
+class AtrapaEncoding:
+    ids: list[int]
+    offsets: list[tuple[int, int]]
+    special_tokens_mask: list[int]
+
+
+class AtrapaTokenizer:
+    """Encoding: token (id=i+1) na każdym słowie; <s>/</s> z maską (0,0)."""
+
+    def __init__(self, slowa: list[str]):
+        self.slowa = slowa
+
+    def encode(self, tekst: str, add_special_tokens: bool = True):
+        start = 0
+        ids, offsets, maska = [], [], []
+        if add_special_tokens:
+            ids.append(0)
+            offsets.append((0, 0))
+            maska.append(1)
+        for slowo in self.slowa:
+            start = tekst.index(slowo, start)
+            ids.append(len(ids))
+            offsets.append((start, start + len(slowo)))
+            maska.append(0)
+            start += len(slowo)
+        if add_special_tokens:
+            ids.append(0)
+            offsets.append((0, 0))
+            maska.append(1)
+        return AtrapaEncoding(ids, offsets, maska)
+
+
+class AtrapaSesja:
+    """Logity: etykieta o zadanym id = 4.0, reszta 0.0 → pewność ~0.982."""
+
+    def __init__(self, etykieta_na_token: list[int], n_etykiet: int = 69):
+        self.etykieta_na_token = etykieta_na_token
+        self.n_etykiet = n_etykiet
+        self.wejscia = ["input_ids", "attention_mask"]
+
+    def run(self, wyjscia, feed):
+        n = len(feed["input_ids"][0])
+        return [
+            [
+                [
+                    [4.0 if k == e else 0.0 for k in range(self.n_etykiet)]
+                    for e in self.etykieta_na_token[:n]
+                ]
+            ]
+        ]
+
+
+ID_O = 0
+ID_B_KLASA1 = 1  # B-KLASA1 w atrapie konfiguracji (B: 1-4, I: 5-8)
+ID_I_KLASA1 = 5  # I-KLASA1
+
+
+def zbuduj_onnx(tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None):
+    config = {
+        "id2label": {
+            i: e
+            for i, e in enumerate(
+                ["O"] + [f"B-KLASA{i}" for i in range(1, 5)] + [f"I-KLASA{i}" for i in range(1, 5)]
+            )
+        }
+    }
+    (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    pliki = {}
+    for nazwa in ("model.onnx", "tokenizer.json"):
+        (tmp_path / nazwa).write_bytes(b"dane-" + nazwa.encode())
+        pliki[nazwa] = hashlib.sha256(b"dane-" + nazwa.encode()).hexdigest()
+    (tmp_path / "manifest.json").write_text(json.dumps({"pliki": pliki}), encoding="utf-8")
+    return OnnxDetektor(
+        nazwa="onnx:test",
+        model=tmp_path / "model.onnx",
+        tokenizer=tmp_path / "tokenizer.json",
+        etykiety={("KLASA1",): TypEncji.OSOBA},
+        id2etykieta=config["id2label"],
+        sesja=sesja or AtrapaSesja(etykieta_na_token),
+        tokenizer_obj=tokenizer or AtrapaTokenizer(slowa),
+        laduj_manifest=True,
+    )
+
+
+class TestAdapterBardsai:
+    def test_osoba_mapowana(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-PERSON_NAME") is TypEncji.OSOBA
+        assert ADAPTER_BARDSAI.zwroc_typ("I-PERSON_NAME") is TypEncji.OSOBA
+
+    def test_alias_osoby_to_osoba(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-PERSON_ALIAS") is TypEncji.OSOBA
+
+    def test_location_i_pozostale_pomijane(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-LOCATION") is None
+        assert ADAPTER_BARDSAI.zwroc_typ("B-EMAIL_ADDRESS") is None
+        assert ADAPTER_BARDSAI.zwroc_typ("O") is None
+
+    def test_typy_adaptera(self):
+        assert TypEncji.OSOBA in ADAPTER_BARDSAI.typy
+
+
+class TestRegulyDetektor:
+    def test_protocol_i_wynik_jak_reguly_plus_scalanie(self):
+        d = RegulyDetektor()
+        assert d.nazwa == "reguly"
+        tekst = "PESEL 44051401359."
+        assert d.znajdz(tekst) == scal(tekst, znajdz_reguly(tekst))
+        assert d.znajdz(tekst)[0].typ is TypEncji.PESEL
+
+
+class TestOnnxDetektor:
+    def test_znajdz_zwraca_zakresy_bardsai(self, tmp_path):
+        # "Jan Kowalski i Anna Nowak": tokeny 1,2 (Jan, Kowalski) i 4,5 —
+        # atrapa sesji: B-KLASA1 na 1, I-KLASA1 na 2, B-KLASA1 na 4, I-KLASA1 na 5.
+        sesja = AtrapaSesja([ID_O, ID_B_KLASA1, ID_I_KLASA1, ID_O, ID_B_KLASA1, ID_I_KLASA1, ID_O])
+        d = zbuduj_onnx(tmp_path, ["Jan", "Kowalski", "i", "Anna", "Nowak"], None, sesja=sesja)
+        wynik = d.znajdz("Jan Kowalski i Anna Nowak")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [
+            (0, 12, TypEncji.OSOBA),
+            (15, 25, TypEncji.OSOBA),
+        ]
+        assert all(z.zrodlo == "onnx:test" for z in wynik)
+        assert all(0 < z.pewnosc <= 1 for z in wynik)
+
+    def test_dlugi_tekst_wiecz_zwola_okna(self, tmp_path):
+        # 1100 tokenów okna [0,510) i [448,958) i [590,1100); licznik wywołań sesji.
+        n = 1100
+        slowa = [f"w{i}" for i in range(n)]
+        wywolania = []
+
+        class LiczacaSesja(AtrapaSesja):
+            def run(self, wyjscia, feed):
+                wywolania.append(len(feed["input_ids"][0]))
+                return super().run(wyjscia, feed)
+
+        sesja = LiczacaSesja([ID_O] * (n + 2))
+        d = zbuduj_onnx(tmp_path, slowa, None, sesja=sesja)
+        wynik = d.znajdz(" ".join(slowa))
+        assert wywolania == [510, 510, 510]  # okna po 510 tokenów, feed as-is
+        assert wynik == []
+
+    def test_okno_przycina_tokeny_specjalne(self, tmp_path):
+        # <s> O, środek B-KLASA1 — encja w środku okna wyłapana poprawnie.
+        sesja = AtrapaSesja([ID_O, 1, ID_O, ID_O])
+        d = zbuduj_onnx(tmp_path, ["Jan", "biegł"], None, sesja=sesja)
+        wynik = d.znajdz("Jan biegł")
+        assert [(z.start, z.koniec) for z in wynik] == [(0, 3)]
+
+    def test_manifest_rozbiezny_sha_blad(self, tmp_path):
+        config = {"id2label": {"0": "O"}}
+        (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+        (tmp_path / "model.onnx").write_bytes(b"x")
+        (tmp_path / "tokenizer.json").write_bytes(b"y")
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"pliki": {"model.onnx": "0" * 64, "tokenizer.json": "0" * 64}}),
+            encoding="utf-8",
+        )
+        with pytest.raises(BladDetektora, match="manifest"):
+            OnnxDetektor(
+                nazwa="onnx:test",
+                model=tmp_path / "model.onnx",
+                tokenizer=tmp_path / "tokenizer.json",
+                etykiety={},
+                id2etykieta=config["id2label"],
+                sesja=AtrapaSesja([0]),
+                tokenizer_obj=AtrapaTokenizer(["a"]),
+                laduj_manifest=True,
+            )
+
+    def test_blad_inferencji_fail_closed(self, tmp_path):
+        class PadajacaSesja:
+            wejscia: ClassVar[list[str]] = ["input_ids", "attention_mask"]
+
+            def run(self, wyjscia, feed):
+                raise RuntimeError("padł model")
+
+        d = zbuduj_onnx(tmp_path, ["Jan"], None, sesja=PadajacaSesja())
+        with pytest.raises(BladDetektora, match="padł model"):
+            d.znajdz("Jan")

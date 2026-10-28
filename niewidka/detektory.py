@@ -2,12 +2,195 @@
 
 Adapter per model (przegląd Astry pkt 14): schemat etykiet (BIO/BIOES), tokeny
 specjalne i normalizacja różnią się między modelami — konwersja do `Zakres`
-żyje w adapterze modelu, nie we wspólnym kodzie.
+żyje w adapterze modelu, nie we wspólnym kodzie. Błąd detektora = `BladDetektora`
+(fail-closed, LLD §15).
 """
 
 from __future__ import annotations
 
-from niewidka.model import TypEncji
+import hashlib
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol
+
+from niewidka.model import TypEncji, Zakres
+from niewidka.reguly import REGULY
+from niewidka.reguly import znajdz as znajdz_reguly
+from niewidka.scalanie import scal
+
+
+class BladDetektora(Exception):
+    """Awaria warstwy detekcji — fail-closed: bez dokumentu „bez warstwy"."""
+
+
+class Detektor(Protocol):
+    nazwa: str
+    typy: frozenset[TypEncji]
+
+    def znajdz(self, tekst: str) -> list[Zakres]: ...
+
+
+class RegulyDetektor:
+    """Reguły + scalanie — warstwa detekcji regułowa (K1)."""
+
+    nazwa = "reguly"
+    typy = frozenset(r.typ for r in REGULY)
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        return scal(tekst, znajdz_reguly(tekst))
+
+
+@dataclass(frozen=True)
+class AdapterModelu:
+    """Mapowanie etykiet modelu na typy Niewidki; klasy poza mapą są pomijane."""
+
+    nazwa: str
+    mapa: dict[tuple[str, ...], TypEncji]
+
+    @property
+    def typy(self) -> frozenset[TypEncji]:
+        return frozenset(self.mapa.values())
+
+    def zwroc_typ(self, etykieta: str) -> TypEncji | None:
+        if etykieta.startswith(("B-", "I-")):
+            return self.mapa.get((etykieta[2:],))
+        return None
+
+
+# Bardsai (poziom 1): dostarcza WYŁĄCZNIE OSOBA — typy z sumą kontrolną i
+# dokładnymi granicami mają reguły (pewność 1.0); dołączenie modelowych ADRES/
+# EMAIL itd. rozmywałoby granice (unia scalania = szerszy zakres = FN+FP,
+# KRYTERIA §1.3). Reszta etykiet (LOCATION, ORGANIZATION_NAME, ...) pomijana.
+ADAPTER_BARDSAI = AdapterModelu(
+    nazwa="onnx:bardsai",
+    mapa={
+        ("PERSON_NAME",): TypEncji.OSOBA,
+        ("PERSON_ALIAS",): TypEncji.OSOBA,
+    },
+)
+
+
+def _sha256(plik: Path) -> str:
+    h = hashlib.sha256()
+    with plik.open("rb") as f:
+        for kawalek in iter(lambda: f.read(1 << 20), b""):
+            h.update(kawalek)
+    return h.hexdigest()
+
+
+class OnnxDetektor:
+    """Detektor token-klasyfikacyjny ONNX za interfejsem Detektor (LLD §4).
+
+    Tokenizacja całości (`tokenizers`, offsety znakowe), okna przesuwne
+    tokenów, per okno inferencja i dekodowanie BIO adapterem. Duplikaty między
+    oknami zdejmuje globalne scalanie (wyżej). `SIMPLIFICATION`: okna na
+    pełnym ciągu tokenów (ze specjalnymi), bez doklejania <s>/</s> per okno —
+    zakładka (okno-krok) kompensuje granice; rozbudować, gdy pomiar pokaże
+    gubienie encji przy krawędziach okien.
+    """
+
+    def __init__(
+        self,
+        nazwa: str,
+        model: Path,
+        tokenizer: Path,
+        etykiety: dict[tuple[str, ...], TypEncji],
+        id2etykieta: dict[str, str],
+        okno: int = 510,
+        krok: int = 448,
+        sesja: object | None = None,
+        tokenizer_obj: object | None = None,
+        laduj_manifest: bool = True,
+        provider: str = "CPUExecutionProvider",
+    ):
+        self.nazwa = nazwa
+        self.etykiety = etykiety
+        self.typy = frozenset(etykiety.values())
+        self._id2etykieta = {str(k): v for k, v in id2etykieta.items()}
+        self._okno = okno
+        self._krok = krok
+        if laduj_manifest:
+            self._sprawdz_manifest(model.parent)
+        try:
+            import numpy as np
+
+            self._np = np
+            if tokenizer_obj is None:
+                from tokenizers import Tokenizer
+
+                tokenizer_obj = Tokenizer.from_file(str(tokenizer))
+            self._tokenizer = tokenizer_obj
+            if sesja is None:
+                import onnxruntime as ort
+
+                dostepne = ort.get_available_providers()
+                if provider not in dostepne:
+                    provider = "CPUExecutionProvider"
+                sesja = ort.InferenceSession(str(model), providers=[provider])
+            wejscia = (
+                [i.name for i in sesja.get_inputs()]
+                if hasattr(sesja, "get_inputs")
+                else list(sesja.wejscia)
+            )
+            if wejscia[:2] != ["input_ids", "attention_mask"]:
+                raise BladDetektora(f"{nazwa}: nieobsługiwane wejścia ONNX: {wejscia}")
+            self._sesja = sesja
+        except BladDetektora:
+            raise
+        except Exception as e:  # fail-closed: każdy pad modelu/toklenizera
+            raise BladDetektora(f"{nazwa}: ładowanie nie powiodło się: {e}") from e
+
+    @staticmethod
+    def _sprawdz_manifest(katalog: Path) -> None:
+        manifest_plik = katalog / "manifest.json"
+        if not manifest_plik.is_file():
+            raise BladDetektora(f"brak manifest.json w {katalog}")
+        manifest = json.loads(manifest_plik.read_text(encoding="utf-8"))
+        for nazwa, sumka in manifest.get("pliki", {}).items():
+            plik = katalog / nazwa
+            if not plik.is_file() or _sha256(plik) != sumka:
+                raise BladDetektora(f"manifest: rozbieżny SHA-256 dla {nazwa}")
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        try:
+            return self._znajdz(tekst)
+        except BladDetektora:
+            raise
+        except Exception as e:
+            raise BladDetektora(f"{self.nazwa}: inferencja nie powiodła się: {e}") from e
+
+    def _znajdz(self, tekst: str) -> list[Zakres]:
+        np = self._np
+        enc = self._tokenizer.encode(tekst, add_special_tokens=True)
+        tokeny = list(zip(enc.ids, enc.offsets))
+        wynik: list[Zakres] = []
+        for start, koniec in okna_tokenow(len(tokeny), self._okno, self._krok):
+            ids = tokeny[start:koniec]
+            feed = {
+                "input_ids": np.asarray([ids_w for ids_w, _ in ids], dtype=np.int64)[None],
+                "attention_mask": np.ones((1, len(ids)), dtype=np.int64),
+            }
+            logits = np.asarray(self._sesja.run(None, feed)[0][0])
+            prawdopodobienstwa = _softmax(np, logits)
+            najlepsze = prawdopodobienstwa.argmax(axis=-1)
+            etykiety_tokenow = [
+                (
+                    self._id2etykieta[str(int(najlepsze[i]))],
+                    offsets,  # (start, koniec) w znakach CAŁEGO tekstu
+                    float(prawdopodobienstwa[i, najlepsze[i]]),
+                )
+                for i, (_, offsets) in enumerate(ids)
+            ]
+            for zn_start, zn_koniec, typ, pewnosc in zdekoduj_bio(etykiety_tokenow, self.etykiety):
+                wynik.append(Zakres(zn_start, zn_koniec, typ, pewnosc, self.nazwa))
+        return wynik
+
+
+def _softmax(np, logits):  # type: ignore[no-untyped-def]
+    z = logits - logits.max(axis=-1, keepdims=True)
+    e = np.exp(z)
+    return e / e.sum(axis=-1, keepdims=True)
 
 
 def okna_tokenow(n: int, okno: int, krok: int) -> list[tuple[int, int]]:
