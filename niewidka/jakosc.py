@@ -1,8 +1,9 @@
 """Ocena jakości (LLD §11): R95 z kalibracji — stała per poziom, nie ocena pliku.
 
 Struktura `dane/r95.json` per poziom (K2d): `{"poziomy": {"1": {"detektor": ...,
-"r95": {...}}, "2": {...}}, ...}`; poziom bez kalibracji = brak wartości (None,
-bez zmyślania).
+"r95": {...}, "proba": {...}}, "2": {...}}, ...}`; poziom bez kalibracji = brak
+wartości (None, bez zmyślania). `proba` (K5c): ile przykładów danego typu było
+w korpusie (n) i ile uciekło (k) — przy małej próbie R95 nie wystawia etykiety.
 """
 
 from __future__ import annotations
@@ -11,6 +12,10 @@ import json
 from pathlib import Path
 
 DANE = Path(__file__).parent / "dane" / "r95.json"
+
+# K5c: poniżej tyle przykładów górna granica Cloppera-Pearsona wychodzi wysoka
+# nawet przy zero pominięć — mówimy, ile było przykładów, zamiast etykietować.
+PROG_PROBY = 50
 
 
 def _raport_r95(katalog_danych: Path | None) -> dict:
@@ -34,3 +39,61 @@ def r95_poziomy(katalog_danych: Path | None = None) -> dict[int, dict[str, float
         for poziom, dane in poziomy.items()
         if poziom.isdigit()
     }
+
+
+def _liczebnik(liczba: int, formy: tuple[str, str, str]) -> str:
+    """Odmiana polska: 1 pominięcie, 2-4 (nie 12-14) pominięcia, pozostałe pominięć.
+
+    Forma "1" tylko dla dokładnie 1 (21 przykładów, nie 21 przykład)."""
+    if liczba == 1:
+        return formy[0]
+    if liczba % 100 in (12, 13, 14):
+        return formy[2]
+    if liczba % 10 in (2, 3, 4):
+        return formy[1]
+    return formy[2]
+
+
+def opis_ryzyka(
+    r95: float | None, n: int | None = None, k: int | None = None, prog: int = PROG_PROBY
+) -> str:
+    """Gotowy tekst po polsku; przy małej próbie (n < prog) bez etykiety ryzyka.
+
+    Tekst musi być identyczny jak dotychczasowy z interfejsu (etykiety) albo uczciwie
+    opisywać próbę ("w testach: 0 pominięć na 7 przykładów"), K5c.
+    """
+    if r95 is None:
+        return "brak oszacowania dla tego poziomu jakości"
+    if n is not None and n < prog:
+        pominiecia = _liczebnik(k, ("pominięcie", "pominięcia", "pominięć"))
+        przyklady = _liczebnik(n, ("przykład", "przykłady", "przykładów"))
+        return f"w testach: {k} {pominiecia} na {n} {przyklady}"
+    if r95 <= 0.02:
+        return "bardzo małe: co najwyżej 1 na 50"
+    if r95 <= 0.3:
+        # int(x + 0.5) = Math.round z dotychczasowego interfejsu (Python round
+        # zaokrągla połowę w dół, JS w górę)
+        return f"małe do umiarkowanego: co najwyżej ok. 1 na {int(1 / r95 + 0.5)}"
+    return "podwyższone: przejrzyj wynik własnym okiem"
+
+
+def opisy_ryzyka(
+    poziom: int, typy: list[str], katalog_danych: Path | None = None
+) -> dict[str, dict]:
+    """{typ: {r95, n, k, opis}} dla typów występujących w dokumencie (nagłówek K5c).
+
+    Interfejs dostaje tekst gotowy do wyświetlenia i nie liczy sam; typy bez
+    kalibracji nie wychodzą (jak dotychczasowe odfiltrowanie None).
+    """
+    wpis = _raport_r95(katalog_danych).get("poziomy", {}).get(str(poziom), {})
+    r95_mapa = wpis.get("r95", {})
+    proba = wpis.get("proba", {})
+    wynik: dict[str, dict] = {}
+    for typ in typy:
+        wartosc = r95_mapa.get(typ)
+        if wartosc is None:
+            continue
+        dane = proba.get(typ, {})
+        n, k = dane.get("n"), dane.get("k")
+        wynik[typ] = {"r95": wartosc, "n": n, "k": k, "opis": opis_ryzyka(wartosc, n, k)}
+    return wynik

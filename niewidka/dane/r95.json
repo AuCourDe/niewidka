@@ -1,7 +1,7 @@
 {
-  "korpus_probek": 190,
+  "korpus_probek": 230,
   "wzor": "beta.ppf(0.95, FN+1, TP+FN-FN) — górna granica Cloppera-Pearsona stopy ucieczek",
-  "wygenerowano": "2026-10-28T12:51:24+00:00",
+  "wygenerowano": "2026-10-28T15:28:00+00:00",
   "maszyna": "x86_64",
   "poziomy": {
     "1": {
@@ -16,14 +16,115 @@
         "OSOBA": 0.0736,
         "PESEL": 0.3482,
         "REGON": 0.3482,
-        "TELEFON": 0.3123
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      },
+      "proba": {
+        "ADRES": {
+          "k": 0,
+          "n": 16
+        },
+        "DATA": {
+          "k": 0,
+          "n": 8
+        },
+        "DOKUMENT": {
+          "k": 0,
+          "n": 5
+        },
+        "EMAIL": {
+          "k": 0,
+          "n": 7
+        },
+        "IBAN": {
+          "k": 0,
+          "n": 6
+        },
+        "NIP": {
+          "k": 0,
+          "n": 7
+        },
+        "OSOBA": {
+          "k": 3,
+          "n": 103
+        },
+        "PESEL": {
+          "k": 0,
+          "n": 7
+        },
+        "REGON": {
+          "k": 0,
+          "n": 7
+        },
+        "TELEFON": {
+          "k": 0,
+          "n": 8
+        },
+        "contact.ip_address": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.credit_card": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.swift_bic": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.condition": {
+          "k": 4,
+          "n": 4
+        },
+        "healthcare.medical_record": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.medication": {
+          "k": 4,
+          "n": 4
+        },
+        "legal.case_number": {
+          "k": 4,
+          "n": 4
+        },
+        "online.url": {
+          "k": 3,
+          "n": 3
+        },
+        "online.username": {
+          "k": 3,
+          "n": 3
+        },
+        "org.company_name": {
+          "k": 5,
+          "n": 5
+        },
+        "special.political": {
+          "k": 3,
+          "n": 3
+        },
+        "special.religion": {
+          "k": 3,
+          "n": 3
+        }
       }
     },
     "2": {
       "detektor": "poziom2",
-      "prog_osoba": 0.2,
       "r95": {
-        "ADRES": 0.2589,
+        "ADRES": 0.1707,
         "DATA": 0.3123,
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,
@@ -32,14 +133,116 @@
         "OSOBA": 0.0599,
         "PESEL": 0.3482,
         "REGON": 0.3482,
-        "TELEFON": 0.3123
-      }
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      },
+      "proba": {
+        "ADRES": {
+          "k": 0,
+          "n": 16
+        },
+        "DATA": {
+          "k": 0,
+          "n": 8
+        },
+        "DOKUMENT": {
+          "k": 0,
+          "n": 5
+        },
+        "EMAIL": {
+          "k": 0,
+          "n": 7
+        },
+        "IBAN": {
+          "k": 0,
+          "n": 6
+        },
+        "NIP": {
+          "k": 0,
+          "n": 7
+        },
+        "OSOBA": {
+          "k": 2,
+          "n": 103
+        },
+        "PESEL": {
+          "k": 0,
+          "n": 7
+        },
+        "REGON": {
+          "k": 0,
+          "n": 7
+        },
+        "TELEFON": {
+          "k": 0,
+          "n": 8
+        },
+        "contact.ip_address": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.credit_card": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.swift_bic": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.condition": {
+          "k": 4,
+          "n": 4
+        },
+        "healthcare.medical_record": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.medication": {
+          "k": 4,
+          "n": 4
+        },
+        "legal.case_number": {
+          "k": 4,
+          "n": 4
+        },
+        "online.url": {
+          "k": 3,
+          "n": 3
+        },
+        "online.username": {
+          "k": 3,
+          "n": 3
+        },
+        "org.company_name": {
+          "k": 5,
+          "n": 5
+        },
+        "special.political": {
+          "k": 3,
+          "n": 3
+        },
+        "special.religion": {
+          "k": 3,
+          "n": 3
+        }
+      },
+      "prog_osoba": 0.2
     },
     "3": {
       "detektor": "poziom3",
-      "prog_osoba": 0.2,
       "r95": {
-        "ADRES": 0.2589,
+        "ADRES": 0.1707,
         "DATA": 0.3123,
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,
@@ -48,8 +251,111 @@
         "OSOBA": 0.0599,
         "PESEL": 0.3482,
         "REGON": 0.3482,
-        "TELEFON": 0.3123
-      }
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      },
+      "proba": {
+        "ADRES": {
+          "k": 0,
+          "n": 16
+        },
+        "DATA": {
+          "k": 0,
+          "n": 8
+        },
+        "DOKUMENT": {
+          "k": 0,
+          "n": 5
+        },
+        "EMAIL": {
+          "k": 0,
+          "n": 7
+        },
+        "IBAN": {
+          "k": 0,
+          "n": 6
+        },
+        "NIP": {
+          "k": 0,
+          "n": 7
+        },
+        "OSOBA": {
+          "k": 2,
+          "n": 103
+        },
+        "PESEL": {
+          "k": 0,
+          "n": 7
+        },
+        "REGON": {
+          "k": 0,
+          "n": 7
+        },
+        "TELEFON": {
+          "k": 0,
+          "n": 8
+        },
+        "contact.ip_address": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.credit_card": {
+          "k": 3,
+          "n": 3
+        },
+        "financial.swift_bic": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.condition": {
+          "k": 4,
+          "n": 4
+        },
+        "healthcare.medical_record": {
+          "k": 3,
+          "n": 3
+        },
+        "healthcare.medication": {
+          "k": 4,
+          "n": 4
+        },
+        "legal.case_number": {
+          "k": 4,
+          "n": 4
+        },
+        "online.url": {
+          "k": 3,
+          "n": 3
+        },
+        "online.username": {
+          "k": 3,
+          "n": 3
+        },
+        "org.company_name": {
+          "k": 5,
+          "n": 5
+        },
+        "special.political": {
+          "k": 3,
+          "n": 3
+        },
+        "special.religion": {
+          "k": 3,
+          "n": 3
+        }
+      },
+      "prog_osoba": 0.2
     }
   }
 }

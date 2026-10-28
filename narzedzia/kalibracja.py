@@ -37,6 +37,24 @@ def r95_gorna(k: int, n: int) -> float:
     return float(beta.ppf(0.95, k + 1, n - k))
 
 
+def zbuduj_wpis(detektor: str, wyniki: dict, prog_osoba: float | None = None) -> dict:
+    """Wpis poziomu: R95 + próba (k pominięć na n przykładów) per typ (K5c).
+
+    k i n lecą do r95.json prosto z pomiaru — bez zmyślania; próba rozstrzyga
+    w jakosc.opis_ryzyka, czy R95 w ogóle dostaje etykietę.
+    """
+    r95: dict[str, float] = {}
+    proba: dict[str, dict[str, int]] = {}
+    for typ, w in sorted(wyniki.items()):
+        n = w.tp + w.fn
+        r95[typ] = round(r95_gorna(w.fn, n), 4)
+        proba[typ] = {"k": w.fn, "n": n}
+    wpis: dict = {"detektor": detektor, "r95": r95, "proba": proba}
+    if prog_osoba is not None:
+        wpis["prog_osoba"] = prog_osoba
+    return wpis
+
+
 def zapisz_poziom(plik: Path, poziom: int, wpis: dict, korpus_probek: int) -> None:
     """Dopis/odświeżenie wpisu jednego poziomu w dane/r95.json; pozostałe zostają."""
     raport: dict = {}
@@ -86,15 +104,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     probki = wczytaj_probki(argumenty.korpus)
     wyniki = zmierz(probki, detektor)
-    r95 = {}
-    for typ, w in sorted(wyniki.items()):
-        n = w.tp + w.fn
-        r95[typ] = round(r95_gorna(w.fn, n), 4)
-        print(f"R95 {typ:10s} k={w.fn} n={n:3d} -> {r95[typ]}")
-
-    wpis: dict = {"detektor": argumenty.detektor, "r95": r95}
-    if poziom > 1:
-        wpis["prog_osoba"] = argumenty.prog_osoba
+    wpis = zbuduj_wpis(
+        argumenty.detektor, wyniki, prog_osoba=argumenty.prog_osoba if poziom > 1 else None
+    )
+    for typ, wartosc in wpis["r95"].items():
+        proba = wpis["proba"][typ]
+        print(f"R95 {typ:10s} k={proba['k']} n={proba['n']:3d} -> {wartosc}")
     plik = argumenty.dane / "r95.json"
     zapisz_poziom(plik, poziom, wpis, len(probki))
     print(f"zapisano poziom {poziom} w {plik}")

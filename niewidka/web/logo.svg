@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="200" viewBox="0 0 640 200">
+<svg xmlns="http://www.w3.org/2000/svg" width="479" height="151" viewBox="90 24 479 151">
   <defs>
     <!-- Sygnet contour gradient: solid navy at bottom-left base, fading to transparent at top-right apex/fold -->
     <linearGradient id="v2-stroke-fade" x1="15%" y1="85%" x2="85%" y2="15%">

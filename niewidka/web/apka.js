@@ -62,14 +62,6 @@ function budujListeTypow() {
   }
 }
 
-function ryzykoOpis(r95) {
-  if (r95 == null) return "brak oszacowania dla tego poziomu jakości";
-  if (r95 <= 0.02) return "bardzo małe: co najwyżej 1 na 50";
-  const na = Math.round(1 / r95);
-  if (r95 <= 0.3) return `małe do umiarkowanego: co najwyżej ok. 1 na ${na}`;
-  return "podwyższone: przejrzyj wynik własnym okiem";
-}
-
 const NAZWY_POZIOMOW = { 1: "Szybko", 2: "Dokładniej", 3: "Najdokładniej" };
 
 const OPOWIEDZI_POZIOMOW = {
@@ -156,10 +148,34 @@ async function otworzZip(blob) {
 /* ---------- podgląd z zaślepkami ---------- */
 
 const WZORZEC_ZNACZNIKA = /\[([A-Z]+)_(\d+)(?:_F\d+)?\]/g;
+const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 
 function pokazPodglad(tekst) {
   const miejsce = document.getElementById("podglad-tekstu");
   miejsce.textContent = "";
+  let tresc = tekst;
+  if (tresc.startsWith(POCZATEK_DOPISEKU)) tresc = pokazDopisek(miejsce, tresc);
+  pokazZaslepki(miejsce, tresc);
+}
+
+/* K5c: pełny dopisek z identyfikatorem mapy zostaje w pliku wynikowym; w podglądzie
+   zwinięty do pierwszych słów, żeby długim kodem mapy nie przysłaniać tekstu. */
+function pokazDopisek(miejsce, tresc) {
+  const koniecLinii = tresc.indexOf("\n");
+  const linia = koniecLinii === -1 ? tresc : tresc.slice(0, koniecLinii);
+  const szczegoly = document.createElement("details");
+  szczegoly.className = "dopisek";
+  const podsumowanie = document.createElement("summary");
+  podsumowanie.textContent = "ZANONIMIZOWANY. …";
+  const pelny = document.createElement("span");
+  pelny.className = "dopisek-pelny";
+  pelny.textContent = linia;
+  szczegoly.append(podsumowanie, pelny);
+  miejsce.append(szczegoly);
+  return koniecLinii === -1 ? "" : tresc.slice(koniecLinii + 1);
+}
+
+function pokazZaslepki(miejsce, tekst) {
   let koniec = 0;
   for (const trafienie of tekst.matchAll(WZORZEC_ZNACZNIKA)) {
     miejsce.append(tekst.slice(koniec, trafienie.index));
@@ -267,14 +283,15 @@ function pokazWynik(naglowki, czesci) {
   const blokRyzyka = document.getElementById("blok-ryzyka");
   const listaRyzyka = document.getElementById("lista-ryzyka");
   listaRyzyka.innerHTML = "";
-  const oszacowane = Object.entries(r95).filter(([, wartosc]) => wartosc != null);
-  for (const [typ, wartosc] of oszacowane) {
+  /* K5c: teksty ryzyka przychodzą gotowe z serwera (próg małej próby liczy serwer) */
+  const oszacowane = Object.entries(r95).filter(([, wpis]) => wpis && wpis.opis != null);
+  for (const [typ, wpis] of oszacowane) {
     const wiersz = document.createElement("li");
     const co = document.createElement("span");
     co.textContent = (ETYKIETY[typ] || [typ])[0];
     co.textContent = co.textContent.charAt(0).toUpperCase() + co.textContent.slice(1);
     const ile = document.createElement("span");
-    ile.textContent = ryzykoOpis(wartosc);
+    ile.textContent = wpis.opis;
     wiersz.append(co, ile);
     listaRyzyka.append(wiersz);
   }

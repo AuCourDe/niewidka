@@ -132,3 +132,14 @@ async def test_bez_polpauz_i_pauz_w_tekstach(klient):
     ):
         for znak in ("–", "—"):
             assert znak not in tresc, f"zakazany znak {znak!r} w {nazwa}"
+
+
+@pytest.mark.anyio
+async def test_podglad_zwija_dopisek_a_ryzyko_przychodzi_z_serwera(klient):
+    """K5c: dopisek z identyfikatorem mapy zwija się w podglądzie do
+    „ZANONIMIZOWANY. …" (pełny zostaje w pliku wynikowym); etykiety ryzyka
+    (w tym próg małej próby) podaje serwer w gotowym tekście."""
+    apka = (await klient.get("/apka.js")).text
+    assert "ZANONIMIZOWANY. …" in apka, "podgląd ma pokazywać skrócony dopisek"
+    assert 'createElement("details")' in apka, "rozwinięcie dopisku ma być natywne"
+    assert "podwyższone" not in apka, "etykieta ryzyka pochodzi z serwera (jakosc.py)"

@@ -6,8 +6,25 @@ import json
 
 import pytest
 
-from narzedzia.kalibracja import r95_gorna, zapisz_poziom
+from narzedzia.kalibracja import r95_gorna, zapisz_poziom, zbuduj_wpis
+from narzedzia.pomiar import WynikTypu
 from niewidka.jakosc import r95_poziomy, r95_z_kalibracji
+
+
+class TestZbudujWpis:
+    """K5c: N i k (liczba przykładów i pominięć) lecą do r95.json — bez zmyślania."""
+
+    def test_wpis_ma_r95_i_probe(self):
+        wyniki = {"PESEL": WynikTypu(tp=7, fn=0), "OSOBA": WynikTypu(tp=110, fn=2)}
+        wpis = zbuduj_wpis("poziom1", wyniki)
+        assert wpis["detektor"] == "poziom1"
+        assert wpis["r95"]["PESEL"] == round(r95_gorna(0, 7), 4)
+        assert wpis["proba"]["PESEL"] == {"k": 0, "n": 7}
+        assert wpis["proba"]["OSOBA"] == {"k": 2, "n": 112}
+
+    def test_prog_osoba_dla_poziomow_2_3(self):
+        assert zbuduj_wpis("poziom2", {}, prog_osoba=0.2)["prog_osoba"] == 0.2
+        assert "prog_osoba" not in zbuduj_wpis("poziom1", {})
 
 
 class TestR95Gorna:

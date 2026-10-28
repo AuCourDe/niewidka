@@ -36,7 +36,7 @@ from niewidka.formaty import (
     nazwa_wyniku,
     rozszerzenia_wspierane,
 )
-from niewidka.jakosc import r95_poziomy
+from niewidka.jakosc import opisy_ryzyka, r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
@@ -432,7 +432,8 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
             "x-niewidka-ostrzezenia": _json_naglowek(_licznik_typow(raport.ostrzezenia)),
             "x-niewidka-uwagi": _json_naglowek(raport.uwagi),
-            "x-niewidka-r95": _json_naglowek(raport.r95),
+            # K5c: gotowe teksty ryzyka (próg małej próby liczy serwer), nie gołe R95
+            "x-niewidka-r95": _json_naglowek(opisy_ryzyka(poziom, list(raport.statystyki))),
             "x-niewidka-status": raport.status,
             "content-disposition": 'attachment; filename="wynik.zip"',
         }

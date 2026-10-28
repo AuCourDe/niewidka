@@ -412,4 +412,9 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
     assert not r1.content.startswith(b"PK")
     assert r2.headers["x-niewidka-status"] == "ukonczony"
     r95_poziom2 = json.loads(r2.headers["x-niewidka-r95"])
-    assert isinstance(r95_poziom2.get("OSOBA"), float)
+    wpis = r95_poziom2.get("OSOBA")
+    # K5c: wpis = {r95, n, k, opis} — UI dostaje gotowy tekst, nie liczy sam
+    assert isinstance(wpis, dict)
+    assert {"r95", "n", "k", "opis"} <= set(wpis)
+    assert isinstance(wpis["r95"], float)
+    assert wpis["opis"]

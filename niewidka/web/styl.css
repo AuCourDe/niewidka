@@ -87,6 +87,10 @@ body {
   max-width: 46rem;
   margin: 0 auto;
   padding: 1.1rem 1.25rem 0.9rem;
+  /* K5c: logo w jednym wierszu z linią „Na tym urządzeniu…” */
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
 }
 
 .nazwa {
@@ -96,13 +100,14 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* logo (znak czapki + napis) zamiast tekstowego h1; wymiary atrybutami w HTML */
-.nazwa img { display: block; height: auto; max-width: 100%; }
+/* logo (znak czapki + napis) zamiast tekstowego h1; K5c: wysokość 48 px, żeby napis
+   „Niewidka” w logo miał rozmiar dawnego tytułu (viewBox SVG przycięty do treści) */
+.nazwa img { display: block; width: auto; height: 48px; max-width: 100%; }
 
 h1, h2, h3 { text-wrap: balance; }
 
 .tryb {
-  margin: 0.15rem 0 0;
+  margin: 0;
   color: var(--atrament-slaby);
   font-size: 0.92rem;
 }
@@ -428,6 +433,19 @@ summary:focus-visible {
   line-height: 1.9;
 }
 
+/* dopisek w podglądzie (K5c): zwinięty do „ZANONIMIZOWANY. …”, rozwijany */
+.dopisek { margin: 0 0 0.6rem; }
+
+.dopisek summary {
+  cursor: pointer;
+  color: var(--atrament-slaby);
+  font-size: 0.88rem;
+}
+
+.dopisek summary:hover { color: var(--atrament); }
+
+.dopisek-pelny { display: block; margin-top: 0.15rem; }
+
 .zaslepka {
   display: inline-block;
   background: var(--zaslepka);
@@ -495,6 +513,9 @@ summary:focus-visible {
 
 @media (max-width: 480px) {
   .srodek, .gora-srodek { padding-left: 1rem; padding-right: 1rem; }
+  /* K5c: na wąskim ekranie logo 36 px, nad tekstem trybu (nie zmieszczą się w wierszu) */
+  .nazwa img { height: 36px; }
+  .gora-srodek { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
   .przycisk-glowny { width: 100%; }
   .lista-danych li { flex-direction: column; gap: 0.1rem; }
   .lista-danych li span:last-child { text-align: left; }
