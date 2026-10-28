@@ -852,3 +852,93 @@ def test_poziom3_z_pakietem_rozszerzonym(katalog_modeli):
     d = zbuduj_poziom(3, katalog_modeli, próg_osoba=0.2, pakiet_rozszerzony=True)
     assert d.nazwa == "poziom3+rozszerzony"
     assert TypEncji.SWIFT in d.typy and TypEncji.OSOBA in d.typy
+
+
+# --- K7c pkt 2/3: zaufany katalog pakietów + ładowanie zweryfikowanych bajtów ---
+
+from niewidka.detektory import wczytaj_bardsai
+
+
+def _katalog_fałszywych_wag(tmp_path):
+    """Fake katalog wag + fake ZAUFANY pakiety.json (hasze treści fake)."""
+    import hashlib
+    import json
+
+    katalog = tmp_path / "wagi"
+    katalog.mkdir()
+    tresci = {
+        "model.onnx": b"FAKTYCZNE-BAJTY-ONNX",
+        "tokenizer.json": b'{"tokenizer": true}',
+        "config.json": b'{"id2label": {"0": "B-PERSON_NAME", "1": "I-PERSON_NAME"}}',
+    }
+    pliki = []
+    for nazwa, tresc in tresci.items():
+        (katalog / nazwa).write_bytes(tresc)
+        pliki.append(
+            {
+                "nazwa": nazwa,
+                "zrodlo": f"podstawowy-{nazwa}",
+                "rozmiar": len(tresc),
+                "sha256": hashlib.sha256(tresc).hexdigest(),
+            }
+        )
+    dane = {"pakiety": [{"id": "podstawowy", "nazwa": "Podstawowy", "opis": "t",
+            "wymagany": True, "poziomy": [1, 2, 3], "katalog_rel": "", "pliki": pliki}]}
+    zaufany = tmp_path / "pakiety.json"
+    zaufany.write_text(json.dumps(dane), encoding="utf-8")
+    return katalog, zaufany, tresci
+
+
+class _AtrapaSesji:
+    def get_inputs(self):
+        return [type("Wejscie", (), {"name": "input_ids"})(),
+                type("Wejscie", (), {"name": "attention_mask"})()]
+
+
+def test_wczytaj_bardsai_laduje_zweryfikowane_bajty(monkeypatch, tmp_path):
+    """K7c (audyt #2/#3): bardsai ładuje DOKŁADNIE te bajty, które przeszły
+    weryfikację SHA-256 względem ZAUFANEGO pakiety.json (koniec okna sprawdź-użyj)."""
+    import onnxruntime
+    import tokenizers
+
+    katalog, zaufany, tresci = _katalog_fałszywych_wag(tmp_path)
+    widziane: dict[str, object] = {}
+    monkeypatch.setattr(
+        onnxruntime, "InferenceSession",
+        lambda bajty, providers=None: (widziane.setdefault("model", bajty), _AtrapaSesji())[1],
+    )
+    monkeypatch.setattr(
+        tokenizers.Tokenizer, "from_str",
+        classmethod(lambda cls, lancuch: widziane.setdefault("tokenizer", lancuch)),
+    )
+    detektor = wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+    assert widziane["model"] == tresci["model.onnx"]
+    assert widziane["tokenizer"] == tresci["tokenizer.json"].decode("utf-8")  # te same bajty, dekodowane
+    assert detektor._id2etykieta == {"0": "B-PERSON_NAME", "1": "I-PERSON_NAME"}
+
+
+def test_wczytaj_bardsai_podmieniony_model_z_pustym_manifestem_odpada(tmp_path):
+    """Audyt #2: manifest.json = {} przechodził bez sprawdzenia choć jednego hasza;
+    zaufany katalog pakietów ma DECYDOWAĆ o oczekiwanych sumach, nie lokalny manifest."""
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    (katalog / "model.onnx").write_bytes(b"PODMIENIONE WAGI")
+    (katalog / "manifest.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+def test_wczytaj_bardsai_komplet_plikow_obowiazkowy(tmp_path):
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    (katalog / "config.json").unlink()
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+def test_wczytaj_bardsai_symlink_zamiast_pliku_odpada(tmp_path):
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    obcy = tmp_path / "ofiara.txt"
+    obcy.write_bytes(b"dane ofiary")
+    (katalog / "model.onnx").unlink()
+    (katalog / "model.onnx").symlink_to(obcy)
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)

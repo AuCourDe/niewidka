@@ -95,6 +95,34 @@ def katalog_modeli(env: dict[str, str] | None = None) -> Path:
     return baza / "Niewidka" / "modele"
 
 
+def wczytaj_bajty_pakietu(
+    identyfikator: str,
+    katalog: Path,
+    katalog_pakietow: Path = KATALOG_PAKIETOW,
+) -> dict[str, bytes]:
+    """K7c pkt 2/3 (audyt #2/#3): ZAUFANY katalog pakietów (wbudowany w aplikację)
+    decyduje, które pliki pakietu są wymagane i jakie mają SHA-256; lokalny
+    manifest.json nie wyznacza oczekiwanych sum. Każdy plik czytany DO PAMIĘCI
+    dokładnie raz: hasz liczony z tych samych bajtów, które wracają do loadera
+    (koniec okna sprawdź-użyj). Komplet wymaganych plików obowiązkowy.
+    """
+    pakiet = next(
+        (p for p in wczytaj_pakiety(katalog_pakietow) if p.id == identyfikator), None
+    )
+    if pakiet is None:
+        raise BladPakietu(f"nieznany pakiet {identyfikator} w zaufanym katalogu pakietów")
+    wynik: dict[str, bytes] = {}
+    for plik in pakiet.pliki:
+        sciezka = katalog / plik.nazwa
+        if sciezka.is_symlink() or not sciezka.is_file():
+            raise BladPakietu(f"pakiet {identyfikator}: brak pliku {plik.nazwa}")
+        bajty = sciezka.read_bytes()
+        if len(bajty) != plik.rozmiar or hashlib.sha256(bajty).hexdigest() != plik.sha256:
+            raise BladPakietu(f"pakiet {identyfikator}: rozbieżny SHA-256 dla {plik.nazwa}")
+        wynik[plik.nazwa] = bajty
+    return wynik
+
+
 def zrodlo(env: dict[str, str] | None = None) -> str:
     """Baza URL pobierania: NIEWIDKA_MODELE_ZRODLO albo załączniki wydania."""
     env = os.environ if env is None else env

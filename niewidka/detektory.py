@@ -18,6 +18,7 @@ from typing import Protocol
 from niewidka.konfig import PROG_OSOBA_DOMYSLNY
 from niewidka.model import TypEncji, Zakres
 from niewidka.osoby import rdzen_nazwiska
+from niewidka.pakiety import KATALOG_PAKIETOW, BladPakietu, wczytaj_bajty_pakietu
 from niewidka.reguly import REGULY
 from niewidka.reguly import znajdz as znajdz_reguly
 from niewidka.scalanie import scal
@@ -96,8 +97,8 @@ class OnnxDetektor:
     def __init__(
         self,
         nazwa: str,
-        model: Path,
-        tokenizer: Path,
+        model: Path | bytes,
+        tokenizer: Path | bytes,
         etykiety: dict[tuple[str, ...], TypEncji],
         id2etykieta: dict[str, str],
         okno: int = 510,
@@ -138,7 +139,7 @@ class OnnxDetektor:
             }
             if "B" in litery and "I" in litery:
                 self._etykiety_klas[klucz] = (litery["B"], litery["I"])
-        if laduj_manifest:
+        if laduj_manifest and not isinstance(model, bytes):
             self._sprawdz_manifest(model.parent)
         try:
             import numpy as np
@@ -147,7 +148,10 @@ class OnnxDetektor:
             if tokenizer_obj is None:
                 from tokenizers import Tokenizer
 
-                tokenizer_obj = Tokenizer.from_file(str(tokenizer))
+                if isinstance(tokenizer, bytes):
+                    tokenizer_obj = Tokenizer.from_str(tokenizer.decode("utf-8"))
+                else:
+                    tokenizer_obj = Tokenizer.from_file(str(tokenizer))
             self._tokenizer = tokenizer_obj
             if sesja is None:
                 import onnxruntime as ort
@@ -155,7 +159,10 @@ class OnnxDetektor:
                 dostepne = ort.get_available_providers()
                 if provider not in dostepne:
                     provider = "CPUExecutionProvider"
-                sesja = ort.InferenceSession(str(model), providers=[provider])
+                # K7c pkt 3 (audyt): sesja otwierana z bajtów — te same, które
+                # przeszły weryfikację SHA (brak okna sprawdź-użyj na dysku)
+                model_bajty = model if isinstance(model, bytes) else Path(model).read_bytes()
+                sesja = ort.InferenceSession(model_bajty, providers=[provider])
             wejscia = (
                 [i.name for i in sesja.get_inputs()]
                 if hasattr(sesja, "get_inputs")
@@ -286,25 +293,36 @@ def wczytaj_bardsai(
     krok: int = 448,
     próg: float | None = None,
     pół_krok: bool = False,
+    katalog_pakietow: Path | None = None,
 ) -> OnnxDetektor:
     """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14).
 
     K2d: `próg` = obniżony próg pewności klas OSOBA (dodaje kandydatów poniżej
     argmaxu) i `pół_krok` = drugi przebieg okien o pół kroku (granice okien).
+    K7c pkt 2/3 (audyt): wagi weryfikowane względem ZAUFANEGO katalogu pakietów
+    (podstawowy), a do sesji/tokenizera idą dokładnie te bajty, które przeszły
+    haszowanie; lokalny manifest nie wyznacza oczekiwanych sum.
     """
-    config = json.loads((katalog / "config.json").read_text(encoding="utf-8"))
-    return OnnxDetektor(
-        nazwa=ADAPTER_BARDSAI.nazwa,
-        model=katalog / "model.onnx",
-        tokenizer=katalog / "tokenizer.json",
-        etykiety=ADAPTER_BARDSAI.mapa,
-        id2etykieta=config.get("id2label", {}),
-        okno=okno,
-        krok=krok,
-        provider=provider,
-        próg=próg,
-        pół_krok=pół_krok,
-    )
+    try:
+        bajty = wczytaj_bajty_pakietu(
+            "podstawowy", katalog, katalog_pakietow=katalog_pakietow or KATALOG_PAKIETOW
+        )
+        config = json.loads(bajty["config.json"])
+        return OnnxDetektor(
+            nazwa=ADAPTER_BARDSAI.nazwa,
+            model=bajty["model.onnx"],
+            tokenizer=bajty["tokenizer.json"],
+            etykiety=ADAPTER_BARDSAI.mapa,
+            id2etykieta=config.get("id2label", {}),
+            okno=okno,
+            krok=krok,
+            provider=provider,
+            próg=próg,
+            pół_krok=pół_krok,
+            laduj_manifest=False,
+        )
+    except BladPakietu as blad:
+        raise BladDetektora(f"pakiet Podstawowy: {blad}") from blad
 
 
 # LFM2.5 (poziom 2, K2b): jak bardsai dostarcza WYŁĄCZNIE OSOBA (identity.person_name,
@@ -378,15 +396,38 @@ def wczytaj_lfm25(
     okno: int = 510,
     krok: int = 448,
     rozszerzony: bool = False,
+    katalog_pakietow: Path | None = None,
 ) -> OnnxDetektor:
     """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`, K2b).
 
     Wariant wybiera katalog kwantyzacji; oba mają manifest SHA-256 z eksportu.
     K7b: `rozszerzony=True` = adapter pakietu Rozszerzonego (tylko IP/KARTA/
     SWIFT/LOGIN); pomiar K2e: te typy to jedyny realny zysk z tego modelu.
+    K7c pkt 2/3 (audyt): wariant pakietowy `q4-bl32` weryfikowany względem
+    ZAUFANEGO katalogu pakietów i ładowany z zweryfikowanych bajtów; warianty
+    pomiarowe (fp32/int8) zachowują manifest z eksportu.
     """
     podkatalog = katalog / "lfm25" / wariant
     adapter = ADAPTER_LFM25_ROZSZERZONY if rozszerzony else ADAPTER_LFM25
+    if wariant == "q4-bl32":
+        try:
+            bajty = wczytaj_bajty_pakietu(
+                "rozszerzony", katalog, katalog_pakietow=katalog_pakietow or KATALOG_PAKIETOW
+            )
+            config = json.loads(bajty["lfm25/q4-bl32/config.json"])
+            return OnnxDetektor(
+                nazwa=adapter.nazwa,
+                model=bajty["lfm25/q4-bl32/model.onnx"],
+                tokenizer=bajty["lfm25/q4-bl32/tokenizer.json"],
+                etykiety=adapter.mapa,
+                id2etykieta=config.get("id2label", {}),
+                okno=okno,
+                krok=krok,
+                provider=provider,
+                laduj_manifest=False,
+            )
+        except BladPakietu as blad:
+            raise BladDetektora(f"pakiet Rozszerzony: {blad}") from blad
     config = json.loads((podkatalog / "config.json").read_text(encoding="utf-8"))
     return OnnxDetektor(
         nazwa=adapter.nazwa,
