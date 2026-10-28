@@ -8,9 +8,7 @@ from __future__ import annotations
 import base64
 import socket
 import sys
-import tempfile
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 import keyring
@@ -211,16 +209,18 @@ def test_awaria_okna_webview_ma_fallback_systemowy(srodowisko, keyring_pamieciow
     assert zapisane and "webview" in zapisane[0]
 
 
-def test_strumienie_do_pliku_z_logiem(monkeypatch):
+def test_strumienie_do_pliku_z_logiem(monkeypatch, tmp_path):
     """NIEWIDKA_LOG_PLIK kieruje stdout/stderr (None przy --windowed) do pliku."""
     monkeypatch.setattr(sys, "stdout", None, raising=False)
     monkeypatch.setattr(sys, "stderr", None, raising=False)
-    with tempfile.TemporaryDirectory() as katalog:
-        cel = Path(katalog) / "niewidka.log"
-        okno._ukryj_strumienie_bez_konsoli({"NIEWIDKA_LOG_PLIK": str(cel)})
-        print("probna linia", file=sys.stderr)
-        sys.stderr.flush()
-        assert "probna linia" in cel.read_text(encoding="utf-8")
+    cel = tmp_path / "niewidka.log"
+    okno._ukryj_strumienie_bez_konsoli({"NIEWIDKA_LOG_PLIK": str(cel)})
+    print("probna linia", file=sys.stderr)
+    sys.stderr.flush()
+    assert "probna linia" in cel.read_text(encoding="utf-8")
+    # Windows: uchwyt otwarty na czas życia procesu blokuje usuwanie pliku
+    sys.stdout.close()
+    sys.stderr.close()
 
 
 def test_strumienie_domyslnie_devnull(monkeypatch):
