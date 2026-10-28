@@ -21,6 +21,7 @@ from niewidka.rdzen import (
     ukryj,
     zbuduj_detektor,
 )
+from niewidka.znaczniki import DOPISEK
 
 TEKST = b"Jan Kowalski, PESEL 44051401359. Telefon +48 601 234 567, e-mail jan@example.com."
 KLUCZ = bytes(range(32))
@@ -49,7 +50,7 @@ def test_ukryj_txt_zwraca_wynik_mape_i_raport():
     wynik, mapa, raport = ukryj(TEKST, "txt", 1, detektor=RegulyDetektor())
     assert b"[PESEL_1]" in wynik
     assert b"44051401359" not in wynik
-    assert wynik.startswith(b"ZANONIMIZOWANO w Niewidka")
+    assert wynik.startswith(DOPISEK.encode())
     assert [w.typ for w in mapa.wpisy] == ["PESEL", "TELEFON", "EMAIL"]
     assert raport.identyfikator == mapa.identyfikator
     assert raport.poziom == 1
@@ -82,7 +83,7 @@ def test_ukryj_docx_roundtrip(tmp_path):
     assert "44051401359" in teksty
     assert "601 234 567" in teksty
     assert "12345678901" in teksty  # pułapka wraca w swoje miejsce
-    assert "ZANONIMIZOWANO" not in teksty  # dopisek znika po przywróceniu
+    assert "ZANONIMIZOWANY" not in teksty  # dopisek znika po przywróceniu
     assert "[PESEL_1]" not in teksty
 
 

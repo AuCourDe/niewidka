@@ -13,8 +13,8 @@ danych zastąpionych znacznikami (Astra pkt 2).
 from niewidka.model import Encja, TypEncji
 
 DOPISEK = (
-    "ZANONIMIZOWANO w Niewidka. Dokument zawiera znaczniki anonimizacji; "
-    "zastąpione dane odtworzysz plikiem mapy i kluczem."
+    "ZANONIMIZOWANY. Dane osobowe zastąpiono znacznikami (Niewidka). "
+    "Oryginalne dane przywrócisz plikiem mapy."
 )
 
 

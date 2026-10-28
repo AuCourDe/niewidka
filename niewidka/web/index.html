@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="niewidka-token" content="__NIEWIDKA_TOKEN__">
 <meta name="theme-color" content="#FBFBF9">
-<title>Niewidka — ukrywanie danych osobowych</title>
+<title>Niewidka: ukrywanie danych osobowych</title>
 <link rel="stylesheet" href="styl.css">
 <link rel="preload" href="fonty/Lato-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="preload" href="fonty/Lato-Bold.ttf" as="font" type="font/ttf" crossorigin>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='12' width='24' height='8' rx='2' fill='%231A1D21'/%3E%3C/svg%3E">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="apka.js" defer></script>
 </head>
 <body>
@@ -18,7 +20,7 @@
 
 <header class="gora">
   <div class="gora-srodek">
-    <h1 class="nazwa">Niewidka</h1>
+    <h1 class="nazwa"><img src="logo.svg" alt="Niewidka" width="134" height="42"></h1>
     <p class="tryb"><strong>Na tym urządzeniu.</strong> Twoje dane nie opuszczają tego komputera.</p>
   </div>
 </header>
@@ -39,7 +41,7 @@
         <div id="widok-tekstu">
           <label for="tekst">Wklej tekst do sprawdzenia</label>
           <textarea id="tekst" name="tekst" rows="10" spellcheck="false" autocomplete="off"
-            placeholder="Wklej tu pismo, wniosek albo list — Niewidka znajdzie i zasłoni dane osobowe…"></textarea>
+            placeholder="Wklej tu pismo, wniosek albo list. Niewidka znajdzie i zasłoni dane osobowe…"></textarea>
         </div>
         <div id="widok-pliku" hidden>
           <p class="nazwa-pliku" id="nazwa-pliku"></p>
@@ -61,21 +63,85 @@
         <div class="skala" aria-hidden="true">
           <span>Szybko</span><span>Dokładniej</span><span>Najdokładniej</span>
         </div>
-        <p class="opis-poziomu" id="opis-poziomu">Wyważone — dobre do zwykłych dokumentów.</p>
+        <p class="opis-poziomu" id="opis-poziomu">Wyważone: dobre do zwykłych dokumentów.</p>
       </div>
 
       <button type="submit" id="ukryj" class="przycisk-glowny">Ukryj dane</button>
     </form>
 
+    <details class="jak-to-dziala" id="jak-to-dziala">
+      <summary>Jak to działa</summary>
+      <div class="jak-to-dziala-tresc">
+        <h3>W skrócie</h3>
+        <p>Niewidka korzysta z lokalnych modeli sztucznej inteligencji uruchomionych bezpośrednio
+        na Twoim komputerze albo na wewnętrznym serwerze zatwierdzonym przez administratora Twojej
+        sieci. Twój oryginalny dokument nigdzie nie wypływa i nie jest wysyłany do internetu.</p>
+        <p>Program znajduje w tekście dane osobowe i zamienia je na bezpieczne znaczniki, takie jak
+        [OSOBA_1] czy [PESEL_1], dzięki czemu możesz spokojnie przekazać tekst do zewnętrznych
+        narzędzi, na przykład do ChatGPT. Razem z oczyszczonym dokumentem pobierasz zaszyfrowany
+        plik mapy (.nwidka), który pozwala później jednym kliknięciem przywrócić prawdziwe dane
+        w odpowiedzi od sztucznej inteligencji. Zachowaj ten plik mapy w bezpiecznym miejscu,
+        ponieważ to jedyny klucz do odzyskania oryginalnych informacji.</p>
+
+        <h3>Jakie dane wykrywamy</h3>
+        <p>Program automatycznie wyszukuje i zasłania w tekście następujące informacje:</p>
+        <ul id="lista-typow-danych" class="lista-typow"></ul>
+        <p>Obrazy w dokumentach (np. skany, zdjęcia podpisów) są usuwane, bo program nie odczytuje
+        tekstu z obrazów.</p>
+
+        <div class="zastrzezenie">
+          <h3>Ważne zastrzeżenie</h3>
+          <p>Pamiętaj, że Niewidka jest narzędziem wspierającym Twoją pracę i nie gwarantuje
+          wykrycia wszystkich danych osobowych w każdym dokumencie. Program może czasem się
+          pomylić: pominąć nietypowo zapisaną informację albo zasłonić słowo, które wcale nie jest
+          daną osobową. Dlatego przed wysłaniem pliku dalej zawsze przejrzyj wynik własnym okiem.
+          Ostateczna decyzja i odpowiedzialność za przekazanie dokumentu dalej zawsze należą
+          do Ciebie.</p>
+        </div>
+
+        <details class="szczegoly-techniczne">
+          <summary>Szczegóły techniczne</summary>
+          <ul class="lista-techniczna">
+            <li><strong>Dwa sposoby wykrywania danych:</strong> program łączy ścisłe reguły
+            sprawdzające z lokalną sztuczną inteligencją. Numery PESEL, NIP, REGON, IBAN oraz
+            numery dowodów osobistych są weryfikowane za pomocą cyfry kontrolnej (ciągi znaków
+            przypominające te numery, ale mające błędną sumę kontrolną, również są zasłaniane jako
+            podejrzane). Imiona, nazwiska i adresy w polskim tekście rozpoznaje lokalny model
+            językowy (XLM-RoBERTa w formacie ONNX), który działa na zwykłym procesorze komputera,
+            a jeśli urządzenie ma kartę graficzną, używa jej do przyspieszenia pracy.</li>
+            <li><strong>Suwak jakości:</strong> na pierwszym poziomie jakości program sprawdza
+            dokument w jednym szybkim przebiegu. Poziomy drugi i trzeci uruchamiają dodatkowe
+            przebiegi z innymi ustawieniami oraz dodatkowymi metodami wykrywania, dzięki czemu
+            działają wolniej, ale staranniej.</li>
+            <li><strong>Spójne zasłanianie i wierne przywracanie:</strong> każda wykryta osoba
+            dostaje ten sam numer w całym dokumencie (na przykład [OSOBA_1]), niezależnie od
+            odmiany nazwiska w zdaniu. Podczas przywracania danych z mapy program wstawia w każde
+            miejsce dokładnie tę formę gramatyczną, która była w oryginale.</li>
+            <li><strong>Ponowne sprawdzenie i czyszczenie pliku:</strong> po zapisaniu wyniku
+            program automatycznie sprawdza cały plik drugi raz. Jednocześnie usuwa ukryte części
+            dokumentu (metadane, komentarze oraz śledzone zmiany), a jeśli wykryje w treści
+            pozostałości danych osobowych, blokuje pobranie dokumentu.</li>
+            <li><strong>Szyfrowanie mapy:</strong> plik mapy (.nwidka) jest chroniony szyfrowaniem
+            AES-256. Klucz szyfrujący jest przechowywany wyłącznie w systemowym sejfie haseł
+            Twojego komputera albo w bezpiecznym pliku sekretów administratora sieci, nigdy w samej
+            aplikacji.</li>
+            <li><strong>Szacowane ryzyko pominięcia:</strong> widoczny w programie wskaźnik
+            ryzyka wyliczyliśmy na podstawie testów na zestawie wzorcowych dokumentów. Pokazuje on
+            górną granicę ryzyka pominięcia danych, wyznaczoną z 95% pewnością.</li>
+          </ul>
+        </details>
+      </div>
+    </details>
+
     <div id="status-ukryj" class="status" aria-live="polite"></div>
 
     <section id="wynik" class="wynik" hidden>
-      <h2>Gotowe — dokument z zamienionymi danymi</h2>
+      <h2>Gotowe: dokument z ukrytymi danymi</h2>
 
       <div id="komunikat-status" class="komunikat" hidden></div>
 
       <div id="blok-zamienione" class="blok-zamienione" hidden>
-        <h3>Zamienione dane</h3>
+        <h3>Ukryte dane</h3>
         <ul id="lista-zamienionych" class="lista-danych"></ul>
         <div id="blok-ryzyka" hidden>
           <h3>Szacowane ryzyko pominięcia</h3>
@@ -84,7 +150,7 @@
       </div>
 
       <div id="blok-ostrzezenia" class="komunikat komunikat-ostrzezenie" hidden>
-        <h3>Uwaga — sprawdź te miejsca</h3>
+        <h3>Uwaga: sprawdź te miejsca</h3>
         <ul id="lista-ostrzezenia"></ul>
       </div>
 
@@ -103,7 +169,7 @@
           <button type="button" id="pobierz-mape" class="przycisk-wtorny">Pobierz mapę (.nwidka)</button>
         </p>
         <p class="wazne"><strong>Zachowaj mapę</strong> w bezpiecznym miejscu razem z dokumentem.
-        Bez mapy ukrytych danych nie przywrócisz — to jedyny klucz do oryginału.</p>
+        Bez mapy nie przywrócisz ukrytych danych. To jedyny klucz do oryginału.</p>
       </div>
     </section>
   </section>
@@ -111,8 +177,8 @@
   <section id="panel-przywroc" class="panel" role="tabpanel" aria-labelledby="zakladka-przywroc" hidden>
 
     <form id="form-przywroc" novalidate>
-      <p class="wyjasnienie">Masz dokument z zamienionymi danymi i jego mapę? Przywrócę oryginalne
-      dane w miejsce znaczników. Pliki muszą pochodzić z tej samej sesji programu.</p>
+      <p class="wyjasnienie">Masz dokument z ukrytymi danymi i jego mapę? Przywrócę oryginalne
+      dane w miejsce znaczników. Dokument i mapa muszą pochodzić z tego samego ukrywania danych.</p>
 
       <div class="pole-przywroc">
         <label for="plik-wynik">Dokument z ukrytymi danymi (TXT albo DOCX)</label>
@@ -142,7 +208,7 @@
 
 <footer class="stopka">
   <div class="srodek">
-    <p>Niewidka <span id="wersja"></span> — anonimizacja dokumentów na Twoim komputerze.</p>
+    <p>Niewidka <span id="wersja"></span>. Ukrywanie danych osobowych w dokumentach na Twoim komputerze.</p>
   </div>
 </footer>
 

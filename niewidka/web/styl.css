@@ -96,6 +96,9 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* logo (znak czapki + napis) zamiast tekstowego h1; wymiary atrybutami w HTML */
+.nazwa img { display: block; height: auto; max-width: 100%; }
+
 h1, h2, h3 { text-wrap: balance; }
 
 .tryb {
@@ -272,6 +275,83 @@ input:focus-visible,
 }
 
 .przycisk-wtorny:hover { background: #F1EFEA; }
+
+/* ---------- jak to działa ---------- */
+
+.jak-to-dziala {
+  margin-top: 1.4rem;
+  background: #F8F7F4;
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  padding: 0.15rem 1.1rem;
+}
+
+.jak-to-dziala > summary,
+.szczegoly-techniczne summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #2C4560;
+}
+
+.jak-to-dziala > summary {
+  padding: 0.55rem 0;
+  font-size: 1.02rem;
+}
+
+summary:focus-visible {
+  outline: 2px solid var(--tusz);
+  outline-offset: 2px;
+}
+
+.jak-to-dziala-tresc {
+  padding: 0.1rem 0 1.1rem;
+  font-size: 0.97rem;
+}
+
+.jak-to-dziala-tresc h3 {
+  margin: 1.05rem 0 0.3rem;
+  font-size: 1rem;
+  color: #2C4560;
+}
+
+.jak-to-dziala-tresc p { margin: 0.35rem 0; }
+
+.lista-typow {
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem 0.75rem 2.1rem;
+  list-style: disc;
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 5px;
+}
+
+.lista-typow li { margin: 0.32rem 0; }
+
+.lista-typow li strong { color: #2C4560; }
+
+.zastrzezenie {
+  margin: 1.05rem 0;
+  padding: 0.8rem 1rem;
+  background: var(--ostrzegaj-tlo);
+  border: 1px solid #E8D9B4;
+  border-radius: 6px;
+  color: var(--ostrzegaj);
+}
+
+.zastrzezenie h3 { margin: 0 0 0.3rem; color: var(--ostrzegaj); }
+.zastrzezenie p { margin: 0.3rem 0; }
+
+.szczegoly-techniczne {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--linie);
+  padding-top: 0.6rem;
+}
+
+.szczegoly-techniczne[open] summary { margin-bottom: 0.45rem; }
+
+.lista-techniczna { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+
+.lista-techniczna li { margin: 0.5rem 0; }
 
 /* ---------- komunikaty i wyniki ---------- */
 

@@ -154,7 +154,7 @@ async def test_ukryj_przywroc_docx_roundtrip(konfig, tmp_path):
     teksty = "\n".join(s.tekst for s in adapter_formatu("docx").wczytaj(przywroc.content).segmenty)
     assert "44051401359" in teksty
     assert "[PESEL_1]" not in teksty
-    assert "ZANONIMIZOWANO" not in teksty
+    assert "ZANONIMIZOWANY" not in teksty
 
 
 @pytest.mark.anyio

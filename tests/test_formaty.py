@@ -132,7 +132,7 @@ class TestAdapterTekst:
         ]
         segment.tekst = "".join(r.tekst for r in segment.runs)
         wynik = adapter.zapisz(dok).decode("utf-8")
-        assert wynik.startswith("ZANONIMIZOWANO w Niewidka")
+        assert wynik.startswith("ZANONIMIZOWANY. Dane osobowe zastąpiono znacznikami (Niewidka).")
         assert "[OSOBA_1_F1]" in wynik
         assert "Jan Kowalski" not in wynik
 
@@ -274,7 +274,7 @@ class TestAdapterDocxRoundTrip:
         # pułapka (11 cyfr bez poprawnej sumy) zostaje zamaskowana jako podejrzana
         assert "12345678901" not in calosc
         # dopisek na początku dokumentu
-        assert dok2.segmenty[0].tekst.startswith("ZANONIMIZOWANO w Niewidka")
+        assert dok2.segmenty[0].tekst.startswith("ZANONIMIZOWANY. Dane osobowe")
 
     def test_round_trip_styl_bold_na_znaczniku(self, wzorzec):
         adapter = AdapterDocx()

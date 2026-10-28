@@ -116,3 +116,19 @@ async def test_api_trasy_priorytet_przed_statycznymi(klient):
     odpowiedz = await klient.get("/api/stan")
     assert odpowiedz.status_code == 200
     assert odpowiedz.json()["wersja"]
+
+
+@pytest.mark.anyio
+async def test_bez_polpauz_i_pauz_w_tekstach(klient):
+    """Zlecenie właściciela (12:55 / K5b): zero półpauz i pauz (– —) w tekstach
+    widocznych dla użytkownika: strona, skrypt i dopisek w plikach wynikowych."""
+    from niewidka.znaczniki import DOPISEK, dopisek
+
+    for nazwa, tresc in (
+        ("index.html", (await klient.get("/")).text),
+        ("apka.js", (await klient.get("/apka.js")).text),
+        ("dopisek", DOPISEK),
+        ("dopisek z identyfikatorem", dopisek("abcdef")),
+    ):
+        for znak in ("–", "—"):
+            assert znak not in tresc, f"zakazany znak {znak!r} w {nazwa}"

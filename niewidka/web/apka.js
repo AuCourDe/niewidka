@@ -1,4 +1,4 @@
-/* Niewidka — web lokalny (K5). Jedna strona, bez zależności, wszystko offline.
+/* Niewidka: web lokalny (K5). Jedna strona, bez zależności, wszystko offline.
  * Token sesji przychodzi w meta (wstrzyknięty przez api.py przy serwowaniu strony),
  * nigdy w URL i nigdy w zasobach statycznych.
  */
@@ -24,7 +24,7 @@ const ETYKIETY = {
   TELEFON: ["numer telefonu", "numery telefonów"],
   EMAIL: ["adres e-mail", "adresy e-mail"],
   DOKUMENT: ["numer dokumentu", "numery dokumentów"],
-  DOWOD: ["numer dowodu", "numery dowodów"],
+  DOWOD: ["numer dowodu osobistego", "numery dowodów osobistych"],
   DATA: ["data", "daty"],
   INNE: ["inne dane", "inne dane"],
 };
@@ -34,26 +34,54 @@ function etykieta(typ, ile) {
   return `${ile} ${ile === 1 ? formy[0] : formy[1]}`;
 }
 
+/* Sekcja „Jak to działa”: wykrywane dane. Nazwy typów pochodzą z ETYKIETY
+   (jedno źródło z wynikiem); opisy i przykłady tylko tutaj. */
+const TYPY_WYKRYWANE = [
+  ["OSOBA", "imiona i nazwiska, także odmienione przez przypadki. Na przykład Jan Kowalski, Jana Kowalskiego, Janowi Kowalskiemu."],
+  ["PESEL", "na przykład 85041212345."],
+  ["NIP", "na przykład 526-10-40-828 lub 5261040828."],
+  ["REGON", "na przykład 012345678."],
+  ["IBAN", "numer rachunku bankowego, na przykład PL 61 1090 1014 0000 0712 1981 2874."],
+  ["DOKUMENT", "dowód osobisty albo paszport, na przykład ABC 123456 lub ZE 1234567."],
+  ["EMAIL", "na przykład j.kowalski@urzad.gov.pl."],
+  ["TELEFON", "na przykład +48 600 700 800 lub (22) 123 45 67."],
+  ["ADRES", "adres zamieszkania, na przykład ul. Polna 14 m. 5, 00-001 Warszawa."],
+  ["DATA", "na przykład data urodzenia, 12 kwietnia 1985 r. albo 12.04.1985."],
+];
+
+function budujListeTypow() {
+  const lista = document.getElementById("lista-typow-danych");
+  if (!lista) return;
+  for (const [typ, opis] of TYPY_WYKRYWANE) {
+    const wiersz = document.createElement("li");
+    const nazwa = document.createElement("strong");
+    nazwa.textContent = (ETYKIETY[typ] || [typ])[0];
+    nazwa.textContent = nazwa.textContent.charAt(0).toUpperCase() + nazwa.textContent.slice(1);
+    wiersz.append(nazwa, `: ${opis}`);
+    lista.append(wiersz);
+  }
+}
+
 function ryzykoOpis(r95) {
-  if (r95 == null) return "nie oszacowano dla tego poziomu jakości";
-  if (r95 <= 0.02) return "bardzo małe — co najwyżej 1 na 50";
+  if (r95 == null) return "brak oszacowania dla tego poziomu jakości";
+  if (r95 <= 0.02) return "bardzo małe: co najwyżej 1 na 50";
   const na = Math.round(1 / r95);
-  if (r95 <= 0.3) return `małe do umiarkowanego — co najwyżej ok. 1 na ${na}`;
-  return "podwyższone — przejrzyj wynik własnym okiem";
+  if (r95 <= 0.3) return `małe do umiarkowanego: co najwyżej ok. 1 na ${na}`;
+  return "podwyższone: przejrzyj wynik własnym okiem";
 }
 
 const NAZWY_POZIOMOW = { 1: "Szybko", 2: "Dokładniej", 3: "Najdokładniej" };
 
 const OPOWIEDZI_POZIOMOW = {
-  1: "Najszybszy — do szybkiego przeglądu dokumentu.",
-  2: "Wyważony — dobry do zwykłych dokumentów.",
-  3: "Najstaranniejszy — najwolniejszy, do pism najważniejszych.",
+  1: "Najszybszy: do szybkiego przeglądu dokumentu.",
+  2: "Wyważony: dobry do zwykłych dokumentów.",
+  3: "Najstaranniejszy: działa najwolniej, najlepszy do najważniejszych pism.",
 };
 
 const KOMUNIKATY = {
   403: "Sesja wygasła. Odśwież stronę (F5) i spróbuj ponownie.",
-  413: () => `Za duże wejście — plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
-  415: "Nieobsługiwany format pliku — przyjmuję .txt i .docx.",
+  413: () => `Za duże wejście: plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
+  415: "Nieobsługiwany format pliku: przyjmuję .txt i .docx.",
   422: (blad) => `Nie mogę przetworzyć tego dokumentu. ${blad || ""}`,
   503: "Program właśnie zajmuje się innym dokumentem. Poczekaj chwilę i spróbuj ponownie.",
   500: (blad) => `Coś się zepsuło po stronie programu. Podaj osobie opiekującej się numer zdarzenia: ${blad}`,
@@ -80,7 +108,7 @@ function pobierzBlob(blob, nazwa) {
 
 /* ---------- czytnik ZIP ----------
 
-   SIMPLIFICATION: czyta wyłącznie ZIP bez zip64, metody stored i deflate —
+   SIMPLIFICATION: czyta wyłącznie ZIP bez zip64, metody stored i deflate,
    dokładnie to, co zwraca POST /api/ukryj (dwa wpisy, bez szyfrowania).
    Rozbudować, gdy API zacznie zwracać cokolwiek innego. Deflate rozpakowuje
    natywny DecompressionStream przeglądarki. */
@@ -97,7 +125,7 @@ async function otworzZip(blob) {
   const bajty = new Uint8Array(widok.buffer);
   let eocd = bajty.length - 22;
   while (eocd >= 0 && widok.getUint32(eocd, true) !== 0x06054b50) eocd -= 1;
-  if (eocd < 0) throw new Error("to nie jest archiwum ZIP");
+  if (eocd < 0) throw new Error("Ten plik jest uszkodzony albo ma nieprawidłowy format (to nie jest archiwum ZIP).");
   const ile = widok.getUint16(eocd + 10, true);
   let pozycja = widok.getUint32(eocd + 16, true);
   const dekoder = new TextDecoder();
@@ -177,15 +205,17 @@ function pokazBlokade(statusId, typy) {
   const blok = document.createElement("div");
   blok.className = "komunikat komunikat-blad";
   const tytul = document.createElement("h3");
-  tytul.textContent = "STOP — tego dokumentu nie wolno wysyłać";
+  tytul.textContent = "STOP: tego dokumentu nie wolno wysyłać.";
   blok.append(tytul);
   const opis = document.createElement("p");
   const typyTekst = Object.entries(typy || {})
     .map(([typ, ile]) => etykieta(typ, ile))
     .join(", ");
-  opis.textContent = typyTekst
-    ? `Ponowne sprawdzenie znalazło dane przypominające oryginalne (${typyTekst}). Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.`
-    : "Ponowne sprawdzenie znalazło dane przypominające oryginalne. Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.";
+  opis.textContent = "Wynik zatrzymany przez kontrolę jakości. W dokumencie mogły zostać dane osobowe. "
+    + (typyTekst
+      ? `Ponowne sprawdzenie znalazło: ${typyTekst}. `
+      : "Ponowne sprawdzenie znalazło dane przypominające oryginalne. ")
+    + "Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.";
   blok.append(opis);
   pole.append(blok);
 }
@@ -347,7 +377,7 @@ function inicjalizujWejscie() {
     try {
       wejscie.files = zdarzenie.dataTransfer.files;
     } catch {
-      /* starsze przeglądarki nie pozwalają przypisać files — pokażę nazwę i tak */
+      /* starsze przeglądarki nie pozwalają przypisać files: pokażę nazwę i tak */
     }
     pokazTrybPliku(plik);
   });
@@ -366,7 +396,7 @@ async function wyslij(url, dane) {
     try {
       tresc = await odpowiedz.json();
     } catch {
-      /* odpowiedź błędu bez JSON — użyję samego kodu */
+      /* odpowiedź błędu bez JSON: użyję samego kodu */
     }
     const wyjatek = new Error(tresc.blad || String(odpowiedz.status));
     wyjatek.status = odpowiedz.status;
@@ -405,7 +435,7 @@ function inicjalizujUkrywanie() {
     else dane.set("tekst", tekst);
 
     ustawTrwa(formularz, true);
-    komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument — to może potrwać kilkadziesiąt sekund…");
+    komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument. To może potrwać kilkadziesiąt sekund.");
     try {
       const odpowiedz = await wyslij("/api/ukryj", dane);
       const czesci = await otworzZip(await odpowiedz.blob());
@@ -430,7 +460,7 @@ function inicjalizujUkrywanie() {
       await navigator.clipboard.writeText(tekst);
       zapowiedz("Skopiowano do schowka");
     } catch {
-      zapowiedz("Przeglądarka nie pozwoliła skopiować — zaznacz tekst ręcznie");
+      zapowiedz("Przeglądarka nie pozwoliła skopiować tekstu. Zaznacz go ręcznie.");
     }
   });
 
@@ -475,7 +505,7 @@ function inicjalizujPrzywracanie() {
         const wiersz = document.createElement("li");
         wiersz.textContent =
           rozbieznosc.typ === "znacznik_bez_wpisu"
-            ? `${rozbieznosc.opis} — to miejsce zostawiłem bez zmian.`
+            ? `${rozbieznosc.opis}. To miejsce zostaje bez zmian.`
             : `${rozbieznosc.opis}`;
         lista.append(wiersz);
       }
@@ -514,6 +544,7 @@ inicjalizujZakladki();
 inicjalizujWejscie();
 inicjalizujUkrywanie();
 inicjalizujPrzywracanie();
+budujListeTypow();
 wczytajStan();
 
 window.addEventListener("beforeunload", (zdarzenie) => {
