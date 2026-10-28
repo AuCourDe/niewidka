@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import keyring
 import pytest
 
 from niewidka.klucze import BrakKlucza, pobierz_klucz
@@ -94,15 +95,49 @@ def test_cli_nowy_plik(tmp_path: Path):
     assert len(base64.b64decode(sciezka.read_bytes())) == 32
 
 
-def test_cli_do_keyringa(monkeypatch):
-    zapisane: dict[tuple[str, str], str] = {}
-
+def test_cli_do_keyringa(keyring_pamieciowy):
     from niewidka import klucze
 
-    monkeypatch.setattr(
-        klucze.keyring,
-        "set_password",
-        lambda usluga, konto, wartosc: zapisane.setdefault((usluga, konto), wartosc),
-    )
-    klucze.main(["do-keyringa"])
-    assert len(base64.b64decode(zapisane[("niewidka", "mapa")])) == 32
+    assert klucze.main(["do-keyringa"]) == 0
+    assert len(base64.b64decode(keyring.get_password("niewidka", klucze.KONTO))) == 32
+
+
+# --- K6 (desktop): jawne utworzenie klucza wprost do keyringa; bez nadpisywania ---
+
+
+def test_utworz_klucz_w_keyringu_zapisuje_32_bajty(keyring_pamieciowy):
+    from niewidka import klucze
+
+    klucze.utworz_klucz_w_keyringu("niewidka-testy")
+    haslo = keyring.get_password("niewidka-testy", klucze.KONTO)
+    assert len(base64.b64decode(haslo)) == 32
+    # klucz od razu czytelny przez pobierz_klucz (ta sama ścieżka co aplikacja)
+    assert pobierz_klucz(Konfig(keyring_usluga="niewidka-testy")) == base64.b64decode(haslo)
+
+
+def test_utworz_klucz_nie_nadpisuje_istniejacego(keyring_pamieciowy):
+    from niewidka import klucze
+
+    keyring.set_password("niewidka-testy", klucze.KONTO, base64.b64encode(KLUCZ).decode())
+    with pytest.raises(klucze.KluczJuzIstnieje):
+        klucze.utworz_klucz_w_keyringu("niewidka-testy")
+    # stary klucz nietknięty: nadpisanie po cichu odebrałoby dostęp do starych map
+    assert pobierz_klucz(Konfig(keyring_usluga="niewidka-testy")) == KLUCZ
+
+
+def test_cli_do_keyringa_odmawia_gdy_klucz_jest(keyring_pamieciowy, capsys):
+    from niewidka import klucze
+
+    keyring.set_password("niewidka", klucze.KONTO, base64.b64encode(KLUCZ).decode())
+    assert klucze.main(["do-keyringa"]) == 1
+    assert keyring.get_password("niewidka", klucze.KONTO) == base64.b64encode(KLUCZ).decode()
+    assert "nadpisz" in capsys.readouterr().err
+
+
+def test_cli_do_keyringa_nadpisz_na_wyrazny_cek(keyring_pamieciowy):
+    from niewidka import klucze
+
+    keyring.set_password("niewidka", klucze.KONTO, base64.b64encode(KLUCZ).decode())
+    assert klucze.main(["do-keyringa", "--nadpisz"]) == 0
+    assert keyring.get_password("niewidka", klucze.KONTO) != base64.b64encode(KLUCZ).decode()
+    assert len(base64.b64decode(keyring.get_password("niewidka", klucze.KONTO))) == 32

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import keyring
 import pytest
 
 
@@ -37,3 +38,28 @@ def model_lfm25(wagi_lfm25: Path):
     from niewidka.detektory import wczytaj_lfm25
 
     return wczytaj_lfm25(wagi_lfm25)
+
+
+class PamięciowyBackend(keyring.backend.KeyringBackend):
+    """Backend testowy keyringa (K6): hasła tylko w słowniku procesu."""
+
+    priority = 1
+
+    def __init__(self):
+        self.dane: dict[tuple[str, str], str] = {}
+
+    def set_password(self, usluga: str, konto: str, haslo: str) -> None:
+        self.dane[(usluga, konto)] = haslo
+
+    def get_password(self, usluga: str, konto: str) -> str | None:
+        return self.dane.get((usluga, konto))
+
+
+@pytest.fixture()
+def keyring_pamieciowy():
+    """Magazyn haseł w pamięci zamiast systemowego; po teście poprzedni wraca."""
+    stary = keyring.get_keyring()
+    backend = PamięciowyBackend()
+    keyring.set_keyring(backend)
+    yield backend
+    keyring.set_keyring(stary)

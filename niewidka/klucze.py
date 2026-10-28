@@ -26,6 +26,22 @@ class BrakKlucza(Exception):
     """Brak albo wadliwy klucz mapy — jawny błąd, bez tworzenia nowego po cichu."""
 
 
+class KluczJuzIstnieje(Exception):
+    """Wpis klucza już jest w magazynie: nie nadpisujemy bez wyraźnego ceku
+    (nadpisanie odebrałoby dostęp do map zaszyfrowanych starym kluczem)."""
+
+
+def utworz_klucz_w_keyringu(usluga: str, nadpisz: bool = False) -> None:
+    """Nowy klucz wprost do magazynu systemowego (desktop K6, Windows: Menedżer
+    poświadczeń). Istniejący wpis blokuje — zamiana tylko świadomie (nadpisz=True).
+    """
+    if not nadpisz and _z_keyringa(usluga):
+        raise KluczJuzIstnieje(
+            f"klucz już jest w magazynie (usługa: {usluga}); zamiana odebrałaby dostęp do starych map"
+        )
+    keyring.set_password(usluga, KONTO, base64.b64encode(secrets.token_bytes(DLOGOSC)).decode())
+
+
 def _z_pliku(sciezka: Path) -> bytes:
     try:
         tryb = stat.S_IMODE(sciezka.stat().st_mode)
@@ -89,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     polecenia = parser.add_subparsers(dest="polecenie", required=True)
     plik = polecenia.add_parser("nowy-plik", help="nowy klucz do pliku (base64, uprawnienia 0600)")
     plik.add_argument("sciezka", type=Path)
-    polecenia.add_parser("do-keyringa", help="nowy klucz do keyringu (usługa z konfiguracji)")
+    do_keyringa = polecenia.add_parser("do-keyringa", help="nowy klucz do keyringu (usługa z konfiguracji)")
+    do_keyringa.add_argument(
+        "--nadpisz", action="store_true", help="zamień istniejący klucz (stare mapy staną się nieczytelne)"
+    )
     argumenty = parser.parse_args(argv)
 
     if argumenty.polecenie == "nowy-plik":
@@ -100,7 +119,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"klucz zapisany: {argumenty.sciezka}")
         return 0
     konfig = wczytaj_konfig()
-    keyring.set_password(konfig.keyring_usluga, KONTO, base64.b64encode(secrets.token_bytes(DLOGOSC)).decode())
+    try:
+        utworz_klucz_w_keyringu(konfig.keyring_usluga, nadpisz=argumenty.nadpisz)
+    except KluczJuzIstnieje:
+        print(
+            f"klucz już istnieje (usługa: {konfig.keyring_usluga}); zamiana tylko z --nadpisz",
+            file=sys.stderr,
+        )
+        return 1
     print(f"klucz zapisany w keyringu (usługa: {konfig.keyring_usluga})")
     return 0
 
