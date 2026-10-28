@@ -50,3 +50,8 @@
   - [x] Osoby: kontrprzykłady — inicjały przy dwóch kandydatach osobne, same nazwiska bez imion osobne, asocjacja wsteczna tylko przy jednym kandydacie (commit `db5dd08`)
   - [x] Podejrzane: błędna suma = Zakres.podejrzana=True, pewność 0.5, wchodzi do maskowania; pomiar liczy PN osobno (commit `53f6a0b`); re-pomiar 40/40 TP, 0 FP, 11 PN — dopisek w `docs/WYNIK-K1.md`
   - [x] Statusy w todo.md na koniec (ten wpis); pełny zestaw: 80 testów zielonych, ruff czysty, bez pusha
+- [~] 10:25 (właściciel) decyzje: „1a” – właściciel zwolnił dysk (157 GB wolne), LFM2.5 wchodzi jako poziom 2; „2c” – repo najpierw PRYWATNE.
+  - [x] Repo prywatne https://github.com/AuCourDe/niewidka (push main)
+  - [~] Korpus +120 próbek, autor zewnętrzny (opencode deepseek, /tmp/cc-oc-korpus.md)
+  - [~] K2b LFM2.5 poziom 2 + K3 TXT/DOCX (claude-glm id 1028-102520-claude-glm-e79f, /tmp/cc-glm-k2b.md). Decyzja orkiestratora: brama K2 (precision OSOBA 0.917) nie blokuje – FN groźniejszy niż FP, próg zostaje, raport uczciwy
+  - [ ] K4 mapa szyfrowana + API (uwierzytelnianie, wiązanie mapy z dokumentem), K5 web (moje-human-frontend, stonowane kolory), K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu
