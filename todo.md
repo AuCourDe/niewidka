@@ -56,7 +56,8 @@
   - [x] K2b + K3 (claude-glm e79f): LFM2.5 odrzucony pomiarem (unia psuje recall/precision, `docs/WYNIK-K2b.md`); TXT+DOCX z allowlistą i weryfikacją zapisu; 195 passed/1 xfail (zweryfikowane 11:30)
   - [~] K4 mapa+API (claude-glm c143, /tmp/cc-glm-k4.md)
   - [~] Poziom 2 wariant „uzupełniający” LFM2.5 bez unii (opencode-kilo 5bc6, /tmp/cc-oc-k2c.md) -> `docs/WYNIK-K2c.md`
-  - [~] Przegląd bezpieczeństwa DOCX (Gemini agy3 6290, /tmp/cc-agy-k3rev.md)
+  - [x] Przegląd bezpieczeństwa DOCX (Gemini agy3): 15 punktów, 7 krytycznych -> `docs/konsultacje/05-przeglad-docx-gemini.md`
+  - [ ] K3b zamknięcie wycieków DOCX + kontrola zapisu niezależna od adaptera (claude-glm, startuje po K4; /tmp/cc-glm-k3b.md, log /tmp/cc-k3b-start.log)
     - [x] Korpus +120 od autora zewnętrznego (opencode, /tmp/cc-oc-korpus.md) → 182 próbki (commit `10c77f6`); ponowny pomiar poziomu 1 i 2 wykonany
     - [x] LFM2.5 pobrany httpx (`pobierz_model.py --model lfm25`, manifest SHA-256, 1,4 GB); kod modelu przejrzany (`docs/KOD-LFM25.md`, werdykt: bezpieczny, uwaga na martwą ścieżkę /lambdafs w nieużywanej funkcji)
     - [x] ONNX wyeksportowany jednorazowo (`narzedzia/eksport_lfm25.py`): fp32 (sanity 1,5e-05, 0 różnic argmax) + INT8 dynamiczne; inferencja wyłącznie onnxruntime. **INT8 psuje recall solo (0.398 vs 0.553) — odpada**
