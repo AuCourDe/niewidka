@@ -18,6 +18,12 @@
   - [~] Rdzeń: wykrywanie (reguły + model), zamiana na znaczniki numerowane, mapa przywracania, ocena jakości — reguły + scalanie + osoby + znaczniki zrobione (K1, `docs/WYNIK-K1.md`); model ONNX = K2, mapa = K4, ocena jakości = K2
   - [~] Poprawki z przeglądu Astry+Gemini (docs+kod) – claude-glm id 1028-011253-claude-glm-9d8e (/tmp/cc-glm-lld2.md)
   - [~] K2 (bardsai ONNX, pomiar, R95) – /tmp/cc-glm-k2.md, startuje sam po 9d8e (log /tmp/cc-k2-start.log). 🔴 Dysk /mnt/projekty 100% (1,5 GB wolne): LFM2.5 (poziom 2, 1,4 GB) czeka na miejsce – decyzja właściciela
+    - [x] Repo HF zweryfikowane: `bardsai/eu-pii-anonimization-multilang` (oryginał, nie mirror brahim-23); ONNX INT8 `model_quantized.onnx` 278 MB + tokenizer; pobrane httpx do `~/models/niewidka`, manifest SHA-256 (commit `8cb5f03`)
+    - [x] `detektory.py` TDD: okna przesuwne 510/448, dekodowanie BIO, rozciągnięcie subwordów do granic słowa, `OnnxDetektor` (CPU; CUDA gdy dostępny), `wczytaj_bardsai`, `DetektorKompozyt`, manifest przy ładowaniu, fail-closed `BladDetektora` (commity `5d9665d`, `0d38928`→`3c6c61c`, `906cc52`)
+    - [x] Pomiar `--detektor poziom1`: progi K1 i „łącznie" spełnione (1.000/1.000; 0.984/0.969), OSOBA recall 0.957 ✓ / **precision 0.917 ✗** (próg 0.95) — brama K2 niezaliczona; pełna diagnoza FP/FN + czasy (7,5 ms/próbkę, RAM 798 MiB) w `docs/WYNIK-K2.md` (commit `d201a54`); progi nieprzesunięte
+    - [x] Kalibracja R95 Clopper-Pearson → `niewidka/dane/r95.json` (OSOBA 0.1902; commit `3a3d857`); `jakosc.r95_z_kalibracji` (commit `3a3d857`)
+    - [~] Brama K2 (precision OSOBA ≥ 0.95): czeka na decyzję właściciela — opcje w `docs/WYNIK-K2.md` (akceptacja z ryzykiem / rozbudowa korpusu przez autora zewnętrznego / poziom 2 / inny model OSOBA)
+    - [~] Poziom 2 (LFM2.5): czeka na miejsce na dysku (`~/models` 887 MB wolne); odnotowane w README, KAMIENIE.md, WYNIK-K2.md (commit `c69e3b0`)
   - [ ] Formaty: txt, docx, odt, xlsx, pdf (tekst) - ten sam format na wyjściu
   - [ ] Aplikacja web (serwer lokalny) + GUI okienkowe + Android
   - [ ] Przegląd kodu codex na końcu
