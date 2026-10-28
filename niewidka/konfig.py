@@ -92,8 +92,16 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         raise ValueError(
             f"NIEWIDKA_OBRAZY: nieznana polityka obrazów {obrazy!r}; dozwolone: {', '.join(POLITYKI_OBRAZOW)}"
         )
+    host = env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1"))
+    # K4b pkt 14: lokalne MVP nasłuchuje wyłącznie na loopbacku — nasłuch LAN
+    # udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika (audyt pkt 14)
+    if host not in ("127.0.0.1", "localhost", "::1") and not host.startswith("127."):
+        raise ValueError(
+            f"NIEWIDKA_HOST: dozwolony jest wyłącznie nasłuch na loopbacku (127.0.0.1), jest {host!r}; "
+            "udostępnianie w sieci lokalnej wymaga osobnego uwierzytelnienia i autoryzacji odszyfrowania"
+        )
     return Konfig(
-        host=env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1")),
+        host=host,
         port=_jako_int(env, "NIEWIDKA_PORT", int(serwer.get("port", 8390))),
         poziom=_jako_int(env, "NIEWIDKA_POZIOM", int(detekcja.get("poziom", 1))),
         prog_osoba=_jako_float(

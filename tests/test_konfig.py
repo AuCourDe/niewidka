@@ -31,7 +31,7 @@ def test_toml_nadaje_domyslne(tmp_path: Path):
     plik.write_text(
         """
 [serwer]
-host = "0.0.0.0"
+host = "127.0.0.1"  # K4b pkt 14: tylko loopback przechodzi walidację
 port = 9000
 
 [detekcja]
@@ -76,9 +76,11 @@ blokada = false
 def test_env_wygra_z_toml(tmp_path: Path):
     plik = tmp_path / "niewidka.toml"
     plik.write_text("[serwer]\nport = 9000\n", encoding="utf-8")
-    k = wczytaj_konfig(plik, env={"NIEWIDKA_PORT": "9100", "NIEWIDKA_HOST": "192.168.0.10"})
+    # K4b pkt 14: host poza loopbackiem odrzucany przy starcie, więc precedencja
+    # env nad TOML dowodzi port (host dozwolony tylko z loopbacku)
+    k = wczytaj_konfig(plik, env={"NIEWIDKA_PORT": "9100", "NIEWIDKA_HOST": "127.0.0.1"})
     assert k.port == 9100
-    assert k.host == "192.168.0.10"
+    assert k.host == "127.0.0.1"
 
 
 def test_env_bez_toml(tmp_path: Path):

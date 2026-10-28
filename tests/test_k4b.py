@@ -660,3 +660,24 @@ def test_pkt13_email_nadal_wykrywany():
     assert len(trafienia) == 1
     assert tekst[trafienia[0].start : trafienia[0].koniec] == "jan.kowalski@example.com.pl"
 
+
+# --- pkt 14: nasłuch wyłącznie na loopbacku ---------------------------------------
+
+
+def test_pkt14_konfig_odrzuca_host_poza_loopbackiem():
+    """K4b pkt 14: host poza loopbackiem = jawny błąd startu; nasłuch LAN
+    udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika."""
+    from niewidka.konfig import wczytaj_konfig
+
+    for host in ("0.0.0.0", "192.168.1.10", "10.0.0.5"):
+        with pytest.raises(ValueError, match="loopback"):
+            wczytaj_konfig(env={"NIEWIDKA_HOST": host})
+
+
+def test_pkt14_loopback_dozwolony():
+    from niewidka.konfig import wczytaj_konfig
+
+    assert wczytaj_konfig(env={"NIEWIDKA_HOST": "127.0.0.1"}).host == "127.0.0.1"
+    assert wczytaj_konfig(env={"NIEWIDKA_HOST": "localhost"}).host == "localhost"
+    assert wczytaj_konfig(env={"NIEWIDKA_HOST": "::1"}).host == "::1"
+
