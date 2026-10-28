@@ -186,3 +186,15 @@ async def test_ui_ponawia_pobieranie_po_bledzie(klient):
         "przyciski pobierania mają zależeć od aktualnego stanu operacji (po błędzie: włączone)"
     )
     assert "Nie udało się pobrać pakietu" in apka, "błąd pobierania ma być pokazany użytkownikowi"
+
+
+@pytest.mark.anyio
+async def test_kontrola_jakosci_tekst_uczciwy(klient):
+    """K7c pkt 12 (obserwacja orkiestratora): wynik z niewykrytym SWIFT i loginem
+    ogłaszał «nie znalazło żadnych danych osobowych». Uczciwie: program nie
+    znalazł danych, które UMIE wykrywać, a użytkownik ma przejrzeć wynik."""
+    apka = (await klient.get("/apka.js")).text
+    assert "nie znalazło żadnych danych osobowych" not in apka, (
+        "stare kłamliwe sformułowanie ma zniknąć"
+    )
+    assert "nie znalazło danych, które program umie wykrywać" in apka

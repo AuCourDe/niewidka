@@ -268,7 +268,8 @@ function pokazWynik(naglowki, czesci) {
   tytul.textContent = "Kontrola jakości: zaliczona";
   blok.append(tytul);
   const opis = document.createElement("p");
-  opis.textContent = "Ponowne sprawdzenie wyniku nie znalazło żadnych danych osobowych.";
+  opis.textContent = "Ponowne sprawdzenie wyniku nie znalazło danych, które program umie wykrywać. "
+    + "Program nie wykrywa wszystkiego, dlatego przejrzyj wynik przed wysłaniem.";
   blok.append(opis);
   const uwagi = JSON.parse(naglowki.get("x-niewidka-uwagi") || "[]");
   for (const uwaga of uwagi) {
