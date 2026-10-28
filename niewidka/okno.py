@@ -150,14 +150,17 @@ def rozwiaz_port(env: MutableMapping[str, str] | None = None) -> int:
     return int(podany) if podany else port_wolny()
 
 
-def _ukryj_strumienie_bez_konsoli() -> None:
+def _ukryj_strumienie_bez_konsoli(env: MutableMapping[str, str] | None = None) -> None:
     """Pakiet --windowed: stdout/stderr to None, więc pierwsze logi uvicorna
     wywaliłyby proces. Strumienie lecą do devnull (logi Niewidki i tak nie mają
-    treści dokumentów, LLD §12)."""
+    treści dokumentów, LLD §12); NIEWIDKA_LOG_PLIK kieruje je do pliku
+    (diagnostyka u IT, bez konsoli)."""
+    env = os.environ if env is None else env
+    cel = env.get("NIEWIDKA_LOG_PLIK") or os.devnull
     if sys.stdout is None:
-        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 — na czas życia procesu
+        sys.stdout = open(cel, "w", encoding="utf-8")  # noqa: SIM115 — na czas życia procesu
     if sys.stderr is None:
-        sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 — jw.
+        sys.stderr = open(cel, "w", encoding="utf-8")  # noqa: SIM115 — jw.
 
 
 class Serwer:

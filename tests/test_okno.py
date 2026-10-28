@@ -8,7 +8,9 @@ from __future__ import annotations
 import base64
 import socket
 import sys
+import tempfile
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import keyring
@@ -207,6 +209,25 @@ def test_awaria_okna_webview_ma_fallback_systemowy(srodowisko, keyring_pamieciow
     kod = okno.uruchom(detektor=AtrapaDetektora(), webview=AtrapaPadajaca())
     assert kod == 1
     assert zapisane and "webview" in zapisane[0]
+
+
+def test_strumienie_do_pliku_z_logiem(monkeypatch):
+    """NIEWIDKA_LOG_PLIK kieruje stdout/stderr (None przy --windowed) do pliku."""
+    monkeypatch.setattr(sys, "stdout", None, raising=False)
+    monkeypatch.setattr(sys, "stderr", None, raising=False)
+    with tempfile.TemporaryDirectory() as katalog:
+        cel = Path(katalog) / "niewidka.log"
+        okno._ukryj_strumienie_bez_konsoli({"NIEWIDKA_LOG_PLIK": str(cel)})
+        print("probna linia", file=sys.stderr)
+        sys.stderr.flush()
+        assert "probna linia" in cel.read_text(encoding="utf-8")
+
+
+def test_strumienie_domyslnie_devnull(monkeypatch):
+    monkeypatch.setattr(sys, "stdout", None, raising=False)
+    monkeypatch.setattr(sys, "stderr", None, raising=False)
+    okno._ukryj_strumienie_bez_konsoli({})
+    assert sys.stderr is not None  # otwarty strumień zamiast None (logi uvicorna nie zabiją)
 
 
 def test_teksty_gui_bez_polpauz_i_pauz():
