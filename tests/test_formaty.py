@@ -321,3 +321,13 @@ class TestAdapterDocxRoundTrip:
 
     def test_nazwa_wyniku_docx(self, wzorzec):
         assert nazwa_wyniku("wzorzec.docx", "a1b2c3") == "ZANONIMIZOWANY_a1b2c3.docx"
+
+
+class TestTekstyAlternatywne:
+    def test_descr_obrazu_czyszczony(self, wzorzec):
+        # tekst alternatywny może nieść PII ("Logo z adresem ul. Lipowa 13/5")
+        adapter = AdapterDocx()
+        dok = adapter.wczytaj(wzorzec.read_bytes())
+        wynik = adapter.zapisz(dok)
+        doc_xml = zipfile.ZipFile(io.BytesIO(wynik)).read("word/document.xml").decode("utf-8")
+        assert "ul. Lipowa 13/5" not in doc_xml

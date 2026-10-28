@@ -111,6 +111,10 @@ class AdapterDocx:
                     rodzic.getparent().remove(rodzic)
         for odniesienie in list(drzewo.iter(_q("headerReference"), _q("footerReference"))):
             odniesienie.getparent().remove(odniesienie)
+        # teksty alternatywne obrazów mogą nieść PII — czyszczone (polityka obrazów, LLD §9)
+        WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+        for doc_pr in drzewo.iter(f"{{{WP}}}docPr"):
+            doc_pr.set("descr", "")
         for link in list(drzewo.iter(_q("hyperlink"))):
             id_relacji = link.get(f"{{{R}}}id")
             cel = _cel_relacji(rels_xml, id_relacji)
