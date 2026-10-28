@@ -36,6 +36,11 @@ kalibracja R95, pomiar porównawczy „reguły" vs „reguły+model" (poziom 1/2
 **Ukończono, gdy:** poziom 1 osiąga progi `KRYTERIA.md` (recall OSOBA i precision); decyzja
 o LFM2.5 udokumentowana pomiarem; `dane/r95.json` wygenerowany (dowód: WYNIK pomiaru + r95.json).
 
+Status (2026-10-28, `docs/WYNIK-K2.md`): pomiar wykonany; progi K1 i „łącznie" poziomu 1
+spełnione, OSOBA recall 0.957 spełnia, **precision 0.917 nie spełnia progu 0.95** — brama
+niezaliczona, opcje dalsze w WYNIK-K2. R95 wygenerowane (`niewidka/dane/r95.json`).
+Poziom 2 (LFM2.5, 1.4 GB): **czeka na miejsce na dysku** (`~/models` — 887 MB wolne).
+
 ## K3 — Formaty dokumentów (MVP: txt, docx)
 Zakres: adaptery txt i docx (runy, czyszczenie metadanych/komentarzy/śledzonych zmian,
 allowlist struktury); blokada elementów nieobsługiwanych. odt/xlsx/pptx/pdf — v1 (K6),
