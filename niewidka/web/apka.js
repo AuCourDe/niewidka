@@ -23,6 +23,7 @@ const ETYKIETY = {
   ADRES: ["adres", "adresy"],
   TELEFON: ["numer telefonu", "numery telefonów"],
   EMAIL: ["adres e-mail", "adresy e-mail"],
+  DOKUMENT: ["numer dokumentu", "numery dokumentów"],
   DOWOD: ["numer dowodu", "numery dowodów"],
   DATA: ["data", "daty"],
   INNE: ["inne dane", "inne dane"],
@@ -34,12 +35,14 @@ function etykieta(typ, ile) {
 }
 
 function ryzykoOpis(r95) {
-  if (r95 == null) return "brak oszacowania";
+  if (r95 == null) return "nie oszacowano dla tego poziomu jakości";
   if (r95 <= 0.02) return "bardzo małe — co najwyżej 1 na 50";
   const na = Math.round(1 / r95);
   if (r95 <= 0.3) return `małe do umiarkowanego — co najwyżej ok. 1 na ${na}`;
   return "podwyższone — przejrzyj wynik własnym okiem";
 }
+
+const NAZWY_POZIOMOW = { 1: "Szybko", 2: "Dokładniej", 3: "Najdokładniej" };
 
 const OPOWIEDZI_POZIOMOW = {
   1: "Najszybszy — do szybkiego przeglądu dokumentu.",
@@ -49,7 +52,7 @@ const OPOWIEDZI_POZIOMOW = {
 
 const KOMUNIKATY = {
   403: "Sesja wygasła. Odśwież stronę (F5) i spróbuj ponownie.",
-  413: () => `Za duże wejście — plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
+  413: () => `Za duże wejście — plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
   422: (blad) => `Nie mogę przetworzyć tego dokumentu. ${blad || ""}`,
   503: "Program właśnie zajmuje się innym dokumentem. Poczekaj chwilę i spróbuj ponownie.",
   500: (blad) => `Coś się zepsuło po stronie programu. Podaj osobie opiekującej się numer zdarzenia: ${blad}`,
@@ -255,10 +258,12 @@ function ustawZakladke(wybrana) {
     zakladka.tabIndex = aktywne ? 0 : -1;
     document.getElementById(zakladka.getAttribute("aria-controls")).hidden = !aktywne;
   }
+  if (history.replaceState) history.replaceState(null, "", wybrana.id === "zakladka-przywroc" ? "#przywroc" : "#ukryj");
 }
 
 function inicjalizujZakladki() {
   const zakladki = [...document.querySelectorAll('[role="tab"]')];
+  if (location.hash === "#przywroc") ustawZakladke(document.getElementById("zakladka-przywroc"));
   for (const zakladka of zakladki) {
     zakladka.addEventListener("click", () => ustawZakladke(zakladka));
     zakladka.addEventListener("keydown", (zdarzenie) => {
@@ -346,6 +351,7 @@ function inicjalizujUkrywanie() {
   const opis = document.getElementById("opis-poziomu");
   const odswiezOpis = () => {
     opis.textContent = OPOWIEDZI_POZIOMOW[suwak.value];
+    suwak.setAttribute("aria-valuetext", NAZWY_POZIOMOW[suwak.value]);
   };
   suwak.addEventListener("input", odswiezOpis);
   odswiezOpis();
@@ -358,6 +364,7 @@ function inicjalizujUkrywanie() {
     const tekst = document.getElementById("tekst").value.trim();
     if (!wybranyPlik && !tekst) {
       komunikat("status-ukryj", "komunikat-blad", "Pusto", "Wklej tekst albo wybierz plik, który mam sprawdzić.");
+      (wybranyPlik ? document.getElementById("plik") : document.getElementById("tekst")).focus();
       return;
     }
     const dane = new FormData();
@@ -366,7 +373,7 @@ function inicjalizujUkrywanie() {
     else dane.set("tekst", tekst);
 
     ustawTrwa(formularz, true);
-    komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument — to może potrwać kilkadziesiąt sekund.");
+    komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument — to może potrwać kilkadziesiąt sekund…");
     try {
       const odpowiedz = await wyslij("/api/ukryj", dane);
       const czesci = await otworzZip(await odpowiedz.blob());
@@ -409,6 +416,7 @@ function inicjalizujPrzywracanie() {
     const plikMapa = document.getElementById("plik-mapa").files[0];
     if (!plikWynik || !plikMapa) {
       komunikat("status-przywroc", "komunikat-blad", "Brakuje pliku", "Wybierz oba pliki: dokument z ukrytymi danymi i mapę (.nwidka).");
+      (plikWynik ? document.getElementById("plik-mapa") : document.getElementById("plik-wynik")).focus();
       return;
     }
     const dane = new FormData();
@@ -470,3 +478,7 @@ inicjalizujWejscie();
 inicjalizujUkrywanie();
 inicjalizujPrzywracanie();
 wczytajStan();
+
+window.addEventListener("beforeunload", (zdarzenie) => {
+  if (document.getElementById("tekst").value.trim()) zdarzenie.preventDefault();
+});

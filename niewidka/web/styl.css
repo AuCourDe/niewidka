@@ -47,9 +47,27 @@ body {
   font-family: "Lato", "Segoe UI", sans-serif;
   font-size: 1rem;
   line-height: 1.55;
+  touch-action: manipulation;
+  overflow-x: hidden;
 }
 
 ::selection { background: #D9E2EC; }
+
+.przeskok {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 10;
+  background: var(--kartka);
+  border: 2px solid var(--tusz);
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  color: var(--tusz);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.przeskok:focus { top: 0.5rem; }
 
 .srodek {
   width: 100%;
@@ -77,6 +95,8 @@ body {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+
+h1, h2, h3 { text-wrap: balance; }
 
 .tryb {
   margin: 0.15rem 0 0;
@@ -176,6 +196,8 @@ input[type="file"] {
   text-decoration: underline;
   cursor: pointer;
 }
+
+.linkowy:hover { color: var(--tusz-nacisniety); }
 
 /* ---------- suwak jakości ---------- */
 
@@ -281,6 +303,7 @@ input:focus-visible,
   margin: 0.3rem 0 0.9rem;
   padding: 0;
   list-style: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .lista-danych li {
@@ -328,6 +351,7 @@ input:focus-visible,
   padding: 0.05rem 0.4rem;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
