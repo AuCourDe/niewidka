@@ -60,10 +60,10 @@
   - [~] Poziom 2 bez nowego modelu: A niższy próg bardsai + przesunięte okna, B + słownik imion (opencode Zen 9f61, /tmp/cc-oc-k2d.md) -> `docs/WYNIK-K2d.md`
   - [x] Przegląd bezpieczeństwa DOCX (Gemini agy3): 15 punktów, 7 krytycznych -> `docs/konsultacje/05-przeglad-docx-gemini.md`
   - [~] K3b (claude-glm c876) zamknięcie wycieków DOCX + kontrola zapisu niezależna od adaptera (claude-glm, startuje po K4; /tmp/cc-glm-k3b.md, log /tmp/cc-k3b-start.log)
-    - [~] Kontrola zapisu NIEZALEŻNA od adaptera: kontrola.py skanuje SUROWO każdą część ZIP (węzły tekstowe + wartości atrybutów wszystkich XML/rels, bezpieczny parser) detektorem + oryginałami z mapy (oryginał gdziekolwiek w archiwum = ostrzeżenie krytyczne blokujące); test: PESEL ukryty w atrybucie/części nieczytanej przez adapter -> kontrola zgłasza
-    - [~] Weryfikacja testem każdego z 15 pkt przeglądu Gemini (05-przeglad-docx-gemini.md); prawdziwe naprawić, fałszywe opisać z dowodem w docs/WYNIK-K3b.md
-    - [~] Walidacja poprawności wyników: python-docx otwiera + XML poprawny + każda w:tc ma w:p
-    - [~] pełny pytest (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff -> docs/WYNIK-K3b.md; commit po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm), pull --rebase, push; bez Dockera, bez codex
+    - [x] Kontrola zapisu NIEZALEŻNA od adaptera: skan surowy każdej części ZIP (węzły tekstowe + atrybuty XML/rels bezpiecznym parserem, binarne bajt po bajcie) + oryginały z mapy = `ORYGINAL` blokujące; rdzeń przekazuje oryginały, API serializuje `czesc` (commit `75934bc`)
+    - [x] 15/15 pkt przeglądu Gemini potwierdzone testami (każdy RED na wzorcu pułapek) i naprawione; fałszywych brak — `docs/WYNIK-K3b.md` (commity `343eb80`, `2a74061`, `57fce36`, `baa79bf`, `97cdd18`)
+    - [x] Walidacja poprawności: python-docx otwiera wynik pułapek i dokument po przywróceniu, każda w:tc ma w:p (commit `f0da419`; bonus: osierocona relacja customXml naprawiona normpathem)
+    - [x] pełny pytest **314 passed, 1 xfailed** (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff czysty na plikach K3b (4 błędy w tests/test_detektory.py = trwająca sesja K2d) -> `docs/WYNIK-K3b.md`; push `f0da419`; bez Dockera, bez codex
     - [x] Korpus +120 od autora zewnętrznego (opencode, /tmp/cc-oc-korpus.md) → 182 próbki (commit `10c77f6`); ponowny pomiar poziomu 1 i 2 wykonany
     - [x] LFM2.5 pobrany httpx (`pobierz_model.py --model lfm25`, manifest SHA-256, 1,4 GB); kod modelu przejrzany (`docs/KOD-LFM25.md`, werdykt: bezpieczny, uwaga na martwą ścieżkę /lambdafs w nieużywanej funkcji)
     - [x] ONNX wyeksportowany jednorazowo (`narzedzia/eksport_lfm25.py`): fp32 (sanity 1,5e-05, 0 różnic argmax) + INT8 dynamiczne; inferencja wyłącznie onnxruntime. **INT8 psuje recall solo (0.398 vs 0.553) — odpada**
@@ -92,13 +92,13 @@
   - [ ] Zakładka „Przywróć dane”: wynik + mapa -> plik/tekst przywrócony, rozbieżności po ludzku; jawny tryb „Na tym urządzeniu” (dane nie opuszczają komputera); błędy 413/415/422/503 po polsku
   - [ ] tests/test_web.py (TestClient: strona się serwuje, token tylko w treści, brak zewnętrznych zasobów) + E2E Playwright (wklej->ukryj->znaczniki->przywróć); zrzuty 1440 i 390 do docs/zrzuty/k5-*.png
   - [ ] pytest całości (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff zielone -> docs/WYNIK-K5.md; commit po zielonym kroku (Co-Authored-By: GLM via claude-glm), pull --rebase, push; bez Dockera, bez codex; NIE zmieniać niewidka/formaty/ ani kontrola.py
-- [~] 12:25 (właściciel) zwece K2d przejęte od opencode 9f61 (brak śladu w repo) — „zbuduj i zmierz dwa warianty poziomu 2”: A) bardsai z obniżonym progiem pewności dla OSOBA (2-3 wartości) + drugi przebieg okien przesuniętych o pół kroku; B) A + słownik polskich imion GUS/dane.gov.pl (licencja otwarta, źródło w docs; plik w niewidka/dane/, max kilka tysięcy najczęstszych) — imię z listy + następne słowo z wielkiej litery = OSOBA, każda forma fleksyjna przez temat imienia.
-  - [ ] detektory.py: próg pewności OSOBA w OnnxDetektor + przebieg półkrokowy okien + wykrywacz słownikowy; testy odmian Jan/Jana/Janem, Anna/Anny/Annie w tests/test_detektory.py
-  - [ ] narzedzia/pomiar.py: tryby --detektor poziom2-a / poziom2-b (+ --prog-osoba)
-  - [ ] niewidka/dane/imiona_gus.txt + źródło i licencja pobrania w docs (skrypt narzędziowy)
-  - [ ] pomiar poziom 1 / A (3 progi) / B na korpusie 182 (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + lista FN poziomu 1 złapanych przez A/B
-  - [ ] docs/WYNIK-K2d.md (OSOBA TP/FP/FN, recall, precision, czas, RAM; werdykt wg KRYTERIA §4, próg bez zmian)
-  - [ ] pełny pytest + ruff zielone; commit tylko własnych plików, pull --rebase, push; bez Dockera; NIE zmieniać niewidka/formaty/, kontrola.py, api.py
+- [x] 12:25 (właściciel) zwece K2d przejęte od opencode 9f61 (brak śladu w repo) — „zbuduj i zmierz dwa warianty poziomu 2”: A) bardsai z obniżonym progiem pewności dla OSOBA (2-3 wartości) + drugi przebieg okien przesuniętych o pół kroku; B) A + słownik polskich imion GUS/dane.gov.pl (licencja otwarta, źródło w docs; plik w niewidka/dane/, max kilka tysięcy najczęstszych) — imię z listy + następne słowo z wielkiej litery = OSOBA, każda forma fleksyjna przez temat imienia.
+  - [x] detektory.py: próg pewności OSOBA w OnnxDetektor + przebieg półkrokowy okien + wykrywacz słownikowy; testy odmian w tests/test_detektory.py (83 testów unit zielonych)
+  - [x] narzedzia/pomiar.py: tryby --detektor poziom2-a / poziom2-b (+ --prog-osoba)
+  - [x] niewidka/dane/imiona_gus.txt (3000 imion, CC0) + skrypt narzędziowy narzedzia/pobierz_imiona.py (httpx); błąd scalania max/update naprawiony (Piotr/Jan wracają)
+  - [x] pomiar na korpusie 182: poziom1 100/6/3 (0.971/0.943, 7.8 ms); A próg 0.2 i 0.3: 101/5/2 (0.981/0.953, 8.8 ms); próg 0.5 = poziom1; B = A liczbami (13.2 ms) — lista FN/FP w docs/WYNIK-K2d.md
+  - [x] docs/WYNIK-K2d.md — werdykt: poziom 2 = wariant A (próg 0.2); KRYTERIA §4 spełnione; B bez zysku na korpusie (filtr nakładania)
+  - [x] pytest 304 passed + ruff zielone; commit własnych plików + push (niewidka/formaty/ i api.py niedotknięte)
 - [~] 12:45 (właściciel) „pokaż zrzuty jak będą” + „wersja okienkowa na windows? potem dopiero linux / mac / android”
   - [ ] Zrzuty K5 pokazać właścicielowi (kopia do C na pulpicie) do oceny tak/nie
   - [ ] K6 Windows przed Linux/Mac/Android

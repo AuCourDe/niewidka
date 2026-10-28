@@ -63,6 +63,17 @@ nazwa wyniku `ZANONIMIZOWANY_<krótki-id>.<ext>`; weryfikacja zapisu ZAWSZE (rou
 ponowne wczytanie i skan = 0 nowych znalezisk). Pliki wzorcowe: `narzedzia/generator_
 dokumentow.py` (python-docx). Dowód: `pytest tests/test_formaty.py` — 27 zielonych.
 
+Status K3b (2026-10-28, `docs/WYNIK-K3b.md`): **zrealizowany** — 15/15 punktów przeglądu
+DOCX (Gemini) potwierdzonych testami (każdy padał na wzorcu pułapek) i naprawionych:
+pola (instrText/fldSimple — instrukcja znika, wynik zostaje), osierocone w:t opakowane
+w w:r, akceptacja śledzonych zmian bez author/date/initials i bez pustych w:tc, relacje
+części dziedziczą los części, settings.xml czyszczone, zakładki/kotwice → _Bm1.., SDT
+alias/tag, query string w URL, docPr/VML, people/custom/glossary usuwane, smartTag
+rozpakowany. Kontrola zapisu ma drugą siatkę NIEZALEŻNĄ od adaptera: surowy skan każdej
+części ZIP (XML wartość po wartości, binarne bajt po bajcie) + oryginały z mapy =
+ostrzeżenie ORYGINAL blokujące. Poprawność wyników: python-docx otwiera, każda w:tc
+ma w:p. Dowód: **314 passed, 1 xfailed**, ruff czysty.
+
 ## K4 — Mapa, przywracanie, API
 Zakres: `mapa.py` (identyfikator zadania, warianty form), `klucze.py` (AES-256-GCM,
 keyring/plik; uprawnienia 0600 tylko POSIX), `kontrola.py` (weryfikacja zapisu — zawsze,
