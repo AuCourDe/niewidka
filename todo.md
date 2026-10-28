@@ -147,4 +147,8 @@
   - [ ] Katalog pakietów modeli (Szybki / Dokładny / Najdokładniejszy), źródło z wersją i SHA-256, lustro konfigurowalne przez IT, instalacja offline z katalogu
   - [ ] Pierwsze uruchomienie: okno wyboru pakietów; Ustawienia: osobne przełączniki pobierz/usuń dla każdego pakietu; suwak blokuje poziomy bez modelu
   - [ ] Paczka instalacyjna bez wag (K6 przebudowa)
+- [~] 14:08 (właściciel) „uwzględnij ten model [LFM2.5 w pakiecie Najdokładniejszy] i kontynuuj, czekam na testy; paczka musi być możliwa do zbudowania samemu (źródła) oraz pobrania gotowego EXE (osoby nietechniczne) z GitHuba”
+  - [~] K7a pomiar Q4 (claude-glm b244, /tmp/cc-glm-k7q4.md)
+  - [ ] K7b pakiety modeli + pierwsze uruchomienie + Ustawienia + workflow GitHub Actions (EXE w Releases) + README „Pobierz”/„Zbuduj ze źródeł” (claude-glm, startuje po K6w, K4b, K7a, K5b; /tmp/cc-glm-k7b.md)
+  - [ ] Wydanie publiczne EXE dopiero po przeglądzie właściciela (repo prywatne, decyzja 2c)
 
