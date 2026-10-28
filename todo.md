@@ -205,3 +205,11 @@
   - [x] test RED w tests/test_okno.py (403), poprawka w okno.py (port przed create_app), pełny pytest 530 passed / 1 xfailed, ruff czysty — `a9404f5`
   - [x] błąd 403 przy pakietach widoczny na ekranie pierwszego uruchomienia
   - [x] przebudowa EXE (484 passed/32 skipped), test_origin_exe.py: wolny port + Origin, oba pakiety ~3 s, LOGIN/SWIFT/OSOBA/PESEL ukryte; nowa kopia w Niewidka-test, ZIP w Desktop/C; okno ponownie uruchomione (Origin -> 409 zamiast 403)
+- [~] 23:55 (właściciel) „w wersji okienkowej testowałem i nie zmienia się zupełnie nic” — komunikat „STOP: tego dokumentu nie wolno wysyłać… Ponowne sprawdzenie znalazło: 1 osoba”, żaden fragment nie zanonimizowany; „aplikacja nie działa wcale, w sensie jest włączona, ale nie realizuje zadania”. Polecenie: skill testowania, scenariusze per rozwiązanie (web, okienkowa), testy po API, potem przez GUI; pomoc: claude-glm, agy2, agy3, agy4, jeden agent Sonnet; Codex 4× do code review i szukania błędów
+  - [ ] odtworzyć blokadę kontroli na piśmie urzędowym (API web i EXE), znaleźć przyczynę
+  - [ ] poprawka przyczyny + test regresji, pełny pytest
+  - [ ] scenariusze testowe: web i okienkowa (docs/testy/)
+  - [ ] przebieg po API: web i EXE, wyniki z dowodem
+  - [ ] przebieg przez GUI: web (przeglądarka) i okno (WebView2), wyniki z dowodem
+  - [ ] Codex: code review i szukanie błędów (do 4 wywołań), poprawki
+  - [ ] przebudowa EXE, nowa kopia do testów, raport do Desktop/C
