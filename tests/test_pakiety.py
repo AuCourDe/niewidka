@@ -385,3 +385,66 @@ def _lustro(katalog_testowy, tmp_path):
     for plik in [p for pakiet in katalog_testowy["lista"] for p in pakiet.pliki]:
         (lustro / plik.zrodlo).write_bytes(katalog_testowy["tresci"][plik.zrodlo])
     return lustro
+
+
+# --- K7c pkt 4: dowiązania nie prowadzą poza katalog modeli -------------------
+
+def test_pobierz_nie_niszczy_ofiary_przez_symlink_czesciowego(katalog_testowy, tmp_path):
+    """Audyt #4: model.onnx.częściowy podstawiony jako symlink do pliku ofiary;
+    instalacja NIE wolno otworzyć ofiary do nadpisania."""
+    pakiet = katalog_testowy["lista"][0]
+    katalog = tmp_path / "m"
+    katalog.mkdir()
+    ofiara = tmp_path / "ofiara.dat"
+    ofiara.write_bytes(b"WAzne DANE OFIARY" * 10)
+    cel = katalog / pakiet.pliki[0].nazwa
+    cel.symlink_to(ofiara)
+    (cel.parent / (cel.name + pakiety.CZESCIOWY)).symlink_to(ofiara)
+    klient = httpx.Client(transport=_transport(katalog_testowy["tresci"]))
+    pakiety.pobierz(pakiet, katalog, "http://x/", klient=klient)
+    assert ofiara.read_bytes() == b"WAzne DANE OFIARY" * 10
+    assert pakiety.stan(pakiet, katalog) == "zainstalowany"
+
+
+def test_instaluj_offline_nie_niszczy_ofiary_przez_symlink(katalog_testowy, tmp_path):
+    pakiet = katalog_testowy["lista"][0]
+    katalog = tmp_path / "m"
+    katalog.mkdir()
+    ofiara = tmp_path / "raport.txt"
+    ofiara.write_bytes("treść ofiary".encode())
+    for plik in pakiet.pliki:
+        (katalog / (Path(plik.nazwa).name + pakiety.CZESCIOWY)).symlink_to(ofiara)
+    lustro = _lustro(katalog_testowy, tmp_path)
+    pakiety.instaluj_z_katalogu(pakiet, katalog, lustro)
+    assert ofiara.read_bytes() == "treść ofiary".encode()
+    assert pakiety.stan(pakiet, katalog) == "zainstalowany"
+
+
+def test_manifest_atomowo_nie_niszczy_ofiary(katalog_testowy, tmp_path):
+    """manifest.json podstawiony jako symlink: zapis atomowy replace'MUJE dowiązanie,
+    nie pisze przez nie do ofiary."""
+    rozszerzony = katalog_testowy["lista"][1]  # manifest w podkatalogu lfm25/q4-bl32
+    katalog = tmp_path / "m"
+    podkatalog = katalog / rozszerzony.katalog_rel
+    podkatalog.mkdir(parents=True)
+    ofiara = tmp_path / "ofiara.json"
+    ofiara.write_bytes(b"{}")
+    (podkatalog / "manifest.json").symlink_to(ofiara)
+    lustro = _lustro(katalog_testowy, tmp_path)
+    pakiety.instaluj_z_katalogu(rozszerzony, katalog, lustro)
+    assert ofiara.read_bytes() == b"{}"
+    assert pakiety.stan(rozszerzony, katalog) == "zainstalowany"
+
+
+def test_pobierz_odrzucca_symlink_w_sciezce_podkatalogu(katalog_testowy, tmp_path):
+    """Junction/symlink w PODKATALOGU ścieżki (lfm25 -> gdziekolwiek) = odmowa."""
+    rozszerzony = katalog_testowy["lista"][1]
+    katalog = tmp_path / "m"
+    (katalog / "lfm25").mkdir(parents=True)
+    obcy = tmp_path / "obcy"
+    obcy.mkdir()
+    (katalog / "lfm25" / "q4-bl32").symlink_to(obcy)
+    klient = httpx.Client(transport=_transport(katalog_testowy["tresci"]))
+    with pytest.raises(BladPakietu):
+        pakiety.pobierz(rozszerzony, katalog, "http://x/", klient=klient)
+    assert not (obcy / "model.onnx").exists()

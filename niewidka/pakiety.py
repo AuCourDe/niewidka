@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
+import stat
 import sys
 import threading
 from dataclasses import dataclass
@@ -153,12 +153,50 @@ def stan(pakiet: Pakiet, katalog: Path) -> str:
     return "brak" if braki else "zainstalowany"
 
 
-def _zapisz_atomowo(czesciowy: Path, cel: Path, suma_oczekiwana: str) -> None:
-    if _sha256(czesciowy) != suma_oczekiwana:
-        czesciowy.unlink(missing_ok=True)
-        raise BladPakietu(f"SHA-256 niezgodny dla {cel.name}; plik usunięty")
-    cel.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(czesciowy, cel)
+# --- K7c pkt 4 (audyt #4): dowiązania nie prowadzą poza katalog modeli --------
+
+PUBLIKOWANY = ".publikowany"
+
+
+def _otworz_nowy(sciezka: Path) -> int:
+    """Świeży plik bez podążania za dowiązaniami: O_CREAT|O_EXCL, O_NOFOLLOW
+    gdzie dostępne (POSIX); na Windows O_EXCL i tak omija podstawiane nazwy."""
+    flagi = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    return os.open(sciezka, flagi, 0o600)
+
+
+def _jest_dowiazaniem(sciezka: Path) -> bool:
+    """Symlink (POSIX) albo reparse point/junction (Windows)."""
+    try:
+        st = sciezka.lstat()
+    except OSError:
+        return False
+    atrybuty = getattr(st, "st_file_attributes", 0)
+    return stat.S_ISLNK(st.st_mode) or bool(
+        atrybuty & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _odrzuc_dowiazania(katalog: Path, nazwa_rel: str) -> None:
+    """Dowiązanie w dowolnym pośrednim katalogu ścieżki = odmowa zapisu."""
+    biezacy = katalog
+    for czlon in Path(nazwa_rel).parts[:-1]:
+        biezacy = biezacy / czlon
+        if _jest_dowiazaniem(biezacy):
+            raise BladPakietu("ścieżka modeli zawiera dowiązanie; odmowa zapisu")
+
+
+def _opublikuj(
+    bajty: bytes, cel: Path, suma_oczekiwana: str, katalog: Path
+) -> None:
+    """Publikacja zweryfikowanych bajtów: hasz z DOKŁADNIE tych bajtów, które
+    zapisujemy (K7c pkt 3, koniec okna sprawdź-użyj), zapis do świeżego pliku
+    O_EXCL i atomowy os.replace (rename NIE podąża za symlinkiem w miejscu
+    docelowym, więc podstawiony manifest/cel zostaje zastąpiony, nie przezpisany).
+    """
+    if hashlib.sha256(bajty).hexdigest() != suma_oczekiwana:
+        raise BladPakietu(f"SHA-256 niezgodny dla {cel.name}; plik nie trafił do katalogu wag")
+    _opublikuj_bez_hasza(bajty, cel, katalog)
 
 
 def _podziel_postep(postep, rozmiary: list[int]):
@@ -182,10 +220,14 @@ def _pobierz_plik(
     url: str,
     cel: Path,
     suma_oczekiwana: str,
+    katalog: Path,
     postep=None,
 ) -> None:
-    """Strumieniowe pobranie jednego pliku z wznawianiem; hash przed użyciem."""
+    """Strumieniowe pobranie jednego pliku z wznawianiem; publikacja zweryfikowanych
+    bajtów (_opublikuj). Plik częściowy otwierany bez podążania za dowiązaniami."""
     czesciowy = cel.with_name(cel.name + CZESCIOWY)
+    if _jest_dowiazaniem(czesciowy):
+        czesciowy.unlink()  # podstawione dowiązanie nie jest naszym plikiem częściowym
     naglowki = {}
     start = czesciowy.stat().st_size if czesciowy.is_file() else 0
     if start:
@@ -201,26 +243,59 @@ def _pobierz_plik(
         except ValueError:
             z = 0
         razem = start + z
-        # przerwane pobieranie zostawia częściowy: kolejne pobranie wznowi
-        with czesciowy.open("ab" if start else "wb") as uchwyt:
+        # przerwane pobieranie zostawia częściowy: kolejne pobranie wznowi;
+        # O_APPEND|O_NOFOLLOW: nie piszemy przez podstawiony symlink
+        try:
+            fd = (
+                os.open(
+                    czesciowy,
+                    os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+                )
+                if start
+                else _otworz_nowy(czesciowy)
+            )
+        except OSError as blad:
+            raise BladPakietu(f"plik częściowy nieosiągalny: {cel.name}") from blad
+        with os.fdopen(fd, "ab" if start else "wb") as uchwyt:
             gotowe = start
             for kawalek in odpowiedz.iter_bytes():
                 uchwyt.write(kawalek)
                 gotowe += len(kawalek)
                 if postep is not None:
                     postep(gotowe, razem)
-    _zapisz_atomowo(czesciowy, cel, suma_oczekiwana)
+    try:
+        _opublikuj(czesciowy.read_bytes(), cel, suma_oczekiwana, katalog)
+    except BladPakietu:
+        # rozbieżny hash = trujący plik częściowy: wznowienie z niego nic nie da
+        czesciowy.unlink(missing_ok=True)
+        raise
+    else:
+        czesciowy.unlink(missing_ok=True)
 
 
 def _zapisz_manifest(pakiet: Pakiet, katalog: Path) -> None:
+    """Manifest informacyjny; zapis atomowy (K7c pkt 4): świeży O_EXCL + os.replace,
+    więc podstawiony symlink manifest.json zostaje ZASTĄPIONY, nie przezpisany."""
     katalog_pakietu = katalog / pakiet.katalog_rel if pakiet.katalog_rel else katalog
     manifest = {
         "pakiet": pakiet.id,
         "pliki": {Path(p.nazwa).name: p.sha256 for p in pakiet.pliki},
     }
-    (katalog_pakietu / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    tresc = (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    _opublikuj_bez_hasza(tresc, katalog_pakietu / "manifest.json", katalog)
+
+
+def _opublikuj_bez_hasza(bajty: bytes, cel: Path, katalog: Path) -> None:
+    _odrzuc_dowiazania(katalog, str(cel.relative_to(katalog)))
+    cel.parent.mkdir(parents=True, exist_ok=True)
+    tymczasowy = cel.with_name(cel.name + PUBLIKOWANY)
+    try:
+        with os.fdopen(_otworz_nowy(tymczasowy), "wb") as uchwyt:
+            uchwyt.write(bajty)
+        os.replace(tymczasowy, cel)
+    except BaseException:
+        tymczasowy.unlink(missing_ok=True)
+        raise
 
 
 def pobierz(
@@ -238,7 +313,7 @@ def pobierz(
         postep_pliku, po_pliku = para if para else (None, None)
         for plik in pakiet.pliki:
             cel = katalog / plik.nazwa
-            if cel.is_file() and _sha256(cel) == plik.sha256:
+            if cel.is_file() and not cel.is_symlink() and _sha256(cel) == plik.sha256:
                 if po_pliku is not None:
                     po_pliku(plik.rozmiar)
                 continue
@@ -247,6 +322,7 @@ def pobierz(
                 f"{zrodlo_bazowe.rstrip('/')}/{plik.zrodlo}",
                 cel,
                 plik.sha256,
+                katalog,
                 postep=postep_pliku,
             )
             if po_pliku is not None:
@@ -285,16 +361,13 @@ def instaluj_z_katalogu(
     postep=None,
 ) -> None:
     """Instalacja offline (IT): katalog z plikami o nazwach jak w źródle;
-    weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu."""
+    weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu (K7c pkt 3/4:
+    te same bajty są haszowane i publikowane, bez podążania za dowiązaniami)."""
     for plik in pakiet.pliki:
         wzor = zrodlo_katalog / plik.zrodlo
-        if not wzor.is_file():
+        if wzor.is_symlink() or not wzor.is_file():
             raise BladPakietu(f"brak pliku {plik.zrodlo} w katalogu źródłowym")
-        cel = katalog / plik.nazwa
-        cel.parent.mkdir(parents=True, exist_ok=True)
-        czesciowy = cel.with_name(cel.name + CZESCIOWY)
-        shutil.copyfile(wzor, czesciowy)
-        _zapisz_atomowo(czesciowy, cel, plik.sha256)
+        _opublikuj(wzor.read_bytes(), katalog / plik.nazwa, plik.sha256, katalog)
         if postep is not None:
             postep(plik.rozmiar, pakiet.rozmiar)
     _zapisz_manifest(pakiet, katalog)
