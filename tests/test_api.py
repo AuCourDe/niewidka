@@ -394,7 +394,9 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
         r2 = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "2"}, headers=_naglowki(app)
         )
-    assert r1.status_code == r2.status_code == 200
+    # K4b pkt 1: poziom 1 zostawia „Wiśniewskiemu" → kontrola BLOKUJE (422); poziom 2 = 200
+    assert r1.status_code == 422
+    assert r2.status_code == 200
     assert set(app.state.detektory) == {1, 2}  # leniwy cache per poziom
 
     def oryginaly(odpowiedz):
