@@ -186,3 +186,20 @@ def test_pkt2_konfig_wcztuje_polityke_obrazow():
     with pytest.raises(ValueError, match="NIEWIDKA_OBRAZY"):
         wczytaj_konfig(env={"NIEWIDKA_OBRAZY": "czarodziejka"})
 
+
+# --- pkt 3: skan także e.tail (itertext) ---------------------------------------
+
+
+def test_pkt3_pesel_w_ogonie_xml_blokuje():
+    """K4b pkt 3: PESEL w ogonku elementu (tekst ZA znacznikiem) omijał skan."""
+    from niewidka.kontrola import kontroluj
+
+    dane = _docx_przebuduj(
+        _wzorzec_docx(),
+        dodaj={"word/theme/proba.xml": b"<?xml version='1.0'?><root><node/>55010101234</root>"},
+    )
+    uwagi = kontroluj(dane, "umowa.docx", RegulyDetektor())
+    assert any(
+        u.typ == "PESEL" and u.czesc == "word/theme/proba.xml" for u in uwagi
+    ), f"skan nie widzi ogonka elementu: {uwagi}"
+

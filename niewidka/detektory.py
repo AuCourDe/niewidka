@@ -318,6 +318,43 @@ ADAPTER_LFM25 = AdapterModelu(
 )
 
 
+# Mapowanie klas LFM2.5 -> typy Niewidki (K2e; pełny schemat 27 typów w
+# ~/models/niewidka/lfm25/label_schema.json). Klasy poza mapą Niewidka
+# dziś nie wykrywa — pomiar K2e raportuje je pod własnymi nazwami LFM2.5.
+_MAPA_LFM25: dict[str, TypEncji] = {
+    "identity.person_name": TypEncji.OSOBA,
+    "identity.passport": TypEncji.DOKUMENT,
+    "identity.drivers_license": TypEncji.DOKUMENT,
+    "contact.address": TypEncji.ADRES,
+    "contact.postal_code": TypEncji.ADRES,
+    "contact.phone": TypEncji.TELEFON,
+    "contact.email": TypEncji.EMAIL,
+    "financial.iban": TypEncji.IBAN,
+    "financial.bank_account": TypEncji.IBAN,
+    "identity.date_of_birth": TypEncji.DATA,
+}
+
+
+def mapuj_typ_lfm25(klasa: str, tekst: str = "") -> TypEncji | str:
+    """Klasa LFM2.5 -> typ Niewidki (K2e); klasa poza mapą wypada surową nazwą.
+
+    national_id rozstrzyga kształt zapisu (model nie odróżnia polskich numerów):
+    10 cyfr = NIP, 9/14 = REGON, 11 = PESEL; z literami = DOKUMENT (dowód/paszport
+    w tej samej klasie), inaczej PESEL domyślnie.
+    """
+    if klasa == "identity.national_id":
+        if any(znak.isalpha() for znak in tekst):
+            return TypEncji.DOKUMENT
+        cyfry = sum(1 for znak in tekst if znak.isdigit())
+        if cyfry == 10:
+            return TypEncji.NIP
+        if cyfry in (9, 14):
+            return TypEncji.REGON
+        return TypEncji.PESEL
+    wynik = _MAPA_LFM25.get(klasa)
+    return wynik if wynik is not None else klasa
+
+
 def wczytaj_lfm25(
     katalog: Path,
     wariant: str = "int8",

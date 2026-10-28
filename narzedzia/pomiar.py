@@ -19,7 +19,9 @@ from pathlib import Path
 
 from niewidka.detektory import (
     DetektorKompozyt,
+    OnnxDetektor,
     RegulyDetektor,
+    mapuj_typ_lfm25,
     wczytaj_bardsai,
     wczytaj_lfm25,
     wczytaj_poziom2_uzupelniajacy,
@@ -61,6 +63,52 @@ class DetektorPusty:
         return []
 
 
+PLIK_NOWE_TYPOW = "probki_nowe_typy.jsonl"
+
+
+class Lfm25SoloDetektor:
+    """LFM2.5 z PELNĄ mapą klas (pomiar K2e — nie produkt).
+
+    Klasa `national_id` rozstrzyga się kształtem zapisu na spanie
+    (detektory.mapuj_typ_lfm25); klasy bez odpowiednika w Niewidce wypisują
+    surową nazwę LFM2.5 (scoring str, nie TypEncji).
+    """
+
+    def __init__(self, katalog: Path, wariant: str = "fp32"):
+        podkatalog = katalog / "lfm25" / wariant
+        config = json.loads((podkatalog / "config.json").read_text(encoding="utf-8"))
+        schemat = json.loads((katalog / "lfm25" / "label_schema.json").read_text(encoding="utf-8"))
+        klasa_umarowana = "identity.national_id"  # rozstrzygnięcie kształtem na spanie
+        etykiety = {
+            (klasa,): klasa_umarowana if klasa == klasa_umarowana else mapuj_typ_lfm25(klasa, "")
+            for klasa in schemat["types_in_order"]
+        }
+        self._wewnętrzny = OnnxDetektor(
+            nazwa="onnx:lfm25-solo",
+            model=podkatalog / "model.onnx",
+            tokenizer=podkatalog / "tokenizer.json",
+            etykiety=etykiety,
+            id2etykieta=config.get("id2label", {}),
+            provider="CPUExecutionProvider",
+        )
+        self.nazwa = self._wewnętrzny.nazwa
+        self.typy = frozenset(
+            mapuj_typ_lfm25(klasa, "44051401359") for klasa in schemat["types_in_order"]
+        )
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        wynik = []
+        for z in self._wewnętrzny.znajdz(tekst):
+            if isinstance(z.typ, str):  # klasa LFM2.5 -> rozstrzygnięcie na spanie
+                wynik.append(
+                    Zakres(z.start, z.koniec, mapuj_typ_lfm25(z.typ, tekst[z.start : z.koniec]),
+                           z.pewnosc, z.zrodlo)
+                )
+            else:
+                wynik.append(z)
+        return wynik
+
+
 def zbuduj_detektor(
     nazwa: str,
     katalog_modeli: Path | None,
@@ -86,6 +134,12 @@ def zbuduj_detektor(
             )
         poziom = {"poziom1": 1, "poziom2-a": 2, "poziom2-b": 3}[nazwa]
         return zbuduj_poziom(poziom, katalog_modeli, próg_osoba=próg_osoba)
+    if nazwa == "lfm25-solo":
+        if katalog_modeli is None:
+            raise ValueError(
+                f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
+            )
+        return Lfm25SoloDetektor(katalog_modeli, wariant=wariant)
     if nazwa in ("poziom2", "lfm25"):
         if katalog_modeli is None:
             raise ValueError(
@@ -125,7 +179,7 @@ def zmierz_z_czasem(probki: list[Probka], detektor) -> tuple[dict[str, WynikTypu
         oczekiwane = {(e.start, e.koniec, e.typ) for e in probka.encje}
         trafione: set[tuple[int, int, str]] = set()
         for z in detekcje:
-            klucz = (z.start, z.koniec, z.typ.value)
+            klucz = (z.start, z.koniec, getattr(z.typ, "value", z.typ))
             trafione.add(klucz)
             w = wynik(klucz[2])
             if klucz in oczekiwane:
@@ -139,9 +193,11 @@ def zmierz_z_czasem(probki: list[Probka], detektor) -> tuple[dict[str, WynikTypu
     return wyniki, czasy
 
 
-def wczytaj_probki(katalog: Path) -> list[Probka]:
+def wczytaj_probki(katalog: Path, pliki: set[str] | None = None) -> list[Probka]:
     probki = []
     for plik in sorted(katalog.glob("*.jsonl")):
+        if pliki is not None and plik.name not in pliki:
+            continue
         for linia in plik.read_text(encoding="utf-8").splitlines():
             if not linia.strip():
                 continue
@@ -236,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
             "poziom1",
             "poziom2",
             "lfm25",
+            "lfm25-solo",
             "poziom2-a",
             "poziom2-b",
             "poziom2-uzup",
@@ -243,7 +300,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
         default="reguly",
     )
-    parser.add_argument("--wariant", choices=("int8", "fp32"), default="int8")
+    parser.add_argument(
+        "--plik",
+        action="append",
+        help="ograniczenie pomiaru do wskazanych plików korpusu (nazwa, powtarzalne)",
+    )
+    parser.add_argument(
+        "--wariant",
+        choices=("int8", "fp32"),
+        default="int8",
+    )
     parser.add_argument(
         "--prog-osoba",
         type=float,
@@ -263,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     detektor = zbuduj_detektor(
         argumenty.detektor, argumenty.modele, wariant=argumenty.wariant, próg_osoba=argumenty.prog_osoba
     )
-    probki = wczytaj_probki(argumenty.korpus)
+    probki = wczytaj_probki(argumenty.korpus, set(argumenty.plik) if argumenty.plik else None)
     print(
         f"Detektor: {argumenty.detektor}, próbki: {len(probki)}"
         + (f", próg OSOBA: {argumenty.prog_osoba}" if argumenty.detektor in ("poziom2-a", "poziom2-b") else "")

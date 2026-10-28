@@ -18,6 +18,22 @@ from narzedzia.numery import waliduj_dowod
 
 KORPUS = Path(__file__).parent / "korpus"
 TYPY = {"OSOBA", "PESEL", "NIP", "REGON", "ADRES", "TELEFON", "EMAIL", "IBAN", "DOKUMENT", "DATA", "INNE"}
+# Klasy LFM2.5 bez odpowiednika w Niewidce (K2e) — tylko w probki_nowe_typy.jsonl.
+TYPY_NOWE = {
+    "contact.ip_address",
+    "financial.credit_card",
+    "financial.swift_bic",
+    "healthcare.condition",
+    "healthcare.medical_record",
+    "healthcare.medication",
+    "legal.case_number",
+    "online.url",
+    "online.username",
+    "org.company_name",
+    "special.political",
+    "special.religion",
+}
+PLIK_NOWE = "probki_nowe_typy.jsonl"
 TYPY_Z_SUMA = {"PESEL", "NIP", "REGON", "IBAN", "DOKUMENT"}
 NUMER_DO_WALIDATORA = {
     "PESEL": stdnum.pl.pesel.is_valid,
@@ -52,6 +68,7 @@ def test_format_probek(probki: list[dict]):
     identyfikatory = set()
     for probka in probki:
         etykieta = f"{probka['plik']}:{probka['linia']}"
+        nowe = probka["plik"] == PLIK_NOWE
         assert probka["id"] not in identyfikatory, f"{etykieta}: powtórzony id {probka['id']}"
         identyfikatory.add(probka["id"])
         assert probka.get("opis"), f"{etykieta}: brak opisu"
@@ -59,7 +76,8 @@ def test_format_probek(probki: list[dict]):
         assert tekst and isinstance(tekst, str), f"{etykieta}: pusty tekst"
         zakresy = []
         for encja in probka["encje"]:
-            assert encja["typ"] in TYPY, f"{etykieta}: nieznany typ {encja['typ']}"
+            dopuszczone = TYPY | TYPY_NOWE if nowe else TYPY
+            assert encja["typ"] in dopuszczone, f"{etykieta}: nieznany typ {encja['typ']}"
             start, koniec = encja["start"], encja["koniec"]
             assert 0 <= start < koniec <= len(tekst), f"{etykieta}: złe offsety {encja}"
             assert tekst[start:koniec] == encja["tekst"], (
