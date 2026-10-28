@@ -35,7 +35,7 @@ def test_zamiana_w_segmencie():
     tekst = "Jan Kowalski, PESEL 44051401359."
     encje = [
         _encja(TypEncji.OSOBA, "Jan Kowalski", 0, klucz="jan|kowalsk"),
-        _encja(TypEncji.PESEL, "44051401359", 21),
+        _encja(TypEncji.PESEL, "44051401359", 20),
     ]
     nadaj_oznaczenia(encje)
     nowy, kolejne = zamien_w_segment(tekst, encje)
