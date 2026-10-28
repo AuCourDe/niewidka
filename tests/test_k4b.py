@@ -302,8 +302,8 @@ async def test_pkt6_mapa_z_innego_dokumentu_tej_sesji_422(konfig):
         wynik = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": (f"ZANONIMIZOWANY_{id_a}.txt", czesci_a[f"ZANONIMIZOWANY_{id_a}.txt"]),
-                "mapa": ("m.nwidka", czesci_b[f"{id_b}.nwidka"]),
+                "wynik": (f"ZANONIMIZOWANY_{id_a[:12]}.txt", czesci_a[f"ZANONIMIZOWANY_{id_a[:12]}.txt"]),
+                "mapa": ("m.nwidka", czesci_b[f"{id_b[:12]}.nwidka"]),
             },
             headers=_naglowki(app),
         )
@@ -317,6 +317,65 @@ def test_pkt6_dopisek_zawiera_identyfikator():
     from niewidka.znaczniki import DOPISEK
 
     wynik, mapa, _ = ukryj(b"PESEL 44051401359.", "txt", 1, detektor=RegulyDetektor())
-    assert mapa.identyfikator in wynik.decode()
+    from niewidka.znaczniki import zakoduj_identyfikator
+
+    assert zakoduj_identyfikator(mapa.identyfikator) in wynik.decode()
+    # identyfikator w dopisku bez ani jednej cyfry (cyfry tripały reguły numerów)
+    id_w_tekscie = wynik.decode().split("mapy: ")[1].split(".")[0]
+    assert id_w_tekscie and not any(znak.isdigit() for znak in id_w_tekscie)
     assert wynik.decode().startswith(DOPISEK)
+
+
+# --- pkt 7: identyfikator ≥128 bit + rejestr skrótów wydanych szyfrogramów ------
+
+
+def test_pkt7_identyfikator_ma_128_bit():
+    _, mapa, _ = ukryj(b"PESEL 44051401359.", "txt", 1, detektor=RegulyDetektor())
+    assert len(mapa.identyfikator) >= 32, "24-bitowy id pozwalał na kolizje starych map"
+    int(mapa.identyfikator, 16)  # hex
+
+
+@pytest.mark.anyio
+async def test_pkt7_cudzy_szyfrogram_nie_odszyfrowuje(klucz_plik):
+    """K4b pkt 7: sesja rejestruje skróty WYDANYCH szyfrogramów. Szyfrogram
+    przechwycony z INNEJ sesji (nawet gdy atakujący wygrał kolizję identyfikatora —
+    symulujemy to wpisem do zbioru sesji) nie podlega odszyfrowaniu."""
+    app_nadawca = create_app(Konfig(klucz_plik=klucz_plik), detektor=RegulyDetektor())
+    app_odbiorca = create_app(Konfig(klucz_plik=klucz_plik), detektor=RegulyDetektor())
+    async with _klient(app_nadawca) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj", data={"tekst": "PESEL 44051401359.", "poziom": "1"}, headers=_naglowki(app_nadawca)
+        )
+    czesci = _zip(odpowiedz.content)
+    identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+    szyfrogram = czesci[f"{identyfikator[:12]}.nwidka"]
+    # kolizja "wygrana": identyfikator cudzej mapy jest w zbiorze sesji odbiorcy
+    app_odbiorca.state.identyfikatory.add(identyfikator)
+    async with _klient(app_odbiorca) as klient:
+        wynik = await klient.post(
+            "/api/przywroc",
+            files={
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": ("m.nwidka", szyfrogram),
+            },
+            headers=_naglowki(app_odbiorca),
+        )
+    assert wynik.status_code == 422
+    assert "44051401359" not in wynik.text
+
+
+@pytest.mark.anyio
+async def test_pkt7_krotki_id_w_nazwach_plikow(konfig):
+    """Pełny identyfikator w nagłówku/mapie; w NAZWACH plików tylko krótki skrót."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj", data={"tekst": "PESEL 44051401359.", "poziom": "1"}, headers=_naglowki(app)
+        )
+    identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+    nazwy = list(_zip(odpowiedz.content))
+    assert len(identyfikator) >= 32
+    assert f"ZANONIMIZOWANY_{identyfikator[:12]}.txt" in nazwy
+    assert f"{identyfikator[:12]}.nwidka" in nazwy
+    assert not [n for n in nazwy if identyfikator in n], "pełny id wycieka do nazw plików"
 

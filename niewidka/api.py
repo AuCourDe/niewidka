@@ -11,6 +11,7 @@ Błędy wg LLD §15: 413/415/422/500/503; detektor fail-closed.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import logging
@@ -136,6 +137,9 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     )
     app.state.kolejka = Kolejka(maks=konfig.kolejka, timeout_s=konfig.timeout_s)
     app.state.identyfikatory: set[str] = set()
+    # K4b pkt 7: skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
+    # mapa musi być jednym z nich (stare/przechwycone szyfrogramy nie podlegają odszyfrowaniu)
+    app.state.szyfrogramy: dict[str, str] = {}
 
     def _detektor_dla(poziom: int):
         """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
@@ -274,11 +278,15 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
         if raport.status == "zablokowany":
             raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
         app.state.identyfikatory.add(mapa.identyfikator)
+        app.state.szyfrogramy[hashlib.sha256(mapa_paczka).hexdigest()] = mapa.identyfikator
 
+        # K4b pkt 7: pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
+        # tylko krótki skrót (nazwa pliku nie musi być niepodrabialna)
+        skrot = mapa.identyfikator[:12]
         paczka = io.BytesIO()
         with zipfile.ZipFile(paczka, "w", zipfile.ZIP_DEFLATED) as zip_archiwum:
-            zip_archiwum.writestr(nazwa_wyniku(nazwa, mapa.identyfikator), wynik)
-            zip_archiwum.writestr(f"{mapa.identyfikator}.nwidka", mapa_paczka)
+            zip_archiwum.writestr(nazwa_wyniku(nazwa, skrot), wynik)
+            zip_archiwum.writestr(f"{skrot}.nwidka", mapa_paczka)
         naglowki = {
             "x-niewidka-identyfikator": mapa.identyfikator,
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
@@ -302,6 +310,10 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
 
         def praca():
             klucz = pobierz_klucz(konfig)
+            # K4b pkt 7: najpierw rejestr wydanych szyfrogramów, dopiero potem
+            # odszyfrowanie — stara mapa z trafionym identyfikatorem nie przechodzi
+            if hashlib.sha256(dane_mapy).hexdigest() not in app.state.szyfrogramy:
+                raise BladMapy("mapa nie została wydana przez tę sesję")
             mapa_ob = odszyfruj(dane_mapy, klucz)
             del klucz
             if mapa_ob.identyfikator not in app.state.identyfikatory:

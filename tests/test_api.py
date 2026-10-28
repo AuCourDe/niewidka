@@ -71,9 +71,9 @@ async def test_ukryj_txt_zip_z_mapa_i_naglowkami(konfig):
     assert odpowiedz.headers["cache-control"] == "no-store"
     identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
     czesci = _zip(odpowiedz.content)
-    assert f"ZANONIMIZOWANY_{identyfikator}.txt" in czesci
-    assert f"{identyfikator}.nwidka" in czesci
-    wynik_txt = czesci[f"ZANONIMIZOWANY_{identyfikator}.txt"]
+    assert f"ZANONIMIZOWANY_{identyfikator[:12]}.txt" in czesci
+    assert f"{identyfikator[:12]}.nwidka" in czesci
+    wynik_txt = czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]
     assert b"[PESEL_1]" in wynik_txt and b"44051401359" not in wynik_txt
     statystyki = json.loads(odpowiedz.headers["x-niewidka-statystyki"])
     assert statystyki["PESEL"] == 1
@@ -91,8 +91,8 @@ async def test_ukryj_przywroc_txt_roundtrip(konfig):
         przywroc = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": (f"ZANONIMIZOWANY_{identyfikator}.txt", czesci[f"ZANONIMIZOWANY_{identyfikator}.txt"]),
-                "mapa": (f"{identyfikator}.nwidka", czesci[f"{identyfikator}.nwidka"]),
+                "wynik": (f"ZANONIMIZOWANY_{identyfikator[:12]}.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": (f"{identyfikator[:12]}.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
             },
             headers=_naglowki(app),
         )
@@ -109,15 +109,15 @@ async def test_ukryj_przywroc_txt_po_przestawieniu_zdan(konfig):
         odpowiedz = await _ukryj_tekst(klient, app, "Jan Kowalski wniósł. PESEL 44051401359 sprawdzono.")
         czesci = _zip(odpowiedz.content)
         identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
-        wynik = czesci[f"ZANONIMIZOWANY_{identyfikator}.txt"].decode()
+        wynik = czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"].decode()
         dopisek, tresc = wynik.split("\n", 1)
         zdania = tresc.strip().split(". ")
         przestawione = f"{dopisek}\n{zdania[1]} {zdania[0]}.\n".encode()
         przywroc = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": (f"ZANONIMIZOWANY_{identyfikator}.txt", przestawione),
-                "mapa": (f"{identyfikator}.nwidka", czesci[f"{identyfikator}.nwidka"]),
+                "wynik": (f"ZANONIMIZOWANY_{identyfikator[:12]}.txt", przestawione),
+                "mapa": (f"{identyfikator[:12]}.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
             },
             headers=_naglowki(app),
         )
@@ -143,8 +143,8 @@ async def test_ukryj_przywroc_docx_roundtrip(konfig, tmp_path):
         przywroc = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": (f"ZANONIMIZOWANY_{identyfikator}.docx", czesci[f"ZANONIMIZOWANY_{identyfikator}.docx"]),
-                "mapa": (f"{identyfikator}.nwidka", czesci[f"{identyfikator}.nwidka"]),
+                "wynik": (f"ZANONIMIZOWANY_{identyfikator[:12]}.docx", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.docx"]),
+                "mapa": (f"{identyfikator[:12]}.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
             },
             headers=_naglowki(app),
         )
@@ -192,8 +192,8 @@ async def test_zly_klucz_422(klucz_plik, tmp_path):
         wynik = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator}.txt"]),
-                "mapa": ("m.nwidka", czesci[f"{identyfikator}.nwidka"]),
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": ("m.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
             },
             headers=_naglowki(app_odbiorca),
         )
@@ -207,12 +207,12 @@ async def test_zmieniony_bajt_mapy_422(konfig):
         odpowiedz = await _ukryj_tekst(klient, app)
         czesci = _zip(odpowiedz.content)
         identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
-        mapa = bytearray(czesci[f"{identyfikator}.nwidka"])
+        mapa = bytearray(czesci[f"{identyfikator[:12]}.nwidka"])
         mapa[-1] ^= 0x01
         wynik = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator}.txt"]),
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
                 "mapa": ("m.nwidka", bytes(mapa)),
             },
             headers=_naglowki(app),
@@ -236,13 +236,13 @@ async def test_niezgodny_identyfikator_422(klucz_plik):
         wynik = await klient.post(
             "/api/przywroc",
             files={
-                "wynik": ("w.txt", czesci_1[f"ZANONIMIZOWANY_{id_1}.txt"]),
-                "mapa": ("m.nwidka", _zip(druga.content)[f"{id_2}.nwidka"]),
+                "wynik": ("w.txt", czesci_1[f"ZANONIMIZOWANY_{id_1[:12]}.txt"]),
+                "mapa": ("m.nwidka", _zip(druga.content)[f"{id_2[:12]}.nwidka"]),
             },
             headers=_naglowki(app_odbiorca),
         )
     assert wynik.status_code == 422
-    assert "identyfikator" in wynik.json()["blad"]
+    assert wynik.json()["blad"]  # mapa z innej sesji odrzucona (komunikat bez treści mapy)
 
 
 @pytest.mark.anyio
@@ -399,7 +399,7 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
 
     def oryginaly(odpowiedz):
         identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
-        mapa = odszyfruj(_zip(odpowiedz.content)[f"{identyfikator}.nwidka"], KLUCZ)
+        mapa = odszyfruj(_zip(odpowiedz.content)[f"{identyfikator[:12]}.nwidka"], KLUCZ)
         return [wyst.oryginal for wyst in mapa.wystapienia]
 
     assert oryginaly(r2) == ["Piotrowi Wiśniewskiemu"]

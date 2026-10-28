@@ -31,7 +31,7 @@ from niewidka.mapa import (
 )
 from niewidka.model import Encja, TypEncji
 from niewidka.osoby import pogrupuj
-from niewidka.znaczniki import dopisek, nadaj_oznaczenia, znacznik_encji
+from niewidka.znaczniki import dopisek, nadaj_oznaczenia, zakoduj_identyfikator, znacznik_encji
 
 
 class ArchiwumZaDuze(Exception):
@@ -152,7 +152,9 @@ def ukryj(
             wpis.formy.setdefault(wariant, encja.tekst)
 
     mapa = Mapa(
-        identyfikator=secrets.token_hex(3),
+        # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
+        # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
+        identyfikator=secrets.token_hex(16),
         utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
         poziom=poziom,
         wpisy=list(wpisy.values()),
@@ -199,8 +201,10 @@ def przywroc(
     adapter = adapter_formatu(format)
     dok = adapter.wczytaj(dane)
     # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem — identyfikator zapisany
-    # w dopisku wyniku musi równać się identyfikatorowi mapy; inaczej 422
-    if not any(mapa.identyfikator in segment.tekst for segment in dok.segmenty):
+    # w dopisku wyniku (jako litery, bez cyfr) musi równać się identyfikatorowi mapy
+    if not any(
+        zakoduj_identyfikator(mapa.identyfikator) in segment.tekst for segment in dok.segmenty
+    ):
         raise BladMapy(
             "wynik nie zawiera identyfikatora tej mapy — dokument i mapa pochodzą z różnych zadań"
         )

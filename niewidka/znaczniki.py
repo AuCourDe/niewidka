@@ -18,11 +18,29 @@ DOPISEK = (
 )
 
 
+_ALFABET_ID = "abcdefghijklmnop"
+
+
+def zakoduj_identyfikator(identyfikator: str) -> str:
+    """Identyfikator jako same litery (nibble → a..p). Surowy hex w dopisku tworzył
+    losowe 9-11-znakowe okna cyfr, które tripały reguły PESEL/REGON w kontroli
+    wyniku i losowo blokowały dokumenty (K4b pkt 6+7)."""
+    return "".join(_ALFABET_ID[int(znak, 16)] for znak in identyfikator)
+
+
+def odkoduj_identyfikator(litery: str) -> str | None:
+    """Odwrotność `zakoduj_identyfikator`; None dla tekstu niebędącego identyfikatorem."""
+    try:
+        return "".join(f"{_ALFABET_ID.index(znak):x}" for znak in litery)
+    except ValueError:
+        return None
+
+
 def dopisek(identyfikator: str) -> str:
     """Dopisek wyniku z identyfikatorem mapy (K4b pkt 6): wiąże mapę z KONKRETNYM
     dokumentem — przywracanie sprawdza, że identyfikator mapy równa się temu
     zapisanemu w treści; podsunięcie mapy innego zadania kończy się 422."""
-    return f"{DOPISEK} Identyfikator mapy: {identyfikator}."
+    return f"{DOPISEK} Identyfikator mapy: {zakoduj_identyfikator(identyfikator)}."
 
 
 def nadaj_oznaczenia(encje: list[Encja]) -> None:
