@@ -22,8 +22,9 @@ from itertools import chain
 from lxml import etree
 
 from niewidka.archiwum import wczytaj_czesci
-from niewidka.detektory import Detektor
+from niewidka.detektory import Detektor, RegulyDetektor
 from niewidka.formaty import adapter_dla
+from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
 
 
@@ -51,15 +52,24 @@ def kontroluj(
     dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane)
     uwagi = []
     for numer, segment in enumerate(dok.segmenty):
-        for zakres in detektor.znajdz(segment.tekst):
+        # Znacznik [TYP_N] to oczekiwana treść wyniku, nie wyciek: wyjmujemy go ze
+        # skanu (spacja za znak, offsety bez zmian), bo model ONNX odpala OSOBA na
+        # samym tekście znacznika, także na jego fragmencie (znalezione E2E K5b).
+        tekst_bez_znacznikow = WZORZEC_ZNACZNIKA.sub(
+            lambda m: " " * (m.end() - m.start()), segment.tekst
+        )
+        for zakres in detektor.znajdz(tekst_bez_znacznikow):
             uwagi.append(
                 Ostrzezenie(
                     zakres.typ.value,
-                    segment.tekst[zakres.start : zakres.koniec],
+                    tekst_bez_znacznikow[zakres.start : zakres.koniec],
                     numer,
                 )
             )
-    uwagi.extend(_skan_surowy(dane, detektor, oryginaly, max_rozpakowane))
+    # K5b: skan surowy WYŁĄCZNIE na regułach + oryginałach z mapy — model ONNX na
+    # każdej części XML to były minuty (219 s na wzorcu, timeout API 120 s) i fałszywe
+    # blokady z metadanych; model działa na treści czytanej adapterem, wyżej.
+    uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane))
     return uwagi
 
 
@@ -70,7 +80,9 @@ def _skan_surowy(
     reszta bajt po bajcie (tylko oryginały z mapy). Dedup per (typ, fragment,
     część) — to samo znalezisko w dwóch częściach to dwa wycieki. Typ DATA
     pomijany: reguła daty krzyczałaby na metadane techniczne (rewizje, stała
-    core.xml) — prawdziwe daty wrażliwe łapie warstwa oryginałów z mapy."""
+    core.xml) — prawdziwe daty wrażliwe łapie warstwa oryginałów z mapy.
+    Detektor przychodzi z zewnątrz (K5b: zawsze reguły), by testy mogły
+    podejrzeć przebieg; wołający nie podpinają tu modelu."""
     czesci = _czesci(dane, max_rozpakowane)
     znaki_oryginalow = {o: o.encode("utf-8") for o in oryginaly if o}
     uwagi: list[Ostrzezenie] = []

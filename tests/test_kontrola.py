@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import time
+
+import pytest
+
 from niewidka.formaty import adapter_dla, podziel_segment
 from niewidka.formaty.tekst import AdapterTekst
 from niewidka.kontrola import kontroluj
@@ -159,3 +163,95 @@ def _zakryj_docx_regulami(dane: bytes) -> bytes:
         if zamiany:
             adapter.wstaw_znaczniki(segment, zamiany)
     return adapter.zapisz(dok)
+
+
+class DetektorTylkoModel:
+    """Atrapa detektora czysto modelowego (jak bardsai): widzi tylko OSOBA w treści,
+    nie zna reguł ani numerów z sumą kontrolną. Skan surowy ma działać i z takim."""
+
+    nazwa = "atrapa-model"
+    typy = frozenset()
+
+    def znajdz(self, tekst):
+        return []
+
+
+import re
+
+from niewidka.model import TypEncji, Zakres
+
+_WZORZEC_ATRAPY = re.compile(r"\[[^\]]*\]|\d{8,}")
+
+
+class DetektorNaZnacznikach:
+    """Atrapa modelu, który odpala OSOBA na tekście znacznika (znalezione E2E K5b:
+    bardsai klasyfikuje „[OSOBA_1_F1]" jako osobę) i na długich liczbach. Kontrola
+    ma znaczniki POMIJAĆ („znaleziska niebędące znacznikami", LLD §10), bo w
+    znaczniku nie ma oryginału; prawdziwe wycieki mają zostać."""
+
+    nazwa = "atrapa-znaczniki"
+    typy = frozenset({TypEncji.OSOBA})
+
+    def znajdz(self, tekst):
+        return [Zakres(m.start(), m.end(), TypEncji.OSOBA, 1.0, self.nazwa) for m in _WZORZEC_ATRAPY.finditer(tekst)]
+
+
+class TestKontrolaZnaczniki:
+    def test_znaczniki_w_wyniku_nie_sa_ostrzezeniem(self):
+        wynik = _zakryj(b"Jan Kowalski, PESEL 44051401359.")
+
+        uwagi = kontroluj(wynik, "wynik.txt", DetektorNaZnacznikach())
+
+        assert uwagi == [], f"znacznik potraktowany jak wyciek: {uwagi}"
+
+    def test_wyciek_obok_znacznikow_nadal_blokuje(self):
+        wynik = _zakryj(b"Jan Kowalski, PESEL 44051401359.")
+        brudny = wynik.replace(b"[PESEL_1]", b"PESEL 79020853217")
+
+        uwagi = kontroluj(brudny, "wynik.txt", DetektorNaZnacznikach())
+
+        assert {u.fragment for u in uwagi} == {"79020853217"}, uwagi
+
+
+class TestSkanSurowyReguly:
+    """K5b: skan surowy używa WYŁĄCZNIE reguł + oryginałów z mapy, niezależnie od
+    przekazanego detektora. Model ONNX na każdej części XML = 219 s na wzorcu
+    (timeout API 120 s, 500 fail-closed) i fałszywe blokady z metadanych XML."""
+
+    def test_pesel_w_surowej_czesci_widoczny_bez_regul_w_detektorze(self):
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, podmien={"word/settings.xml": _settings_z_pesel()})
+
+        uwagi = kontroluj(brudny, "w.docx", DetektorTylkoModel())
+
+        peselowe = [u for u in uwagi if u.typ == "PESEL"]
+        assert peselowe, "skan surowy musi stosować reguły nawet z detektorem bez reguł"
+        assert any(u.czesc == "word/settings.xml" for u in peselowe)
+
+    def test_oryginaly_z_mapy_skanowane_niezaleznie_od_detektora(self):
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, podmien={"word/settings.xml": _settings_z_pesel()})
+
+        uwagi = kontroluj(brudny, "w.docx", DetektorTylkoModel(), oryginaly=[PESEL])
+
+        assert any(u.typ == "ORYGINAL" and u.fragment == PESEL for u in uwagi)
+
+
+class TestWydajnoscKontroli:
+    @pytest.mark.model
+    def test_ukrycie_docx_poziom3_ponizej_timeoutu_api(self, katalog_modeli, tmp_path):
+        """Zlecenie K5b: ukrycie wzorcowego DOCX na poziomie 3 trwa < 10 s
+        (limit API 120 s). Przed naprawą: 219 s."""
+        from narzedzia.generator_dokumentow import zapisz_podstawowy
+        from niewidka.konfig import Konfig
+        from niewidka.rdzen import ukryj
+
+        wzorzec = zapisz_podstawowy(tmp_path / "w.docx").read_bytes()
+        konfig = Konfig(modele_katalog=katalog_modeli)
+
+        start = time.monotonic()
+        _, _, raport = ukryj(wzorzec, "docx", 3, konfig=konfig)
+        czas = time.monotonic() - start
+
+        assert raport.status == "ukonczony", f"wynik zablokowany: {raport.ostrzezenia}"
+        assert czas < 10.0, f"ukrycie DOCX na poziomie 3 trwa {czas:.1f} s (limit 10 s)"
