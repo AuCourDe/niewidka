@@ -127,6 +127,18 @@ jednokierunkowy); tryb „Na serwerze organizacji" — uwierzytelnianie, HTTPS, 
 dokument/hasło klienta, autoryzacja odszyfrowania; pywebview + PyInstaller (Win/Mac/Linux);
 PWA (manifest + service worker bez cache `/api/*`), opcjonalny TWA.
 
+Status desktop Windows (2026-10-28, `docs/WYNIK-K6-windows.md`): **zrealizowany NAJPIERW
+Windows** (zlecenie 12:45) — `niewidka/okno.py` (uvicorn w wątku, wolny port albo
+NIEWIDKA_PORT, wagi `<katalog aplikacji>\modele`, ekran konfiguracji klucza przy pierwszym
+uruchomieniu, awarie widoczne, zamknięcie okna = stop serwera); klucz w Windows Credential
+Manager przez keyring (generacja wprost, odmowa nadpisania); `narzedzia/zbuduj_windows.ps1`
+(klon GitHuba → venv py -3.13 → PyInstaller onedir --windowed → wagi z SHA-256 → ZIP);
+exe przetestowany na Windows: TXT round-trip identyczny (74 ms), DOCX 0,4 s / ukonczony
+(po naprawie K5b), start 2,3 s, RAM 716 MB, paczka 406,6 MB (ZIP 274 MB), testy na
+Windows 384 passed; kroki dla IT i lista naprawionych defektów w WYNIK. Do zrobienia:
+instalator Inno Setup (brak iscc), właściwa ikona po decyzji o logo. Linux/Mac/Android —
+kolejne.
+
 **Ukończono, gdy:** round-trip na plikach wzorcowych wszystkich 6 formatów potwierdza
 znaczniki na pozycjach encji i blokady nieobsługiwanych elementów; serwer w LAN wymaga
 logowania i odszyfrowuje wyłącznie mapy właściciela (test autoryzacji); pakiet PyInstaller
