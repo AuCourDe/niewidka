@@ -158,4 +158,5 @@
   - [ ] K7b pakiety modeli + pierwsze uruchomienie + Ustawienia + workflow GitHub Actions (EXE w Releases) + README „Pobierz”/„Zbuduj ze źródeł” (claude-glm, startuje po K6w, K4b, K7a, K5b; /tmp/cc-glm-k7b.md)
     - Decyzja orkiestratora 14:40: DWA pakiety — „Podstawowy” (bardsai Q4 bl32, ~191 MB, wymagany) + „Rozszerzony” (LFM2.5 Q4, ~222 MB, tylko IP/karta/SWIFT/login na poziomie 3); INT8 odpada (Q4 nie gorszy)
   - [ ] Wydanie publiczne EXE dopiero po przeglądzie właściciela (repo prywatne, decyzja 2c)
+- [x] 15:20 (orkiestrator) odbiór K4b: 15/15 znalezisk Codexa naprawionych z testem ataku (`docs/WYNIK-K4b.md`, `17d3fcb`); pełny pytest u orkiestratora 408 passed / 1 xfailed. K5b (claude-glm 2409) wystartował.
 
