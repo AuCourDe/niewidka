@@ -53,7 +53,7 @@ class AdapterModelu:
         return frozenset(self.mapa.values())
 
     def zwroc_typ(self, etykieta: str) -> TypEncji | None:
-        if etykieta.startswith(("B-", "I-")):
+        if len(etykieta) > 2 and etykieta[1] == "-":  # B/I/E/S — schemat adaptera decyduje
             return self.mapa.get((etykieta[2:],))
         return None
 
@@ -231,6 +231,57 @@ def wczytaj_bardsai(
     )
 
 
+# LFM2.5 (poziom 2, K2b): jak bardsai dostarcza WYŁĄCZNIE OSOBA (identity.person_name,
+# schemat BIOES) — typy z sumą kontrolną i dokładnymi granicami mają reguły (KRYTERIA
+# §1.3); 39 pozostałych klas modelu pomijanych.
+ADAPTER_LFM25 = AdapterModelu(
+    nazwa="onnx:lfm25",
+    mapa={
+        ("identity.person_name",): TypEncji.OSOBA,
+    },
+)
+
+
+def wczytaj_lfm25(
+    katalog: Path,
+    wariant: str = "int8",
+    provider: str = "CPUExecutionProvider",
+    okno: int = 510,
+    krok: int = 448,
+) -> OnnxDetektor:
+    """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`, K2b).
+
+    Wariant wybiera katalog kwantyzacji; oba mają manifest SHA-256 z eksportu.
+    """
+    podkatalog = katalog / "lfm25" / wariant
+    config = json.loads((podkatalog / "config.json").read_text(encoding="utf-8"))
+    return OnnxDetektor(
+        nazwa=ADAPTER_LFM25.nazwa,
+        model=podkatalog / "model.onnx",
+        tokenizer=podkatalog / "tokenizer.json",
+        etykiety=ADAPTER_LFM25.mapa,
+        id2etykieta=config.get("id2label", {}),
+        okno=okno,
+        krok=krok,
+        provider=provider,
+    )
+
+
+def wczytaj_poziom2(
+    katalog: Path,
+    provider: str = "CPUExecutionProvider",
+) -> DetektorKompozyt:
+    """Poziom 2 (KRYTERIA §4): reguły + bardsai + LFM2.5; duplikaty zdejmuje scalanie."""
+    return DetektorKompozyt(
+        "poziom2",
+        [
+            RegulyDetektor(),
+            wczytaj_bardsai(katalog, provider=provider),
+            wczytaj_lfm25(katalog, provider=provider),
+        ],
+    )
+
+
 class DetektorKompozyt:
     """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie (LLD §4)."""
 
@@ -260,11 +311,13 @@ def zdekoduj_bio(
     tokeny: list[tuple[str, tuple[int, int], float]],
     mapa: dict[tuple[str, ...], TypEncji],
 ) -> list[tuple[int, int, TypEncji, float]]:
-    """BIO -> zakresy znakowe (start, koniec, typ, pewność = min. tokenów).
+    """BIO/BIOES -> zakresy znakowe (start, koniec, typ, pewność = min. tokenów).
 
     `tokeny` to (etykieta, offsety znakowe, pewność); etykiety nieobecne w `mapa`
     są pomijane (adapter modelu decyduje, które typy model dostarcza). I- po
     B/I tego samego typu kontynuuje encję; I innego typu albo bez B kończy bieżącą.
+    BIOES (LFM2.5): E- kończy encję (dokleja swój token), S- to encja jedno-tokenowa;
+    E/S poza mapą albo bez rozpoczętej encji swojego typu są pomijane.
     """
     wynik: list[tuple[int, int, TypEncji, float]] = []
     biezaca: tuple[int, int, TypEncji, float] | None = None
@@ -273,13 +326,24 @@ def zdekoduj_bio(
         if start == koniec:  # token specjalny/wypadek
             biezaca, biezaca_klasa = _zamknij(biezaca, wynik), None
             continue
-        if not etykieta.startswith(("B-", "I-")):
+        if not (len(etykieta) > 2 and etykieta[1] == "-"):
             biezaca, biezaca_klasa = _zamknij(biezaca, wynik), None
             continue
         schemat, klasa = etykieta[:1], etykieta[2:]
         klucz = (klasa,)
         if klucz not in mapa:
             biezaca, biezaca_klasa = _zamknij(biezaca, wynik), None
+            continue
+        if schemat == "S":  # encja jedno-tokenowa: zamknij bieżącą, dodaj swoją
+            biezaca, biezaca_klasa = _zamknij(biezaca, wynik), None
+            wynik.append((start, koniec, mapa[klucz], pewnosc))
+            continue
+        if schemat == "E":  # ostatni token encji: doklej i zamknij
+            if biezaca is not None and biezaca_klasa == klucz:
+                wynik.append((biezaca[0], koniec, biezaca[2], min(biezaca[3], pewnosc)))
+            else:
+                _zamknij(biezaca, wynik)  # E bez swojego B/I — pomijane
+            biezaca, biezaca_klasa = None, None
             continue
         if schemat == "B" or klucz != biezaca_klasa:
             biezaca, biezaca_klasa = _zamknij(biezaca, wynik), None

@@ -22,3 +22,18 @@ def model_bardsai(katalog_modeli: Path):
     from niewidka.detektory import wczytaj_bardsai
 
     return wczytaj_bardsai(katalog_modeli)
+
+
+@pytest.fixture(scope="session")
+def wagi_lfm25(katalog_modeli: Path) -> Path:
+    """Katalog wag, gdy wyeksportowany ONNX LFM2.5 jest; inaczej skok (K2b)."""
+    if not (katalog_modeli / "lfm25" / "int8" / "model.onnx").is_file():
+        pytest.skip("ONNX LFM2.5 niewyeksportowany (narzedzia/eksport_lfm25.py)")
+    return katalog_modeli
+
+
+@pytest.fixture(scope="session")
+def model_lfm25(wagi_lfm25: Path):
+    from niewidka.detektory import wczytaj_lfm25
+
+    return wczytaj_lfm25(wagi_lfm25)

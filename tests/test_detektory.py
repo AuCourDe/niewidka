@@ -131,6 +131,72 @@ class TestZdekodujBio:
         assert zakresy[0][3] == pytest.approx(0.40)
 
 
+# --- Krok G (K2b): BIOES — schemat LFM2.5 (B/I/E/S) ---
+
+class TestZdekodujBioes:
+    mapa: ClassVar[dict] = {("PERSON_NAME",): TypEncji.OSOBA}
+
+    def test_b_i_e_jedna_encja(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("B-PERSON_NAME", (5, 8), 0.9),
+            ("I-PERSON_NAME", (9, 12), 0.8),
+            ("E-PERSON_NAME", (13, 20), 0.7),
+            ("O", (21, 24), 0.9),
+        ]
+        zakresy = zdekoduj_bio(tokeny, self.mapa)
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(5, 20, TypEncji.OSOBA)]
+        assert zakresy[0][3] == pytest.approx(0.7)  # min z B/I/E
+
+    def test_s_pojedynczy_token_cala_encja(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("S-PERSON_NAME", (5, 10), 0.85),
+            ("O", (11, 13), 0.9),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (5, 10, TypEncji.OSOBA)
+        ]
+
+    def test_e_bez_b_pominieta(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("E-PERSON_NAME", (5, 10), 0.9),
+        ]
+        assert zdekoduj_bio(tokeny, self.mapa) == []
+
+    def test_e_innego_typu_zamyka_i_nie_dokleja(self):
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("E-LOCATION", (5, 12), 0.9),
+        ]
+        zakresy = zdekoduj_bio(tokeny, self.mapa)
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(0, 4, TypEncji.OSOBA)]
+
+    def test_s_po_b_zamyka_i_startuje_osobna(self):
+        # niepoprawna sekwencja modelu: B..., potem S — zamknij B (bez S w środku),
+        # S = osobna encja jedno-tokenowa.
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("S-PERSON_NAME", (5, 10), 0.8),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (0, 4, TypEncji.OSOBA),
+            (5, 10, TypEncji.OSOBA),
+        ]
+
+    def test_bez_e_sekwencja_b_i_zamyka_sie_na_O(self):
+        # BIO czysty nadal działa bez E/S (kompatybilność bardsai).
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("I-PERSON_NAME", (5, 12), 0.8),
+            ("O", (13, 16), 0.9),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (0, 12, TypEncji.OSOBA)
+        ]
+
+
 # --- Krok B: interfejs Detektor, OnnxDetektor, adapter bardsai (atrapy) ---
 
 import hashlib
@@ -332,6 +398,8 @@ class TestOnnxDetektor:
 
 # --- Krok D: wczytaj_bardsai (żywy model, marker `model`) + DetektorKompozyt ---
 
+from niewidka.detektory import ADAPTER_LFM25
+
 
 class TestWczytajBardsai:
     @pytest.mark.model
@@ -378,6 +446,62 @@ class TestDetektorKompozyt:
         from niewidka.model import Zakres  # noqa: F401 — spójność sekcji
 
         assert DetektorKompozyt("poziom1", []).znajdz("cokolwiek") == []
+
+
+# --- Krok H (K2b): adapter LFM2.5 — mapowanie etykiet, poziom 2 ---
+
+class TestAdapterLfm25:
+    def test_osoba_we_wszystkich_literach_bioes(self):
+        for litera in "BIES":
+            assert ADAPTER_LFM25.zwroc_typ(f"{litera}-identity.person_name") is TypEncji.OSOBA
+
+    def test_identity_person_name_dokladnie(self):
+        assert ADAPTER_LFM25.zwroc_typ("B-identity.person_name") is TypEncji.OSOBA
+
+    def test_pozostale_typy_pomijane(self):
+        # reguły mają PESEL/NIP/IBAN/telefon/e-mail z dokładnymi granicami (pewność 1.0);
+        # modelowe odpowiedniki rozmyłyby granice (unia scalania, KRYTERIA §1.3)
+        for etykieta in (
+            "B-identity.national_id",
+            "B-identity.tax_id",
+            "B-financial.iban",
+            "B-contact.email",
+            "B-contact.phone",
+            "B-contact.address",
+            "B-identity.passport",
+            "O",
+        ):
+            assert ADAPTER_LFM25.zwroc_typ(etykieta) is None
+
+    def test_typy_adaptera_tylko_osoba(self):
+        assert ADAPTER_LFM25.typy == frozenset({TypEncji.OSOBA})
+
+
+class TestWczytajLfm25:
+    @pytest.mark.model
+    def test_zywy_model_int8_osoba(self, model_lfm25):
+        wynik = model_lfm25.znajdz("Wczoraj Jan Kowalski poszedł do sklepu po chleb.")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(8, 20, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:lfm25"
+
+    @pytest.mark.model
+    def test_zywy_model_dlugi_tekst_okna(self, model_lfm25):
+        tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokenów
+        wynik = model_lfm25.znajdz(tekst)
+        assert sum(1 for z in wynik if z.typ is TypEncji.OSOBA) >= 120 * 0.9
+
+
+class TestPoziom2:
+    @pytest.mark.model
+    def test_poziom2_zwiera_reguly_i_dwa_modele(self, wagi_lfm25):
+        from niewidka.detektory import wczytaj_poziom2
+
+        poziom2 = wczytaj_poziom2(wagi_lfm25)
+        assert poziom2.nazwa == "poziom2"
+        assert [d.nazwa for d in poziom2.czesci] == ["reguly", "onnx:bardsai", "onnx:lfm25"]
+        wynik = poziom2.znajdz("Jan Kowalski, PESEL 44051401359.")
+        typy = {z.typ for z in wynik}
+        assert TypEncji.OSOBA in typy and TypEncji.PESEL in typy
 
 
 # --- Krok F: rozciągnięcie zakresów modelu do granic słowa (artefakty subword) ---
