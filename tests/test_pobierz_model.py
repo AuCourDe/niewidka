@@ -9,7 +9,9 @@ import httpx
 import pytest
 
 from narzedzia.pobierz_model import (
+    katalog_docelowy,
     pobierz_plik,
+    spec_modelu,
     sprobij_pominac,
     url_pliku,
     zapisz_manifest,
@@ -82,3 +84,46 @@ class TestZapiszManifest:
         zapisz_manifest(tmp_path, repo="r2", pliki=(), rewizja="dev")
         manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["repo"] == "r2"
+
+
+class TestSpecModelu:
+    def test_bardsai_domyslny_katalog(self):
+        spec = spec_modelu("bardsai")
+        assert spec.repo == "bardsai/eu-pii-anonimization-multilang"
+        assert spec.podkatalog == ""
+        assert set(spec.pliki) == {
+            "model.onnx",
+            "tokenizer.json",
+            "config.json",
+            "tokenizer_config.json",
+        }
+
+    def test_lfm25_repo_i_pelny_zestaw_zrodlowy(self):
+        spec = spec_modelu("lfm25")
+        assert spec.repo == "LiquidAI/LFM2.5-Encoder-350M-PII-Detector"
+        assert spec.podkatalog == "lfm25"
+        # wagi + konfiguracja + KOD CUSTOM (przeglądany przed użyciem, K2b)
+        assert set(spec.pliki) == {
+            "model.safetensors",
+            "config.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "label_schema.json",
+            "modeling_phase2_tc.py",
+            "context_cued.py",
+            "pii_hybrid_decode.py",
+            "README.md",
+            "LICENSE",
+        }
+
+    def test_nieznany_model_podnosi(self):
+        with pytest.raises(ValueError):
+            spec_modelu("cudzy-model")
+
+
+class TestKatalogDocelowy:
+    def test_bardsai_bez_podkatalogu(self, tmp_path):
+        assert katalog_docelowy(tmp_path, spec_modelu("bardsai")) == tmp_path
+
+    def test_lfm25_w_podkatalogu(self, tmp_path):
+        assert katalog_docelowy(tmp_path, spec_modelu("lfm25")) == tmp_path / "lfm25"

@@ -54,4 +54,10 @@
   - [x] Repo prywatne https://github.com/AuCourDe/niewidka (push main)
   - [~] Korpus +120 próbek, autor zewnętrzny (opencode deepseek, /tmp/cc-oc-korpus.md)
   - [~] K2b LFM2.5 poziom 2 + K3 TXT/DOCX (claude-glm id 1028-102520-claude-glm-e79f, /tmp/cc-glm-k2b.md). Decyzja orkiestratora: brama K2 (precision OSOBA 0.917) nie blokuje – FN groźniejszy niż FP, próg zostaje, raport uczciwy
+    - [ ] Korpus +120 od autora zewnętrznego (opencode, /tmp/cc-oc-korpus.md) – gdy dojdzie, ponowny pomiar poziomu 1 i 2
+    - [ ] LFM2.5 pobrany httpx (`narzedzia/pobierz_model.py`, manifest SHA-256); kod modelu przejrzany przed użyciem (trust_remote_code), zawartość opisana w docs
+    - [ ] ONNX wyeksportowany jednorazowo (`narzedzia/`), inferencja wyłącznie onnxruntime; INT8 dynamiczne, jeśli nie psuje recall (zmierzone oba)
+    - [ ] Adapter LFM2.5 za wspólnym Protocol, testy TDD (marker `model` pomijający bez wag)
+    - [ ] Pomiar poziomu 2 → `docs/WYNIK-K2b.md`: per typ vs progi (bez przesuwania), czas i RAM, zysk vs poziom 1 + decyzja orkiestratora o bramie K2
+    - [ ] K3: adaptery TXT i DOCX (runy, nagłówki/stopki, przypisy, komentarze, track changes, hiperłącza, teksty alternatywne, właściwości; allowlista struktury – nieobsługiwane = blokada), dopisek ZANONIMIZOWANY, nazwa `ZANONIMIZOWANY_<krótki-id>.<ext>`, weryfikacja zapisu ZAWSZE; pliki wzorcowe skryptem (python-docx), testy round-trip (`pytest tests/test_formaty.py`)
   - [ ] K4 mapa szyfrowana + API (uwierzytelnianie, wiązanie mapy z dokumentem), K5 web (moje-human-frontend, stonowane kolory), K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu

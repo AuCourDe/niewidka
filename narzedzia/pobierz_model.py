@@ -14,19 +14,72 @@ import hashlib
 import json
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
 
-REPO = "bardsai/eu-pii-anonimization-multilang"
-REWIZJA = "main"
-# Nazwy w katalogu docelowym; `model.onnx` = ONNX INT8 (model_quantized) z repo.
-PLIKI: dict[str, str] = {
-    "model.onnx": "onnx/model_quantized.onnx",
-    "tokenizer.json": "tokenizer.json",
-    "config.json": "config.json",
-    "tokenizer_config.json": "tokenizer_config.json",
-}
+
+@dataclass(frozen=True)
+class ModelSpec:
+    """Repo HF i zestaw plików jednego modelu (nazwa_lokalna -> ścieżka w repo)."""
+
+    repo: str
+    rewizja: str
+    pliki: dict[str, str]
+    podkatalog: str = ""  # "" = bezpośrednio w NIEWIDKA_MODELE_KATALOG
+
+
+# bardsai (poziom 1): gotowy ONNX INT8 z repo; `model.onnx` = model_quantized.
+_BARDSAI = ModelSpec(
+    repo="bardsai/eu-pii-anonimization-multilang",
+    rewizja="main",
+    pliki={
+        "model.onnx": "onnx/model_quantized.onnx",
+        "tokenizer.json": "tokenizer.json",
+        "config.json": "config.json",
+        "tokenizer_config.json": "tokenizer_config.json",
+    },
+)
+
+# LFM2.5 (poziom 2, K2b): brak ONNX w repo — pobieramy PEŁNE źródła (wagi + kod
+# custom przeglądany przed użyciem, zob. docs/WYNIK-K2b.md), eksport ONNX robi
+# narzedzia/eksport_lfm25.py do podkatalogów fp32/ i int8/.
+_LFM25 = ModelSpec(
+    repo="LiquidAI/LFM2.5-Encoder-350M-PII-Detector",
+    rewizja="main",
+    pliki={
+        "model.safetensors": "model.safetensors",
+        "config.json": "config.json",
+        "tokenizer.json": "tokenizer.json",
+        "tokenizer_config.json": "tokenizer_config.json",
+        "label_schema.json": "label_schema.json",
+        "modeling_phase2_tc.py": "modeling_phase2_tc.py",
+        "context_cued.py": "context_cued.py",
+        "pii_hybrid_decode.py": "pii_hybrid_decode.py",
+        "README.md": "README.md",
+        "LICENSE": "LICENSE",
+    },
+    podkatalog="lfm25",
+)
+
+MODELE: dict[str, ModelSpec] = {"bardsai": _BARDSAI, "lfm25": _LFM25}
+
+# Nazwy w katalogu docelowym (kompatybilność: główne pobranie poziomu 1).
+REPO = _BARDSAI.repo
+REWIZJA = _BARDSAI.rewizja
+PLIKI: dict[str, str] = _BARDSAI.pliki
+
+
+def spec_modelu(nazwa: str) -> ModelSpec:
+    try:
+        return MODELE[nazwa]
+    except KeyError:
+        raise ValueError(f"nieznany model: {nazwa} (dostępne: {', '.join(MODELE)})") from None
+
+
+def katalog_docelowy(baza: Path, spec: ModelSpec) -> Path:
+    return baza / spec.podkatalog if spec.podkatalog else baza
 
 
 def url_pliku(repo: str, plik: str) -> str:
@@ -69,7 +122,8 @@ def zapisz_manifest(katalog: Path, repo: str, pliki: tuple[str, ...], rewizja: s
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pobranie wag modelu Niewidki (httpx)")
-    parser.add_argument("--repo", default=REPO)
+    parser.add_argument("--model", default="bardsai", choices=sorted(MODELE))
+    parser.add_argument("--repo", default=None, help="nadpisanie repo (domyślnie wg --model)")
     parser.add_argument(
         "--katalog",
         type=Path,
@@ -78,7 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     argumenty = parser.parse_args(argv)
     if argumenty.katalog is None:
         parser.error("brak katalogu: --katalog albo NIEWIDKA_MODELE_KATALOG")
-    katalog = argumenty.katalog
+    spec = spec_modelu(argumenty.model)
+    repo = argumenty.repo or spec.repo
+    katalog = katalog_docelowy(argumenty.katalog, spec)
     katalog.mkdir(parents=True, exist_ok=True)
 
     stary = {}
@@ -87,16 +143,16 @@ def main(argv: list[str] | None = None) -> int:
         stary = json.loads(manifest_plik.read_text(encoding="utf-8")).get("pliki", {})
 
     with httpx.Client(follow_redirects=True, timeout=600) as klient:
-        for nazwa, zrodlo in PLIKI.items():
+        for nazwa, zrodlo in spec.pliki.items():
             suma_stara = stary.get(nazwa)
             if suma_stara and sprobij_pominac(katalog / nazwa, suma_stara):
                 print(f"pomijam {nazwa} (zgodny z manifestem)")
                 continue
-            url = url_pliku(argumenty.repo, zrodlo)
+            url = url_pliku(repo, zrodlo)
             print(f"pobieram {url} -> {katalog / nazwa}")
             pobierz_plik(klient, url, katalog / nazwa)
 
-    zapisz_manifest(katalog, argumenty.repo, tuple(PLIKI), REWIZJA)
+    zapisz_manifest(katalog, repo, tuple(spec.pliki), spec.rewizja)
     print(f"manifest: {manifest_plik}")
     return 0
 
