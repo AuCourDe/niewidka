@@ -37,10 +37,10 @@
   - [x] K1 TDD: `znaczniki.py` (commity `70a3fec`, `788db17`) — `[TYP_N]`, zamiana od końca, dopisek bez nawiasów (Gemini #7)
   - [x] Pomiar K1 → `docs/WYNIK-K1.md`: recall 1.000 / precision 1.000 na WSZYSTKICH typach K1 (40/40 TP, 0 FP na pułapkach); OSOBA 0/23 poza zakresem reguł (K2); progi nieprzesunięte, nic nie wymagało przesunięcia
   - [x] Aktualizacja statusów w todo.md + commit (pełny zestaw: 71 testów zielonych, ruff czysty, bez pusha)
-- [~] 01:22 (właściciel) „wprowadź uwagi z przeglądów do dokumentacji i do kodu, który już istnieje (K0/K1)”: każda uwaga krytyczna z 04-przeglad-astra.md ma odpowiedź w nowej sekcji LLD „Odpowiedzi na przegląd” (zmiana albo świadome odrzucenie z powodem); zawężenie MVP: wklejony tekst + TXT + DOCX + web lokalny, reszta formatów i kanałów w v1 po K-kamieniach; kod TDD: scalanie (test własności unii z [0,12)+[8,20)), znaczniki ze stabilnym wariantem formy ([OSOBA_1_F2] albo równoważne + opis w LLD), osoby domyślnie nie łączą niejednoznacznych (test kontrprzykładów), błędna suma kontrolna = encja „podejrzana”, nie odrzucona (KRYTERIA: tylko definicja, nie próg, z powodem). Testy zielone, ruff czysty, commit po każdym kroku (Co-Authored-By: GLM via claude-glm), bez pusha.
-  - [ ] Dokumenty: HLD/LLD/KAMIENIE/PLAN — zawężone MVP + LLD „Odpowiedzi na przegląd” (Astra, Gemini) + definicja podejrzanych w KRYTERIA
-  - [ ] Scalanie: test własności — maskowany obszar = suma zaakceptowanych zakresów (przypadek [0,12)+[8,20))
-  - [ ] Znaczniki: stabilny wariant formy [OSOBA_N_Fk] + opis w LLD
-  - [ ] Osoby: kontrprzykłady — niejednoznaczne domyślnie niełączone
-  - [ ] Podejrzane: błędna suma = encja z flagą (model/reguly/scalanie/pomiar); ponowny pomiar + dopisek w WYNIK-K1
-  - [ ] Statusy w todo.md na koniec
+- [x] 01:22 (właściciel) „wprowadź uwagi z przeglądów do dokumentacji i do kodu, który już istnieje (K0/K1)”: każda uwaga krytyczna z 04-przeglad-astra.md ma odpowiedź w nowej sekcji LLD „Odpowiedzi na przegląd” (zmiana albo świadome odrzucenie z powodem); zawężenie MVP: wklejony tekst + TXT + DOCX + web lokalny, reszta formatów i kanałów w v1 po K-kamieniach; kod TDD: scalanie (test własności unii z [0,12)+[8,20)), znaczniki ze stabilnym wariantem formy ([OSOBA_1_F2] albo równoważne + opis w LLD), osoby domyślnie nie łączą niejednoznacznych (test kontrprzykładów), błędna suma kontrolna = encja „podejrzana”, nie odrzucona (KRYTERIA: tylko definicja, nie próg, z powodem). Testy zielone, ruff czysty, commit po każdym kroku (Co-Authored-By: GLM via claude-glm), bez pusha.
+  - [x] Dokumenty: HLD/LLD/KAMIENIE/PLAN — zawężone MVP + LLD §17 „Odpowiedzi na przegląd” (Astra 1-15, Gemini 1-15, odrzucenia z powodem) + definicja PN w KRYTERIA §1.3 (commit `df0fbb9`)
+  - [x] Scalanie: test własności — maskowane znaki = unia wejścia, 200 losowych zestawów + przypadek [0,12)+[8,20) w teście przykładowym (commit `e069728`)
+  - [x] Znaczniki: stabilny wariant formy [OSOBA_N_Fk] (Encja.wariant), przywracanie wg (oznaczenie, wariant) opisane w LLD §7-§8 (commit `c2bd8ce`)
+  - [x] Osoby: kontrprzykłady — inicjały przy dwóch kandydatach osobne, same nazwiska bez imion osobne, asocjacja wsteczna tylko przy jednym kandydacie (commit `db5dd08`)
+  - [x] Podejrzane: błędna suma = Zakres.podejrzana=True, pewność 0.5, wchodzi do maskowania; pomiar liczy PN osobno (commit `53f6a0b`); re-pomiar 40/40 TP, 0 FP, 11 PN — dopisek w `docs/WYNIK-K1.md`
+  - [x] Statusy w todo.md na koniec (ten wpis); pełny zestaw: 80 testów zielonych, ruff czysty, bez pusha
