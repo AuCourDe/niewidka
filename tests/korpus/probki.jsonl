@@ -118,7 +118,7 @@
 {"id": "homonim-056", "opis": "homonim", "tagi": ["homonim"], "tekst": "Kowal to dawny zawód, a Kowal jest naszym klientem.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 5, "tekst": "Kowal"}]}
 {"id": "homonim-057", "opis": "homonim", "tagi": ["homonim"], "tekst": "Wiśniewski to częste nazwisko; Wiśniewski podpisał umowę.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 10, "tekst": "Wiśniewski"}]}
 {"id": "homonim-058", "opis": "homonim", "tagi": ["homonim"], "tekst": "Róża kupiła róże na bazarze.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 4, "tekst": "Róża"}]}
-{"id": "homonim-059", "opis": "adres z nazwiskiem", "tagi": ["homonim"], "tekst": "Siedziba: ul. Mickiewicza 4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 10, "koniec": 27, "tekst": "ul. Mickiewicza 4"}]}
+{"id": "homonim-059", "opis": "adres z nazwiskiem", "tagi": ["homonim"], "tekst": "Siedziba: ul. Mickiewicza 4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 10, "koniec": 44, "tekst": "ul. Mickiewicza 4, 00-001 Warszawa"}]}
 {"id": "firma-060", "opis": "firma od nazwiska", "tagi": ["homonim"], "tekst": "Firma Nowak Sp. z o.o. wystawiła fakturę.", "encje": []}
 {"id": "inst-061", "opis": "instytucja", "tagi": ["homonim"], "tekst": "Muzeum im. Adama Mickiewicza zaprasza.", "encje": []}
 {"id": "pesel-062", "opis": "PESEL próbka", "tagi": [], "tekst": "PESEL: 44010100002.", "encje": [{"typ": "PESEL", "start": 7, "koniec": 18, "tekst": "44010100002", "suma": true}]}
@@ -148,9 +148,9 @@
 {"id": "tel-086", "opis": "telefon", "tagi": [], "tekst": "Tel.: 123-456-789.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 17, "tekst": "123-456-789"}]}
 {"id": "tel-087", "opis": "telefon", "tagi": [], "tekst": "Tel.: (22) 123-45-67.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 20, "tekst": "(22) 123-45-67"}]}
 {"id": "tel-088", "opis": "telefon", "tagi": [], "tekst": "Tel.: 0048 600 700 800.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 22, "tekst": "0048 600 700 800"}]}
-{"id": "adr-089", "opis": "adres", "tagi": [], "tekst": "Adres: ul. Marszałkowska 10/5, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 29, "tekst": "ul. Marszałkowska 10/5"}]}
-{"id": "adr-090", "opis": "adres", "tagi": [], "tekst": "Adres: al. Jerozolimskie 15 m. 3, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 32, "tekst": "al. Jerozolimskie 15 m. 3"}]}
-{"id": "adr-091", "opis": "adres", "tagi": [], "tekst": "Adres: pl. Grunwaldzki 2/4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 26, "tekst": "pl. Grunwaldzki 2/4"}]}
+{"id": "adr-089", "opis": "adres", "tagi": [], "tekst": "Adres: ul. Marszałkowska 10/5, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 46, "tekst": "ul. Marszałkowska 10/5, 00-001 Warszawa"}]}
+{"id": "adr-090", "opis": "adres", "tagi": [], "tekst": "Adres: al. Jerozolimskie 15 m. 3, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 49, "tekst": "al. Jerozolimskie 15 m. 3, 00-001 Warszawa"}]}
+{"id": "adr-091", "opis": "adres", "tagi": [], "tekst": "Adres: pl. Grunwaldzki 2/4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 43, "tekst": "pl. Grunwaldzki 2/4, 00-001 Warszawa"}]}
 {"id": "data-092", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 13.05.1982.", "encje": [{"typ": "DATA", "start": 16, "koniec": 26, "tekst": "13.05.1982"}]}
 {"id": "data-093", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 13 maja 1982.", "encje": [{"typ": "DATA", "start": 16, "koniec": 28, "tekst": "13 maja 1982"}]}
 {"id": "data-094", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 1982-05-13.", "encje": [{"typ": "DATA", "start": 16, "koniec": 26, "tekst": "1982-05-13"}]}
@@ -180,3 +180,11 @@
 {"id": "osoba-118", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Maria Kowalczyk złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Maria Kowalczyk"}]}
 {"id": "osoba-119", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Maria Kowalczyk złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Maria Kowalczyk"}]}
 {"id": "osoba-120", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Piotr Wiśniewski złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 28, "tekst": "Piotr Wiśniewski"}]}
+{"id": "adr-kod-ulica", "opis": "adres: ulica + numer + kod + miejscowość (błąd z żywego testu UI)", "tagi": [], "tekst": "Zamieszkały ul. Długa 15/3, 00-238 Warszawa.", "encje": [{"typ": "ADRES", "start": 12, "koniec": 43, "tekst": "ul. Długa 15/3, 00-238 Warszawa"}]}
+{"id": "adr-kod-bez-przecinka", "opis": "adres bez przecinka przed kodem pocztowym", "tagi": [], "tekst": "Biuro: al. Pracy 12 25-422 Kielce.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 33, "tekst": "al. Pracy 12 25-422 Kielce"}]}
+{"id": "adr-os-kod", "opis": "adres osiedla z kodem i miejscowością dwuczłonową", "tagi": [], "tekst": "Mieszka na os. Centrum 4/11, 65-001 Zielona Góra.", "encje": [{"typ": "ADRES", "start": 11, "koniec": 48, "tekst": "os. Centrum 4/11, 65-001 Zielona Góra"}]}
+{"id": "adr-kod-sam", "opis": "sam kod pocztowy z miejscowością, bez ulicy", "tagi": [], "tekst": "Adres korespondencyjny: 00-238 Warszawa.", "encje": [{"typ": "ADRES", "start": 24, "koniec": 39, "tekst": "00-238 Warszawa"}]}
+{"id": "adr-miejscowosc-dwie", "opis": "kod + miejscowość dwuczłonowa bez ulicy", "tagi": [], "tekst": "Oddział zamiejscowy: 41-100 Siemianowice Śląskie.", "encje": [{"typ": "ADRES", "start": 21, "koniec": 48, "tekst": "41-100 Siemianowice Śląskie"}]}
+{"id": "adr-lacznik-miasto", "opis": "adres z miejscowością z łącznikiem", "tagi": [], "tekst": "Filia: ul. Cieszyńska 12, 43-300 Bielsko-Biała.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 46, "tekst": "ul. Cieszyńska 12, 43-300 Bielsko-Biała"}]}
+{"id": "neg-zakres-liczb", "opis": "zwykłe liczby z łącznikiem nie są adresem (miasto z małej litery)", "tagi": [], "tekst": "Dostarczono 10-15 sztuk, potem 12-345 w planach.", "encje": []}
+{"id": "neg-kod-bez-miasta", "opis": "ciąg NN-NNN bez miejscowości z wielkiej litery nie jest adresem", "tagi": [], "tekst": "Paczka z kodem 12-345 w dzienniku.", "encje": []}

@@ -92,3 +92,51 @@ słownika: `python -m narzedzia.pobierz_imiona` (httpx, licencja CC0).
 Testy jednostkowe: `pytest tests/test_detektory.py tests/test_pomiar.py -m "not model"`
 — 83 passed, 0 failed.
 
+
+## Poprawka ADRES (2026-10-28, błąd z żywego testu UI)
+
+**Błąd:** „zamieszkały ul. Długa 15/3, 00-238 Warszawa" — maskowane tylko „ul. Długa 15/3",
+a „00-238 Warszawa" zostawało jawne. Kod pocztowy z miejscowością to quasi-identyfikator:
+zostawiony jawnym przy zamaskowanej ulicy to wyciek. Polecenie właściciela: ADRES to ciągła
+całość (ulica + numer + opcjonalny przecinek + kod NN-NNN + miejscowość; sam „kod
+miejscowość" bez ulicy też ADRES).
+
+**Zmiana reguły** (`niewidka/reguly.py`, TDD: 7 nowych testów, najpierw czerwone):
+
+- ogon adresu: `(opcjonalny przecinek) + kod NN-NNN + miejscowość` — miejscowość = słowa
+  z wielkiej litery, także wieloczłonowe („Zielona Góra") i z łącznikiem („Bielsko-Biała");
+- osobna gałąź: sam `kod + miejscowość` bez ulicy;
+- nowy wyróżnik `os.`/`osiedle`;
+- pułapka znaleziona w cyklu zielonym: lista słów nazwy ulicy i grupa numeru zjadały „25"
+  z kodu „25-422" (dla „al. Pracy 12 25-422 Kielce") — naprawione lookaheadem „słowo/numer
+  nie może zaczynać się na kodzie";
+- zwykłe liczby z myślnikiem nie łapią się: kod wymaga 3 cyfr po myślniku i wielkiej litery
+  miejscowości za sobą („10-15 sztuk" ✓ puste), lookarouny odcinają kody zanurzone w datach
+  ISO („1982-05-13") i telefonach („123-456-789").
+
+**Korpus:** konwencja `KRYTERIA.md` §2 zaktualizowana PRZED pomiarem; oczekiwania 4
+istniejących próbek (kod+miasto weszły do ADRES: homonim-059, adr-089/090/091) i 8 nowych
+próbek (6 pozytywnych z nowymi formami + 2 negatywne) — **190 próbek** łącznie.
+
+**Pomiar poziomu 1** (po zmianie, korpus 190; `narzedzia/pomiar.py`):
+
+| typ | TP | FP | FN | recall | precision |
+|---|---|---|---|---|---|
+| ADRES | 16 (było n=10) | 0 | 0 | **1.000** | **1.000** |
+| pozostałe regułowe (DATA/DOKUMENT/EMAIL/IBAN/NIP/PESEL/REGON/TELEFON) | — | 0 | 0 | 1.000 | 1.000 |
+| OSOBA (bez zmian) | 100 | 6 | 3 | 0.971 | 0.943 |
+| **łącznie (K1, bez OSOBA)** | 71 | 0 | 0 | 1.000 | 1.000 |
+
+Progi K1 i poziomu 1 spełnione; zero FP na nowych próbkach negatywnych. Czas/próbkę
+11.6 ms (było 7.8 ms — droższy regex z lookaheadami), RAM bez zmian (798 MiB).
+
+**R95 poziomu 1** (`narzedzia/kalibracja.py` → `niewidka/dane/r95.json`): ADRES
+**0.2589 → 0.1707** (k=0, n=16); pozostałe typy bez zmian. Poziomy 2/3 w r95.json
+nietknięte — różnią się od poziomu 1 wyłącznie OSOBA, zlecenie obejmowało poziom 1.
+
+**Znane słabości zwycięzcy:** (1) numer domu sklejony z kodem bez przecinka/spacji
+(„ul. Pracy 25-422 Kielce") — reguła maskuje „25-422 Kielce", numer „ul. Pracy" zostaje
+(układ dwuznaczny, rzadki; kod+miasto i tak schowane); (2) zachłanna miejscowość pochłonie
+wielką literą zaczynające się słowo tuż za miastem bez kropki/przecinka między nimi
+(over-maskowanie, kierunek bezpieczny); (3) samotny kod bez miejscowości nie jest wykrywany
+(konwencja: kod+miejscowość).

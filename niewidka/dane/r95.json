@@ -1,13 +1,13 @@
 {
-  "korpus_probek": 182,
+  "korpus_probek": 190,
   "wzor": "beta.ppf(0.95, FN+1, TP+FN-FN) — górna granica Cloppera-Pearsona stopy ucieczek",
-  "wygenerowano": "2026-10-28T12:25:40+00:00",
+  "wygenerowano": "2026-10-28T12:51:24+00:00",
   "maszyna": "x86_64",
   "poziomy": {
     "1": {
       "detektor": "poziom1",
       "r95": {
-        "ADRES": 0.2589,
+        "ADRES": 0.1707,
         "DATA": 0.3123,
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,

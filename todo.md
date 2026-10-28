@@ -135,8 +135,8 @@
   - [ ] RED+GREEN: 1 blokada bez dokumentu (422+UI), 2 obrazy/binarne (usuwanie obrazów, blokada niezweryfikowanych), 3 skan e.tail, 4 fail-closed parsowania XML, 5 nazwy części ZIP, 6 mapa związana z dokumentem, 7 id ≥128 bit + skróty szyfrogramów, 8 nagłówki bez PII, 9 middleware bajtów, 10 budżet dekompresji ZIP, 11 slot do końca pracy, 12 limit żądań przed body, 13 regex e-mail liniowy, 14 host tylko loopback, 15 błędy bez odbicia wejścia
   - [ ] docs/WYNIK-K4b.md (tabela 15 pkt: test, poprawka, commit); pytest całości + ruff niewidka/ tests/ narzedzia/; commit po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm), add konkretnych ścieżek, pull --rebase --autostash, push
 - [ ] 13:44 (właściciel) BŁĄD z żywego testu UI (równoległa sesja — NIE ruszać reguly.py w tej sesji): „zamieszkały ul. Długa 15/3, 00-238 Warszawa” maskuje tylko „ul. Długa 15/3”, a „00-238 Warszawa” zostaje jawne — kod+miejscowość to quasi-identyfikator
-  - [ ] RED: testy test_reguly.py — przecinek/bez, „os.”/„al.”/„pl.”, miejscowości dwuczłonowe, brak FP na zwykłe liczby z myślnikiem („10-15 sztuk”)
-  - [ ] GREEN: niewidka/reguly.py — ADRES z ogonem kod+miejscowość i wariantem sam kod+miejscowość
-  - [ ] korpus tests/korpus/probki.jsonl: nowe próbki + oczekiwania istniejących (kod+miasto w ADRES)
-  - [ ] pomiar poziomu 1 + kalibracja R95 poziomu 1 (narzędzia istniejące); sekcja „Poprawka ADRES” w docs/WYNIK-K2d.md
-  - [ ] pytest całości (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff; commit (Co-Authored-By: GLM via claude-glm) konkretnych ścieżek, pull --rebase, push; bez Dockera, bez codex; NIE zmieniać niewidka/web/
+  - [x] RED: testy test_reguly.py — 7 nowych, padły na własnych przyczynach (brak ogona kod+miasto, brak gałęzi sam kod, brak „os.”); negatywne („10-15 sztuk” itd.) zielone od startu jako straż
+  - [x] GREEN: niewidka/reguly.py — ogon kod+miasto, gałąź sam kod+miasto, os./osiedle; fix z cyklu zielonego: lookahead blokuje zjedzenie „25" z kodu „25-422" przez nazwę ulicy/numer
+  - [x] korpus: 4 próbki przeliczone (homonim-059, adr-089/090/091) + 8 nowych = 190; test_korpus 5 passed
+  - [x] pomiar poziomu 1: ADRES 16/0/0 = 1.000/1.000 (progi K1 spełnione); R95 ADRES 0.2589→0.1707 w r95.json; sekcja „Poprawka ADRES” w docs/WYNIK-K2d.md + KRYTERIA.md §2 dopisany
+  - [x] pytest całości 352 passed/1 xfailed + ruff czysty (zmienione pliki; 10 błędów w cudzych docs/logo/ — nie ruszane); commit+push

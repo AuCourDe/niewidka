@@ -33,8 +33,14 @@ zakazana — rewizja kryteriów to nowy plik i nowy pomiar, nigdy dopasowanie pr
 
 - **OSOBA** — imię i nazwisko dokładnie jak w tekście; bez tytułów i form grzecznościowych
   („pan”, „mgr”).
-- **ADRES** — od wyróżnika (ul./ulica/al./aleja/pl.) do numeru z lokalem (np. „13/5”,
-  „15 m. 3”); bez kodu pocztowego i miejscowości.
+- **ADRES** — od wyróżnika (ul./ulica/al./aleja/pl./plac/os./osiedle) do numeru z lokalem
+  (np. „13/5”, „15 m. 3”); jeśli dalej stoi kod pocztowy NN-NNN z miejscowością (słowa
+  z wielkiej litery, także wieloczłonowe — „Zielona Góra”, „Bielsko-Biała”), kod+miejscowość
+  wchodzą do tej samej encji jako ciągła całość; sam „kod miejscowość” bez ulicy też jest
+  ADRES. (Dopisek 2026-10-28: zmiana konwencji poleceniem właściciela po błędzie z żywego
+  testu UI — kod+miejscowość to quasi-identyfikator, zostawiany jawnym przy zamaskowanej
+  ulicy = wyciek. Progi bez zmian; pomiar przeliczony po zmianie, sekcja „Poprawka ADRES”
+  w `docs/WYNIK-K2d.md`.)
 - **TELEFON** — cały zapis łącznie z prefiksem, jeśli występuje (+48, 0048).
 - **DATA** — sama data: „13.05.1982” albo „13 maja 1982”; bez „r.”.
 - **DOKUMENT** (dowód osobisty) — seria i numer łącznie ze spacją/myślnikiem, jeśli występuje

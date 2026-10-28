@@ -74,6 +74,16 @@ _MIESIĄCE = (
     "|września|października|listopada|grudnia"
 )
 
+# Miejscowość: słowa z wielkiej litery, także wieloczłonowe („Zielona Góra”,
+# „Bielsko-Biała”) — ogon adresu za kodem pocztowym (K2e).
+_MIEJSCOWOSC = r"[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:\s+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*)*"
+# Kod pocztowy NN-NNN; lookarouny odcinają kody zanurzone w dłuższych ciągach
+# (data ISO „1982-05-13”, telefon „123-456-789”).
+_KOD = r"(?<![\d-])\d{2}-\d{3}(?![\d-])"
+# Słowo nazwy ulicy nie może zacząć się na kodzie pocztowym („al. Pracy 12
+# 25-422 Kielce”: bez tego „25” zostaje zjedzone jako numer i kod ginie).
+_NIE_KOD = rf"(?!{_KOD})"
+
 REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.PESEL,
@@ -128,14 +138,24 @@ REGULY: tuple[Regula, ...] = (
         walidator=None,
         suma_kontrolna=False,
     ),
-    # Adres: heurystyka (LLD §3) — od wyróżnika do numeru z lokalem, bez kodu i miasta.
+    # Adres: heurystyka (LLD §3 + K2e) — ciągła całość: od wyróżnika do numeru
+    # z lokalem i, jeśli dalej stoi, kod pocztowy z miejscowością (słowa
+    # z wielkiej litery, także wieloczłonowe: „Zielona Góra”, „Bielsko-Biała”).
+    # Sam „kod miejscowość” bez ulicy też jest adresem. Kod+miejscowość to
+    # quasi-identyfikator — zostawienie go jawnego przy zamaskowanej ulicy
+    # to wyciek (błąd z żywego testu UI). Zwykłe liczby z myślnikiem
+    # („10-15 sztuk”) nie łapią się: kod wymaga trzech cyfr po myślniku
+    # i wielkiej litery miejscowości za sobą, a lookarouny odcinają kody
+    # zanurzone w dłuższych ciągach (data ISO, telefon).
     Regula(
         typ=TypEncji.ADRES,
         wzorzec=re.compile(
-            r"(?:ulica|aleja|ul\.|al\.|plac|pl\.)\s+"
+            r"(?:ulica|aleja|osiedle|ul\.|al\.|os\.|plac|pl\.)\s+"
             r"[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*"
-            r"(?:\s+[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*)*"
-            r"\s+\d+[A-Za-z]?(?:\s*(?:/\s*\d+|m\.\s*\d+))?"
+            rf"(?:\s+{_NIE_KOD}[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*)*"
+            rf"\s+{_NIE_KOD}\d+[A-Za-z]?(?:\s*(?:/\s*\d+|m\.\s*\d+))?"
+            rf"(?:\s*,?\s*{_KOD}(?:\s+{_MIEJSCOWOSC})?)?"
+            rf"|{_KOD}\s+{_MIEJSCOWOSC}"
         ),
         walidator=None,
         suma_kontrolna=False,

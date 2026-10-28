@@ -179,3 +179,51 @@ def test_data_iso_rrrr_mm_dd():
 
 def test_data_iso_nie_zagniezdrza_sie_w_innych_liczbach():
     assert _znalezione("Kod 12345-05-13-6789 pozycja.", TypEncji.DATA) == []
+
+
+# --- K2e: ADRES obejmuje kod pocztowy z miejscowością (błąd z żywego UI) ---
+
+def test_adres_ulica_z_kodem_i_miejscowoscia():
+    # Kod pocztowy z miejscowością to quasi-identyfikator — zostawienie go
+    # jawnego przy zamaskowanej ulicy to wyciek; ADRES to ciągła całość.
+    assert _znalezione(
+        "Zamieszkały ul. Długa 15/3, 00-238 Warszawa.", TypEncji.ADRES
+    ) == ["ul. Długa 15/3, 00-238 Warszawa"]
+
+
+def test_adres_kod_bez_przecinka():
+    assert _znalezione("Poczta: al. Pracy 12 25-422 Kielce.", TypEncji.ADRES) == [
+        "al. Pracy 12 25-422 Kielce"
+    ]
+
+
+def test_adres_sam_kod_z_miejscowoscia():
+    assert _znalezione("Adres korespondencyjny: 00-238 Warszawa.", TypEncji.ADRES) == [
+        "00-238 Warszawa"
+    ]
+
+
+def test_adres_miejscowosc_dwuczlonowa():
+    assert _znalezione("Filia: ul. Cieszyńska 12, 43-300 Bielsko-Biała.", TypEncji.ADRES) == [
+        "ul. Cieszyńska 12, 43-300 Bielsko-Biała"
+    ]
+    assert _znalezione("Magazyn: 65-001 Zielona Góra.", TypEncji.ADRES) == [
+        "65-001 Zielona Góra"
+    ]
+
+
+def test_adres_osiedle():
+    assert _znalezione("Mieszka na os. Centrum 4/11, 65-001 Zielona Góra.", TypEncji.ADRES) == [
+        "os. Centrum 4/11, 65-001 Zielona Góra"
+    ]
+
+
+def test_zwykle_liczby_z_lacznikiem_nie_sa_adresem():
+    assert _znalezione("Dostarczono 10-15 sztuk do klienta.", TypEncji.ADRES) == []
+    assert _znalezione("Cykl składa się z 12-345 kroków.", TypEncji.ADRES) == []
+    assert _znalezione("Tel.: 123-456-789.", TypEncji.ADRES) == []
+
+
+def test_adres_kod_nie_pochlania_dalej_bez_miejscowosci():
+    # Kod bez wielkiej litery za nim (tu: bez miejscowości) — bez ogona.
+    assert _znalezione("Paczka z kodem 12-345 w dzienniku.", TypEncji.ADRES) == []
