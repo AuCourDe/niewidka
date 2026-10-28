@@ -105,7 +105,7 @@
   - [ ] Zrzuty K5 pokazać właścicielowi (kopia do C na pulpicie) do oceny tak/nie
   - [ ] K6 Windows przed Linux/Mac/Android
 - [~] 12:55 (właściciel) „zrzut dobre”; logo Niewidki jako znikająca czapka (kontur czapki na napisie, przez kontur widać napis, albo z liter słowa); teksty GUI poprawia ARGON (bardziej ludzkie, przystępne, BEZ PÓŁPAUZ – zabronione); sekcja „jak to działa”: prosta dla nietechnicznych + szczegóły techniczne (poziomy 2/3, CPU/GPU, metody wykrywania/zakrywania) + PRZEDE WSZYSTKIM lista wykrywanych danych + adnotacja, że model może nie wykryć wszystkiego/pomylić się/zamaskować nie-dane; „narzędzie wspierające”. Przyspieszyć: agy3, agy4, claude-glm, 800 zapytań OpenRouter free, Codex 4 razy.
-  - [~] Logo: 4 warianty do wyboru (Desktop/C „Niewidka - logo do wyboru A B C D.png”), czeka na wybór właściciela
+  - [~] Logo: właściciel wybrał **B** (14:00, sygnet czapki + napis) – wpięcie w nagłówek, favicon i ikonę .ico w K5b
   - [x] Teksty GUI od Argona (model „4 Argon”; najpierw omyłkowo Gemini 3.1 Pro – 2 odmowy) -> `docs/teksty/argon-2026-10-28.md`; wdrożenie K5b (claude-glm, po K4b, /tmp/cc-glm-k5b.md)
   - [~] Sekcja „Jak to działa” – treść od Argona gotowa, wdrożenie w K5b
   - [x] Codex/astra #1 (1/4): 15 znalezisk odtworzonych -> `docs/konsultacje/06-przeglad-codex-astra-1.md`; poprawki K4b (claude-glm 9c54, /tmp/cc-glm-k4b.md)
