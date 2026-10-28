@@ -239,6 +239,17 @@ class AdapterDocx:
         czesci["word/document.xml"] = etree.tostring(
             zasoby["drzewo"], xml_declaration=True, encoding="UTF-8", standalone=True
         )
+        if "word/settings.xml" in czesci:
+            czesci["word/settings.xml"] = _wyczysc_settings(czesci["word/settings.xml"])
+            plik_rels = "word/_rels/settings.xml.rels"
+            if plik_rels in czesci:
+                przefiltrowane = _przefiltruj_settings_rels(
+                    czesci["word/settings.xml"], czesci[plik_rels]
+                )
+                if przefiltrowane is None:  # bez relacji plik relacji nie jest potrzebny
+                    czesci.pop(plik_rels)
+                else:
+                    czesci[plik_rels] = przefiltrowane
         czesci["docProps/core.xml"] = _wyczysc_core(czesci["docProps/core.xml"])
         do_usuniecia = [n for n in czesci if n != "word/document.xml" and _usuwana(n)]
         do_usuniecia += [n for n in czesci if n == "word/_rels/document.xml.rels"]
@@ -331,6 +342,35 @@ def _przefiltruj_content_types(
             nazwa.lower().endswith(f".{rozszerzenie}") for nazwa in pozostale
         ):
             korzen.remove(default)
+    return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _wyczysc_settings(settings_xml: bytes) -> bytes:
+    """Gemini pkt 8: ślad szablonu, ochrony i sesji edycji znika z settings.xml."""
+    korzen = etree.fromstring(settings_xml, _parser())
+    for nazwa in ("attachedTemplate", "documentProtection", "writeProtection", "mailMerge", "rsids"):
+        for element in list(korzen.iter(_q(nazwa))):
+            element.getparent().remove(element)
+    for element in korzen.iter():
+        for atrybut in [a for a in element.attrib if a.startswith(f"{{{W}}}rsid")]:
+            del element.attrib[atrybut]
+    return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _przefiltruj_settings_rels(settings_xml: bytes, rels_xml: bytes) -> bytes | None:
+    """Relacje, na które czyszczony settings już nie wskazuje (np. szablon), znikają."""
+    uzywane = {
+        wartosc
+        for element in etree.fromstring(settings_xml, _parser()).iter()
+        for klucz, wartosc in element.attrib.items()
+        if klucz == f"{{{R}}}id"
+    }
+    korzen = etree.fromstring(rels_xml, _parser())
+    for relacja in list(korzen):
+        if relacja.get("Id") not in uzywane:
+            korzen.remove(relacja)
+    if len(korzen) == 0:
+        return None
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
