@@ -152,17 +152,18 @@ def rozwiaz_port(env: MutableMapping[str, str] | None = None) -> int:
 
 
 def _ukryj_strumienie_bez_konsoli(env: MutableMapping[str, str] | None = None) -> None:
-    """Pakiet --windowed: stdout/stderr to None, więc pierwsze logi uvicorna
-    wywaliłyby proces. Strumienie lecą do devnull (logi Niewidki i tak nie mają
-    treści dokumentów, LLD §12); NIEWIDKA_LOG_PLIK kieruje je do pliku
-    (diagnostyka u IT, bez konsoli)."""
+    """Pakiet --windowed: stdout/stderr to None albo nieme atrapy PyInstallera,
+    więc pierwsze logi uvicorna znikają po cichu. W zamrożonej aplikacji oba
+    strumienie idą zawsze do devnull (logi Niewidki nie mają treści dokumentów,
+    LLD §12); NIEWIDKA_LOG_PLIK kieruje je do pliku (diagnostyka u IT)."""
+    if not getattr(sys, "frozen", False):
+        return  # rozwój z konsolą: strumienie rzeczywiste, nic nie ruszamy
     env = os.environ if env is None else env
     cel = env.get("NIEWIDKA_LOG_PLIK") or os.devnull
-    if sys.stdout is None:
-        # buffering=1: tracebacky wątku serwera muszą do pliku od razu, nie w buforze
-        sys.stdout = open(cel, "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — na czas życia procesu
-    if sys.stderr is None:
-        sys.stderr = open(cel, "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — jw.
+    # buffering=1: tracebacky wątku serwera muszą do pliku od razu, nie w buforze
+    uchwyt = open(cel, "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — na czas życia procesu
+    sys.stdout = uchwyt
+    sys.stderr = uchwyt
 
 
 def ustaw_katalog_roboczy() -> None:

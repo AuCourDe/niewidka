@@ -210,9 +210,8 @@ def test_awaria_okna_webview_ma_fallback_systemowy(srodowisko, keyring_pamieciow
 
 
 def test_strumienie_do_pliku_z_logiem(monkeypatch, tmp_path):
-    """NIEWIDKA_LOG_PLIK kieruje stdout/stderr (None przy --windowed) do pliku."""
-    monkeypatch.setattr(sys, "stdout", None, raising=False)
-    monkeypatch.setattr(sys, "stderr", None, raising=False)
+    """W zamrożonej aplikacji strumienie idą do NIEWIDKA_LOG_PLIK."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
     cel = tmp_path / "niewidka.log"
     okno._ukryj_strumienie_bez_konsoli({"NIEWIDKA_LOG_PLIK": str(cel)})
     print("probna linia", file=sys.stderr)
@@ -220,14 +219,28 @@ def test_strumienie_do_pliku_z_logiem(monkeypatch, tmp_path):
     assert "probna linia" in cel.read_text(encoding="utf-8")
     # Windows: uchwyt otwarty na czas życia procesu blokuje usuwanie pliku
     sys.stdout.close()
-    sys.stderr.close()
 
 
-def test_strumienie_domyslnie_devnull(monkeypatch):
-    monkeypatch.setattr(sys, "stdout", None, raising=False)
-    monkeypatch.setattr(sys, "stderr", None, raising=False)
+def test_strumienie_w_zamrozonym_zastepuja_nieme_atrapy(monkeypatch, tmp_path):
+    """PyInstaller --windowed daje stdout/stderr jako nieme atrapy (nie None):
+    przekierowanie musi zadziałać też wtedy, inaczej logi znikają po cichu."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "stdout", object(), raising=False)
+    monkeypatch.setattr(sys, "stderr", object(), raising=False)
+    cel = tmp_path / "niewidka.log"
+    okno._ukryj_strumienie_bez_konsoli({"NIEWIDKA_LOG_PLIK": str(cel)})
+    print("atrapy nadpisane", file=sys.stderr)
+    sys.stderr.flush()
+    assert "atrapy nadpisane" in cel.read_text(encoding="utf-8")
+    sys.stdout.close()
+
+
+def test_strumienie_w_rozwoju_nietkniete(monkeypatch):
+    """Bez zamrożenia (rozwój z konsolą) strumienie rzeczywiste zostają."""
+    stary = sys.stderr
+    monkeypatch.delattr(sys, "frozen", raising=False)
     okno._ukryj_strumienie_bez_konsoli({})
-    assert sys.stderr is not None  # otwarty strumień zamiast None (logi uvicorna nie zabiją)
+    assert sys.stderr is stary
 
 
 def test_uruchom_ustawia_katalog_roboczy_na_aplikacje(srodowisko, keyring_pamieciowy, monkeypatch):
@@ -257,10 +270,11 @@ def test_awaria_watku_serwera_zostaje_w_logu(monkeypatch, tmp_path):
     serwer = okno.Serwer.__new__(okno.Serwer)
     serwer._server = PadliwySerwer()
     serwer._watek = None
-    monkeypatch.setattr(sys, "stderr", open(tmp_path / "log.txt", "w", encoding="utf-8", buffering=1))
+    uchwyt = open(tmp_path / "log.txt", "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — zamykany w teście
+    monkeypatch.setattr(sys, "stderr", uchwyt)
     serwer.start()
     serwer._watek.join(timeout=5)
-    sys.stderr.close()
+    uchwyt.close()
     zawartosc = (tmp_path / "log.txt").read_text(encoding="utf-8")
     assert "wątek padł" in zawartosc
     assert "Traceback" in zawartosc
