@@ -1,0 +1,89 @@
+"""Adaptery formatów (LLD §9): rejestr rozszerzenie → adapter, wspólne cięcia runów.
+
+Allowlista struktury per format (przegląd Astry pkt 5): części spoza allowlisty
+adaptera blokują eksport (`ElementNieobslugiwany`) — nigdy nie przechodzą cicho.
+"""
+
+from __future__ import annotations
+
+from itertools import pairwise
+from pathlib import Path
+from typing import Protocol
+
+from niewidka.model import Dokument, Segment
+
+
+class ElementNieobslugiwany(Exception):
+    """Eksport blokowany z listą elementów (LLD §15: makra, części spoza allowlisty)."""
+
+    def __init__(self, elementy: list[str]):
+        self.elementy = elementy
+        super().__init__(", ".join(elementy))
+
+
+class AdapterFormatu(Protocol):
+    rozszerzenia: frozenset[str]
+
+    def wczytaj(self, dane: bytes) -> Dokument: ...
+    def zapisz(self, dok: Dokument) -> bytes: ...  # czyści metadane, dodaje dopisek
+    def elementy_nieobslugiwane(self, dok: Dokument) -> list[str]: ...
+
+
+def podziel_segment(
+    segment: Segment, zamiany: list[tuple[int, int, str]]
+) -> list[tuple[str, int]]:
+    """Fragmenty (tekst, indeks runu źródłowego) po wstawieniu znaczników.
+
+    `zamiany` to rozłączne (start, koniec, znacznik) w znakach segmentu; fragment
+    znacznika dziedziczy styl LEWEGO fragmentu, części wytnięte z runu — styl swojego
+    runu (LLD §9). Cięcie następuje w punktach granicznych zamian.
+    """
+    posortowane = sorted(zamiany)
+    for (a_start, a_koniec, _), (b_start, b_koniec, _) in pairwise(posortowane):
+        if b_start < a_koniec:
+            raise ValueError(f"zamiany nakładają się: ({a_start},{a_koniec}) i ({b_start},{b_koniec})")
+
+    granice = {0, len(segment.tekst), *segment.starts}
+    for start, koniec, _ in posortowane:
+        granice.update((start, koniec))
+    punkty = sorted(granice)
+
+    def run_na_pozycji(pozycja: int) -> int:
+        for i in range(len(segment.starts) - 1, -1, -1):
+            if pozycja >= segment.starts[i]:
+                return i
+        return 0
+
+    fragmenty: list[tuple[str, int]] = []
+    znaczniki = {start: (start, koniec, tekst) for start, koniec, tekst in posortowane}
+    for poczatek, koniec in pairwise(punkty):
+        if poczatek in znaczniki:
+            _, _, tekst = znaczniki[poczatek]
+            fragmenty.append((tekst, run_na_pozycji(poczatek)))
+        else:
+            idx = run_na_pozycji(poczatek)
+            fragmenty.append((segment.tekst[poczatek:koniec], idx))
+    return fragmenty
+
+
+def nazwa_wyniku(oryginalna: str, identyfikator: str) -> str:
+    """ZANONIMIZOWANY_<krótki-id>.<ext> (LLD §17 / Astra pkt 5)."""
+    rozszerzenie = Path(oryginalna).suffix
+    return f"ZANONIMIZOWANY_{identyfikator}{rozszerzenie}"
+
+
+_REJESTR: dict[str, type] = {}
+
+
+def adapter_dla(nazwa_pliku: str):
+    """Adapter wg rozszerzenia pliku; nieznane = `ElementNieobslugiwany` (415/422)."""
+    rozszerzenie = Path(nazwa_pliku).suffix.lstrip(".").lower()
+    if rozszerzenie == "txt":
+        from niewidka.formaty.tekst import AdapterTekst
+
+        return AdapterTekst()
+    if rozszerzenie == "docx":
+        from niewidka.formaty.docx_ import AdapterDocx
+
+        return AdapterDocx()
+    raise ElementNieobslugiwany([f"nieznany format: {nazwa_pliku!r}"])
