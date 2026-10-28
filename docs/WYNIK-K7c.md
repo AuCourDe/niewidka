@@ -105,3 +105,14 @@ invalidacja cache po instalacji — login znika bez żadnej ręcznej flagi.
   zostawia login (OSOBA 1, PESEL 1). Bieg 1 to pierwsze uruchomienie świeżo zbudowanego
   EXE; nie powtórzył się w 3 kolejnych biegach ani z kodu źródłowego (Windows i Linux).
   Hipoteza (niepotwierdzona): skanowanie Defendera przy pierwszym starcie. Do obserwacji.
+
+### Zakleszczenie EXE przy pierwszym uruchomieniu (wyjaśnione i naprawione)
+
+Bieg 1 z tabeli powtórzył się przy pierwszym starcie świeżo rozpakowanej kopii
+(pobieranie stanęło na 116 MB, proces z zerowym zużyciem CPU, więc to nie skan
+Defendera). Przyczyna: `Most` (js_api pywebview) miał publiczne `okno`; pywebview
+przegląda publiczne atrybuty js_api z wątku spoza UI i schodził do obiektów WebView2
+(.NET), co zakleszczało cały proces (log: „CoreWebView2 can only be accessed from the
+UI thread”). Atrybuty prywatne + test interfejsu `Most` (RED na starym kodzie),
+`156c2d4`. Po przebudowie (483 passed / 32 skipped) świeża kopia: start 2,5 s,
+pakiety 2,5 s i 3,2 s, poziom 3: LOGIN 1, SWIFT 1, OSOBA 1, PESEL 1.
