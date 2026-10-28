@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
 from niewidka import __version__
+from niewidka.archiwum import BladArchiwum
 from niewidka.formaty import (
     ElementNieobslugiwany,
     NieznanyFormat,
@@ -254,6 +255,11 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     @app.exception_handler(ArchiwumZaDuze)
     async def _archiwum_za_duze(request: Request, blad: ArchiwumZaDuze):
         return JSONResponse({"blad": str(blad)}, status_code=413)
+
+    @app.exception_handler(BladArchiwum)
+    async def _blad_archiwum(request: Request, blad: BladArchiwum):
+        # K4b pkt 10: kłamliwe nagłówki/obca kompresja = odmowa (fail-closed, 422)
+        return JSONResponse({"blad": "archiwum nieprawidłowe lub niebezpieczne"}, status_code=422)
 
     @app.exception_handler(BrakKlucza)
     async def _brak_klucza(request: Request, blad: BrakKlucza):

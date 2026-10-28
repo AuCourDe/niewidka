@@ -17,6 +17,7 @@ from typing import Any
 
 from lxml import etree
 
+from niewidka.archiwum import wczytaj_czesci
 from niewidka.formaty import ElementNieobslugiwany, podziel_segment
 from niewidka.model import Dokument, RunInfo, Segment
 from niewidka.znaczniki import DOPISEK
@@ -107,15 +108,21 @@ class AdapterDocx:
 
     # --- wczytanie ----------------------------------------------------------
 
-    def wczytaj(self, dane: bytes, polityka_obrazow: str | None = None) -> Dokument:
+    def wczytaj(
+        self,
+        dane: bytes,
+        polityka_obrazow: str | None = None,
+        max_rozpakowane: int | None = None,
+    ) -> Dokument:
         """`polityka_obrazow` (K4b pkt 2): „usun" usuwa obrazy z treści (brak OCR),
-        „blokuj" odrzuca dokument z obrazami, „zostaw" i None zostawiają je."""
-        with zipfile.ZipFile(io.BytesIO(dane)) as paczka:
-            nazwy = paczka.namelist()
-            problemy = [n for n in nazwy if not _dozwolona(n)]
-            if problemy:
-                raise ElementNieobslugiwany(problemy)
-            czesci = {n: paczka.read(n) for n in nazwy}
+        „blokuj" odrzuca dokument z obrazami, „zostaw" i None zostawiają je.
+        `max_rozpakowane` = budżet dekompresji (K4b pkt 10), egzekwowany przy odczycie."""
+        czesci_lista = wczytaj_czesci(dane, limit_bajtow=max_rozpakowane)
+        czesci = dict(czesci_lista)
+        nazwy = [n for n, _ in czesci_lista]
+        problemy = [n for n in nazwy if not _dozwolona(n)]
+        if problemy:
+            raise ElementNieobslugiwany(problemy)
 
         obce_binarnie = [n for n in nazwy if _media(n) and _rozszerzenie(n) not in OBRAZY_ROZSZERZENIA]
         if obce_binarnie:

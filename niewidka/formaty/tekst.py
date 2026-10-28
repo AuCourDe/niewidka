@@ -10,8 +10,10 @@ from niewidka.znaczniki import DOPISEK
 class AdapterTekst:
     rozszerzenia = frozenset({"txt"})
 
-    def wczytaj(self, dane: bytes, polityka_obrazow: str | None = None) -> Dokument:
-        tekst = dane.decode("utf-8-sig")  # polityka_obrazow dotyczy tylko DOCX
+    def wczytaj(
+        self, dane: bytes, polityka_obrazow: str | None = None, max_rozpakowane: int | None = None
+    ) -> Dokument:
+        tekst = dane.decode("utf-8-sig")  # polityka_obrazow i limit dotyczą tylko archiwów
         return Dokument("txt", [Segment(tekst, [RunInfo(tekst, element=None)], [0])])
 
     def wstaw_znaczniki(self, segment: Segment, zamiany: list[tuple[int, int, str]]) -> None:

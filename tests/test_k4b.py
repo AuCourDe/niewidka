@@ -443,8 +443,82 @@ async def test_pkt9_chunked_ponad_limit_413_bez_spoolowania(konfig, monkeypatch)
     assert not rollovery, "treść dotarła do parsera — rollover na dysk się wydarzył"
 
 
+# --- pkt 10: ZIP — odczyt porcjami z budżetem, weryfikacja długości, metody -----
+
+import struct
+
+from niewidka.archiwum import ArchiwumZaDuze, BladArchiwum, wczytaj_czesci
+
+
+def test_pkt10_bomba_ucziwy_naglowek_budzet():
+    """Uczciwy nagłówek, wielka treść: budżet dekompresji tnie w trakcie, nie po fakcie."""
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        paczka.writestr("word/pompa.xml", "a" * (2 * _MB))
+    with pytest.raises(ArchiwumZaDuze):
+        wczytaj_czesci(bufor.getvalue(), limit_bajtow=_MB)
+
+
+def _kłamliwy_zip(roznica: int) -> bytes:
+    """ZIP z wpisem, którego nagłówki (lokalny i centralny) kłamią o rozmiarze
+    rozpakowanym; rozmiar spakowany i CRC zostają zgodne z prefiksem strumienia."""
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        paczka.writestr("word/pompa.xml", "a" * 1000)
+    bajty = bytearray(bufor.getvalue())
+    prawdziwy = 1000 + roznica
+    struct.pack_into("<I", bajty, bajty.find(b"PK\x03\x04") + 18, 1000)  # spakowany (lokalny)
+    struct.pack_into("<I", bajty, bajty.find(b"PK\x03\x04") + 22, prawdziwy)  # rozpakowany
+    struct.pack_into("<I", bajty, bajty.find(b"PK\x01\x02") + 20, 1000)  # spakowany (centralny)
+    struct.pack_into("<I", bajty, bajty.find(b"PK\x01\x02") + 24, prawdziwy)  # rozpakowany
+    return bytes(bajty)
+
+
+def test_pkt10_klamliwy_naglowek_wiekszy_niz_strumien():
+    """Nagłówek deklaruje więcej, niż strumień naprawdę ma → odmowa, nie cisza."""
+    with pytest.raises(BladArchiwum):
+        wczytaj_czesci(_kłamliwy_zip(roznica=500))
+
+
+def test_pkt10_klamliwy_naglowek_mniejszy_niz_strumien():
+    """Nagłówek deklaruje MNIEJ, niż strumień ma (wektor audytu): po deklaracji
+    strumień wciąż ma dane → odmowa zamiast cichego ucięcia treści."""
+    with pytest.raises(BladArchiwum):
+        wczytaj_czesci(_kłamliwy_zip(roznica=-500))
+
+
+def test_pkt10_tylko_stored_i_deflate():
+    """Inne metody kompresji (bzip2/lzma) = odmowa odczytu."""
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_BZIP2) as paczka:
+        paczka.writestr("word/pompa.xml", "a" * 1000)
+    with pytest.raises(BladArchiwum):
+        wczytaj_czesci(bufor.getvalue())
+
+
 @pytest.mark.anyio
-async def test_pkt9_przywroc_ma_limit_przed_buforowaniem(konfig):
+async def test_pkt10_bomba_przez_api_413(konfig):
+    """Integracja: DOCX z bombą ponad budżet = 413 fail-closed (zanim adapter wczyta)."""
+    from dataclasses import replace as podmien_konfig
+
+    konfig_bomba = podmien_konfig(konfig, max_rozpakowane_mb=1)
+    app = create_app(konfig_bomba, detektor=RegulyDetektor())
+    zrodlo = zipfile.ZipFile(io.BytesIO(_wzorzec_docx()))
+    czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
+    zrodlo.close()
+    czesci["word/pompa.xml"] = "a" * (2 * _MB)
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        for nazwa, zawartosc in czesci.items():
+            paczka.writestr(nazwa, zawartosc)
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("umowa.docx", bufor.getvalue())},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 413
     """K4b pkt 9: /api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
 
     async def strumien():

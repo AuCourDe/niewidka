@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 
+from niewidka.archiwum import ArchiwumZaDuze  # re-eksport: API łapie po tej nazwie
 from niewidka.detektory import BladDetektora, RegulyDetektor, zbuduj_poziom
 from niewidka.formaty import NieznanyFormat, adapter_formatu, rozszerzenia_wspierane
 from niewidka.jakosc import r95_z_kalibracji
@@ -32,10 +33,6 @@ from niewidka.mapa import (
 from niewidka.model import Encja, TypEncji
 from niewidka.osoby import pogrupuj
 from niewidka.znaczniki import dopisek, nadaj_oznaczenia, zakoduj_identyfikator, znacznik_encji
-
-
-class ArchiwumZaDuze(Exception):
-    """Suma rozpakowanych strumieni archiwum ponad limit (zip bomb, LLD §16 → 413)."""
 
 
 @dataclass
@@ -123,7 +120,9 @@ def ukryj(
         detektor = zbuduj_detektor(poziom, konfig)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
-    dok = adapter.wczytaj(dane, polityka_obrazow=polityka_obrazow)
+    dok = adapter.wczytaj(
+        dane, polityka_obrazow=polityka_obrazow, max_rozpakowane=max_rozpakowane_bajtow
+    )
 
     segmenty_encji = [
         [Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec]) for z in detektor.znajdz(segment.tekst)]
@@ -165,7 +164,9 @@ def ukryj(
     oryginaly = {wyst.oryginal for wyst in wystapienia} | {
         forma for wpis in wpisy.values() for forma in wpis.formy.values()
     }
-    ostrzezenia = kontroluj(wynik, f"wynik.{format}", detektor, oryginaly=sorted(oryginaly))
+    ostrzezenia = kontroluj(
+        wynik, f"wynik.{format}", detektor, oryginaly=sorted(oryginaly), max_rozpakowane=max_rozpakowane_bajtow
+    )
     uwagi: list[str] = []
     obrazy = (dok.zasoby or {}).get("obrazy", {})
     if obrazy.get("usuniete"):
@@ -199,7 +200,7 @@ def przywroc(
     _sprawdz_format(format)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
-    dok = adapter.wczytaj(dane)
+    dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane_bajtow)
     # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem — identyfikator zapisany
     # w dopisku wyniku (jako litery, bez cyfr) musi równać się identyfikatorowi mapy
     if not any(

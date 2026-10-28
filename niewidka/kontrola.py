@@ -21,6 +21,7 @@ from itertools import chain
 
 from lxml import etree
 
+from niewidka.archiwum import wczytaj_czesci
 from niewidka.detektory import Detektor
 from niewidka.formaty import adapter_dla
 from niewidka.model import TypEncji
@@ -44,9 +45,10 @@ def kontroluj(
     nazwa_pliku: str,
     detektor: Detektor,
     oryginaly: list[str] | tuple[str, ...] = (),
+    max_rozpakowane: int | None = None,
 ) -> list[Ostrzezenie]:
     adapter = adapter_dla(nazwa_pliku)
-    dok = adapter.wczytaj(dane)
+    dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane)
     uwagi = []
     for numer, segment in enumerate(dok.segmenty):
         for zakres in detektor.znajdz(segment.tekst):
@@ -57,19 +59,19 @@ def kontroluj(
                     numer,
                 )
             )
-    uwagi.extend(_skan_surowy(dane, detektor, oryginaly))
+    uwagi.extend(_skan_surowy(dane, detektor, oryginaly, max_rozpakowane))
     return uwagi
 
 
 def _skan_surowy(
-    dane: bytes, detektor: Detektor, oryginaly
+    dane: bytes, detektor: Detektor, oryginaly, max_rozpakowane: int | None = None
 ) -> list[Ostrzezenie]:
     """Skan każdej części niezależnie od adaptera: XML wartość po wartości,
     reszta bajt po bajcie (tylko oryginały z mapy). Dedup per (typ, fragment,
     część) — to samo znalezisko w dwóch częściach to dwa wycieki. Typ DATA
     pomijany: reguła daty krzyczałaby na metadane techniczne (rewizje, stała
     core.xml) — prawdziwe daty wrażliwe łapie warstwa oryginałów z mapy."""
-    czesci = _czesci(dane)
+    czesci = _czesci(dane, max_rozpakowane)
     znaki_oryginalow = {o: o.encode("utf-8") for o in oryginaly if o}
     uwagi: list[Ostrzezenie] = []
     for nazwa, zawartosc in czesci:
@@ -114,10 +116,10 @@ def _skan_surowy(
     return uwagi
 
 
-def _czesci(dane: bytes) -> list[tuple[str, bytes]]:
+def _czesci(dane: bytes, max_rozpakowane: int | None = None) -> list[tuple[str, bytes]]:
     if zipfile.is_zipfile(io.BytesIO(dane)):
-        with zipfile.ZipFile(io.BytesIO(dane)) as paczka:
-            return [(n, paczka.read(n)) for n in paczka.namelist()]
+        # K4b pkt 10: odczyt porcjami pod budżetem (nagłówki ZIP bywają kłamliwe)
+        return wczytaj_czesci(dane, limit_bajtow=max_rozpakowane)
     return [("plik", dane)]
 
 
