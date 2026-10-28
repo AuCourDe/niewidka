@@ -183,8 +183,26 @@ class OnnxDetektor:
                 for i, (_, offsets) in enumerate(ids)
             ]
             for zn_start, zn_koniec, typ, pewnosc in zdekoduj_bio(etykiety_tokenow, self.etykiety):
+                ((zn_start, zn_koniec),) = rozciagnij_do_slow([(zn_start, zn_koniec)], tekst)
                 wynik.append(Zakres(zn_start, zn_koniec, typ, pewnosc, self.nazwa))
         return wynik
+
+
+def rozciagnij_do_slow(zakresy: list[tuple[int, int]], tekst: str) -> list[tuple[int, int]]:
+    """Zakresy modelu rozciągnięte do granic słowa (artefakty subword).
+
+    Tokenizery subword tną słowa ('Kowal' -> 'Ko'+'wal'); model potrafi oznaczyć
+    tylko część albo dać B- na obu subtokenach. Zakres nie zmienia się, gdy już
+    jest wyrównany do granic słowa. Duplikaty/pokrycia zdejmuje potem scalanie.
+    """
+    wynik = []
+    for start, koniec in zakresy:
+        while start > 0 and tekst[start - 1].isalnum():
+            start -= 1
+        while koniec < len(tekst) and tekst[koniec].isalnum():
+            koniec += 1
+        wynik.append((start, koniec))
+    return wynik
 
 
 def _softmax(np, logits):  # type: ignore[no-untyped-def]

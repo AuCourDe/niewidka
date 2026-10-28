@@ -378,3 +378,38 @@ class TestDetektorKompozyt:
         from niewidka.model import Zakres  # noqa: F401 — spójność sekcji
 
         assert DetektorKompozyt("poziom1", []).znajdz("cokolwiek") == []
+
+
+# --- Krok F: rozciągnięcie zakresów modelu do granic słowa (artefakty subword) ---
+
+from niewidka.detektory import rozciagnij_do_slow
+
+
+class TestRozciagnijDoSlow:
+    def test_ucieta_koncowa_subtokenu(self):
+        # 'Róża' tokenizowane 'Róż'+'a' — model oznaczył tylko pierwszy.
+        assert rozciagnij_do_slow([(0, 3)], "Róża kupiła róże.") == [(0, 4)]
+
+    def test_ucieta_srodkowa(self):
+        # 'Nowak' w środku: 'Now'+'ak' — nie rozciąga się na sąsiednie słowa.
+        tekst = "Nowak to nazwisko; Nowak podpisuje."
+        assert rozciagnij_do_slow([(19, 22)], tekst) == [(19, 24)]
+
+    def test_dwa_b_w_jednym_slowie_daja_identyczne(self):
+        # 'Kowal' = 'Ko'+'wal', model dał B na obu subtokenach.
+        assert rozciagnij_do_slow([(0, 2), (2, 5)], "Kowal to zawód.") == [(0, 5), (0, 5)]
+
+    def test_pelen_zakres_slowny_niezmieniony(self):
+        assert rozciagnij_do_slow([(0, 12)], "Jan Kowalski poszedł.") == [(0, 12)]
+
+    def test_nie_rosnie_po_spacji_i_przecinku(self):
+        assert rozciagnij_do_slow([(0, 3)], "Jan, Kowalski i in.") == [(0, 3)]
+
+    def test_nie_przekracza_tekstu(self):
+        assert rozciagnij_do_slow([(0, 4)], "Jan ") == [(0, 4)]
+
+    def test_diacritiki_i_cyfry(self):
+        assert rozciagnij_do_slow([(0, 2)], "Żółć3.") == [(0, 5)]
+
+    def test_puste(self):
+        assert rozciagnij_do_slow([], "cokolwiek") == []
