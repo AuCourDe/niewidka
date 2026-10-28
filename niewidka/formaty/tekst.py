@@ -17,16 +17,17 @@ class AdapterTekst:
     def wstaw_znaczniki(self, segment: Segment, zamiany: list[tuple[int, int, str]]) -> None:
         wspolne_wstawianie(segment, zamiany, kopiuj_run=lambda element, tekst: None)
 
-    def zapisz(self, dok: Dokument, dopisek: bool = True) -> bytes:
+    def zapisz(self, dok: Dokument, dopisek: bool | str = True) -> bytes:
         tresc = "\n".join("".join(run.tekst for run in segment.runs) for segment in dok.segmenty)
         if not dopisek:
-            # dokument przywrócony: dopisek wyniku znika (odtwarzamy dane zastąpione)
-            if tresc == DOPISEK:
-                tresc = ""
-            elif tresc.startswith(DOPISEK + "\n"):
-                tresc = tresc[len(DOPISEK) + 1 :]
+            # dokument przywrócony: dopisek wyniku znika (odtwarzamy dane zastąpione);
+            # dopisek może mieć doklejony identyfikator mapy (K4b pkt 6)
+            linie = tresc.split("\n")
+            if linie and linie[0].startswith(DOPISEK):
+                tresc = "\n".join(linie[1:])
             return tresc.encode()
-        return f"{DOPISEK}\n{tresc}".encode()
+        tekst_dopisku = DOPISEK if dopisek is True else dopisek
+        return f"{tekst_dopisku}\n{tresc}".encode()
 
     def elementy_nieobslugiwane(self, dok: Dokument) -> list[str]:
         return []

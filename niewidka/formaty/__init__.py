@@ -34,7 +34,7 @@ class AdapterFormatu(Protocol):
     rozszerzenia: frozenset[str]
 
     def wczytaj(self, dane: bytes, polityka_obrazow: str | None = None) -> Dokument: ...
-    def zapisz(self, dok: Dokument, dopisek: bool = True) -> bytes: ...  # czyści metadane, dodaje dopisek
+    def zapisz(self, dok: Dokument, dopisek: bool | str = True) -> bytes: ...  # czyści metadane, dopisek (str = tekst z id mapy)
     def elementy_nieobslugiwane(self, dok: Dokument) -> list[str]: ...
 
 

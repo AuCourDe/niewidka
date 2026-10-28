@@ -305,7 +305,7 @@ class AdapterDocx:
 
     # --- zapis --------------------------------------------------------------
 
-    def zapisz(self, dok: Dokument, dopisek: bool = True) -> bytes:
+    def zapisz(self, dok: Dokument, dopisek: bool | str = True) -> bytes:
         zasoby = dok.zasoby
         czesci: dict[str, bytes] = dict(zasoby["czesci"])
 
@@ -314,12 +314,13 @@ class AdapterDocx:
             baner = etree.SubElement(body, _q("p"))
             run_dopisku = etree.SubElement(baner, _q("r"))
             t = etree.SubElement(run_dopisku, _q("t"))
-            t.text = DOPISEK
+            t.text = DOPISEK if dopisek is True else dopisek  # z id mapy (K4b pkt 6)
             body.insert(0, baner)  # dopisek na POCZĄTKU dokumentu
         else:
             # dokument przywrócony: akapit dopisku z wyniku znika
+            # (dopisek może mieć doklejony identyfikator mapy, K4b pkt 6)
             for segment in list(dok.segmenty):
-                if segment.tekst == DOPISEK and segment.runs:
+                if segment.tekst.startswith(DOPISEK) and segment.runs:
                     akapit = segment.runs[0].element.getparent()
                     if akapit is not None and akapit.getparent() is not None:
                         akapit.getparent().remove(akapit)

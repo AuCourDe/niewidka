@@ -18,6 +18,13 @@ DOPISEK = (
 )
 
 
+def dopisek(identyfikator: str) -> str:
+    """Dopisek wyniku z identyfikatorem mapy (K4b pkt 6): wiąże mapę z KONKRETNYM
+    dokumentem — przywracanie sprawdza, że identyfikator mapy równa się temu
+    zapisanemu w treści; podsunięcie mapy innego zadania kończy się 422."""
+    return f"{DOPISEK} Identyfikator mapy: {identyfikator}."
+
+
 def nadaj_oznaczenia(encje: list[Encja]) -> None:
     """Ustawia encja.oznaczenie i encja.wariant; encje muszą być w kolejności dokumentu.
 

@@ -280,3 +280,43 @@ def test_pkt5_media_przemianowane_a_relacje_zaktualizowane():
     assert media[0].rpartition("/")[2] in rels, "relacja nie wskazuje przemianowanego obrazu"
     adapter_dla("w.docx").wczytaj(wynik)  # wynik pozostaje poprawnym DOCX
 
+
+# --- pkt 6: przywracanie wiąże mapę z KONKRETNYM dokumentem ---------------------
+
+
+@pytest.mark.anyio
+async def test_pkt6_mapa_z_innego_dokumentu_tej_sesji_422(konfig):
+    """K4b pkt 6: mapa B podsunięta do wyniku A (obie z tej samej sesji, więc stara
+    kontrola identyfikatorów przechodzi) = 422, nigdy przywrócenie cudzych danych."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        a = await klient.post(
+            "/api/ukryj", data={"tekst": "PESEL 44051401359.", "poziom": "1"}, headers=_naglowki(app)
+        )
+        b = await klient.post(
+            "/api/ukryj", data={"tekst": "PESEL 55010101234.", "poziom": "1"}, headers=_naglowki(app)
+        )
+        czesci_a, czesci_b = _zip(a.content), _zip(b.content)
+        id_a = a.headers["x-niewidka-identyfikator"]
+        id_b = b.headers["x-niewidka-identyfikator"]
+        wynik = await klient.post(
+            "/api/przywroc",
+            files={
+                "wynik": (f"ZANONIMIZOWANY_{id_a}.txt", czesci_a[f"ZANONIMIZOWANY_{id_a}.txt"]),
+                "mapa": ("m.nwidka", czesci_b[f"{id_b}.nwidka"]),
+            },
+            headers=_naglowki(app),
+        )
+    assert wynik.status_code == 422
+    assert "55010101234" not in wynik.text  # cudze dane nie wróciły
+
+
+def test_pkt6_dopisek_zawiera_identyfikator():
+    """Identyfikator mapy zapisany w treści wyniku (dopisek) — o nim wiązanie."""
+    from niewidka.rdzen import ukryj
+    from niewidka.znaczniki import DOPISEK
+
+    wynik, mapa, _ = ukryj(b"PESEL 44051401359.", "txt", 1, detektor=RegulyDetektor())
+    assert mapa.identyfikator in wynik.decode()
+    assert wynik.decode().startswith(DOPISEK)
+

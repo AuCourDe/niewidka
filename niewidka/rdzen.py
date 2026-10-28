@@ -21,6 +21,7 @@ from niewidka.jakosc import r95_z_kalibracji
 from niewidka.kontrola import Ostrzezenie, kontroluj
 from niewidka.mapa import (
     WARIANT_DOMYSLNY,
+    BladMapy,
     Mapa,
     Rozbieznosc,
     Wpis,
@@ -30,7 +31,7 @@ from niewidka.mapa import (
 )
 from niewidka.model import Encja, TypEncji
 from niewidka.osoby import pogrupuj
-from niewidka.znaczniki import nadaj_oznaczenia, znacznik_encji
+from niewidka.znaczniki import dopisek, nadaj_oznaczenia, znacznik_encji
 
 
 class ArchiwumZaDuze(Exception):
@@ -157,7 +158,7 @@ def ukryj(
         wpisy=list(wpisy.values()),
         wystapienia=wystapienia,
     )
-    wynik = adapter.zapisz(dok)
+    wynik = adapter.zapisz(dok, dopisek(mapa.identyfikator))  # id w treści wiąże mapę z dokumentem
     # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
     oryginaly = {wyst.oryginal for wyst in wystapienia} | {
         forma for wpis in wpisy.values() for forma in wpis.formy.values()
@@ -197,6 +198,12 @@ def przywroc(
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
     dok = adapter.wczytaj(dane)
+    # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem — identyfikator zapisany
+    # w dopisku wyniku musi równać się identyfikatorowi mapy; inaczej 422
+    if not any(mapa.identyfikator in segment.tekst for segment in dok.segmenty):
+        raise BladMapy(
+            "wynik nie zawiera identyfikatora tej mapy — dokument i mapa pochodzą z różnych zadań"
+        )
     rozbieznosci: list[Rozbieznosc] = []
     uzyte: set[str] = set()
     for segment in dok.segmenty:
