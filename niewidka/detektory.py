@@ -193,6 +193,39 @@ def _softmax(np, logits):  # type: ignore[no-untyped-def]
     return e / e.sum(axis=-1, keepdims=True)
 
 
+def wczytaj_bardsai(
+    katalog: Path,
+    provider: str = "CPUExecutionProvider",
+    okno: int = 510,
+    krok: int = 448,
+) -> OnnxDetektor:
+    """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14)."""
+    config = json.loads((katalog / "config.json").read_text(encoding="utf-8"))
+    return OnnxDetektor(
+        nazwa=ADAPTER_BARDSAI.nazwa,
+        model=katalog / "model.onnx",
+        tokenizer=katalog / "tokenizer.json",
+        etykiety=ADAPTER_BARDSAI.mapa,
+        id2etykieta=config.get("id2label", {}),
+        okno=okno,
+        krok=krok,
+        provider=provider,
+    )
+
+
+class DetektorKompozyt:
+    """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie (LLD §4)."""
+
+    def __init__(self, nazwa: str, czesci: list[Detektor]):
+        self.nazwa = nazwa
+        self.czesci = czesci
+        self.typy: frozenset[TypEncji] = frozenset().union(*(c.typy for c in czesci))
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        kandydaci = [z for czesc in self.czesci for z in czesc.znajdz(tekst)]
+        return scal(tekst, kandydaci)
+
+
 def okna_tokenow(n: int, okno: int, krok: int) -> list[tuple[int, int]]:
     """Przesuwne okna tokenów (zakładka = okno - krok); ostatnie dociągnięte do końca."""
     if n <= 0:

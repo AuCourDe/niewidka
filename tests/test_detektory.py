@@ -328,3 +328,53 @@ class TestOnnxDetektor:
         d = zbuduj_onnx(tmp_path, ["Jan"], None, sesja=PadajacaSesja())
         with pytest.raises(BladDetektora, match="padł model"):
             d.znajdz("Jan")
+
+
+# --- Krok D: wczytaj_bardsai (żywy model, marker `model`) + DetektorKompozyt ---
+
+
+class TestWczytajBardsai:
+    @pytest.mark.model
+    def test_zywy_model_osoba(self, model_bardsai):
+        wynik = model_bardsai.znajdz("Wczoraj Jan Kowalski poszedł do sklepu po chleb.")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(8, 20, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:bardsai"
+        assert wynik[0].pewnosc > 0.9
+
+    @pytest.mark.model
+    def test_zywy_model_dlugi_tekst_okna(self, model_bardsai):
+        tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokenów
+        wynik = model_bardsai.znajdz(tekst)
+        oczekiwane = 120
+        assert sum(1 for z in wynik if z.typ is TypEncji.OSOBA) >= oczekiwane * 0.9
+
+
+class AtrapaDetektor:
+    def __init__(self, nazwa, zakresy):
+        self.nazwa = nazwa
+        self.zakresy = zakresy
+        self.typy = frozenset(z.typ for z in zakresy)
+
+    def znajdz(self, tekst):
+        return self.zakresy
+
+
+class TestDetektorKompozyt:
+    def test_unia_czesci_scalona(self):
+        from niewidka.detektory import DetektorKompozyt
+        from niewidka.model import Zakres
+
+        a = AtrapaDetektor("a", [Zakres(0, 12, TypEncji.OSOBA, 0.9, "a")])
+        b = AtrapaDetektor("b", [Zakres(8, 20, TypEncji.OSOBA, 0.9, "b")])
+        kompozyt = DetektorKompozyt("poziom1", [a, b])
+        assert kompozyt.nazwa == "poziom1"
+        wynik = kompozyt.znajdz("0123456789ABCDEFGHIJ")
+        # Nakładające się zakresy -> jedna grupa, maskowana unią [0,20).
+        assert [(z.start, z.koniec) for z in wynik] == [(0, 20)]
+        assert kompozyt.typy == {TypEncji.OSOBA}
+
+    def test_pusta_lista(self):
+        from niewidka.detektory import DetektorKompozyt
+        from niewidka.model import Zakres  # noqa: F401 — spójność sekcji
+
+        assert DetektorKompozyt("poziom1", []).znajdz("cokolwiek") == []

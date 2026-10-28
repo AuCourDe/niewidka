@@ -29,3 +29,6 @@ line-length = 100
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "model: wymaga pobranych wag w NIEWIDKA_MODELE_KATALOG (pomijane, gdy ich nie ma)",
+]
