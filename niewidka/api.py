@@ -21,7 +21,8 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
 from niewidka import __version__
@@ -41,6 +42,7 @@ logger = logging.getLogger("niewidka.api")
 
 _MB = 1024 * 1024
 _TOKEN_NAGLOWEK = "x-niewidka-token"
+_KATALOG_WEB = Path(__file__).parent / "web"
 
 
 class KolejkaPelna(Exception):
@@ -280,6 +282,18 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             },
             "kolejka": app.state.kolejka.stan(),
         }
+
+    @app.get("/", include_in_schema=False)
+    async def strona_glowna() -> HTMLResponse:
+        """Web lokalny (K5): index.html z tokenem sesji w meta — nigdy w URL ani w zasobach.
+
+        Trasa zarejestrowana przed montażem StaticFiles, więc wygrywa z plikiem index.html.
+        no-store już dokleja middleware — token nie trafia do cache przeglądarki.
+        """
+        tresc = (_KATALOG_WEB / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(tresc.replace("__NIEWIDKA_TOKEN__", app.state.token))
+
+    app.mount("/", StaticFiles(directory=_KATALOG_WEB), name="web")
 
     return app
 

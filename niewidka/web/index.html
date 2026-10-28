@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="niewidka-token" content="__NIEWIDKA_TOKEN__">
+<title>Niewidka — ukrywanie danych osobowych</title>
+<link rel="stylesheet" href="styl.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='12' width='24' height='8' rx='2' fill='%231A1D21'/%3E%3C/svg%3E">
+<script src="apka.js" defer></script>
+</head>
+<body>
+
+<header class="gora">
+  <div class="gora-srodek">
+    <p class="nazwa">Niewidka</p>
+    <p class="tryb"><strong>Na tym urządzeniu.</strong> Twoje dane nie opuszczają tego komputera.</p>
+  </div>
+</header>
+
+<main class="srodek">
+
+  <div class="zakladki" role="tablist" aria-label="Tryby pracy">
+    <button type="button" id="zakladka-ukryj" class="zakladka" role="tab"
+            aria-selected="true" aria-controls="panel-ukryj">Ukryj dane</button>
+    <button type="button" id="zakladka-przywroc" class="zakladka" role="tab"
+            aria-selected="false" aria-controls="panel-przywroc" tabindex="-1">Przywróć dane</button>
+  </div>
+
+  <section id="panel-ukryj" class="panel" role="tabpanel" aria-labelledby="zakladka-ukryj">
+
+    <form id="form-ukryj" novalidate>
+      <div class="pole-dokumentu" id="strefa-dokumentu">
+        <div id="widok-tekstu">
+          <label for="tekst">Wklej tekst do sprawdzenia</label>
+          <textarea id="tekst" name="tekst" rows="10" spellcheck="false"
+            placeholder="Wklej tu pismo, wniosek albo list — Niewidka znajdzie i zasłoni dane osobowe."></textarea>
+        </div>
+        <div id="widok-pliku" hidden>
+          <p class="nazwa-pliku" id="nazwa-pliku"></p>
+          <button type="button" id="przycisk-tekst-zamiast" class="linkowy">Wklej tekst zamiast tego</button>
+        </div>
+        <p class="albo">albo</p>
+        <div class="wybor-pliku">
+          <input type="file" id="plik" name="plik" accept=".txt,.docx"
+                 aria-describedby="podpowiedz-plik">
+          <label for="plik" class="przycisk-wtorny">Wybierz plik</label>
+          <span class="podpowiedz" id="podpowiedz-plik">Obsługuję pliki .txt i .docx, maksymalnie 25&nbsp;MB. Możesz też przeciągnąć plik tutaj.</span>
+        </div>
+      </div>
+
+      <div class="jakosc">
+        <label for="poziom">Jakość wykrywania danych</label>
+        <input type="range" id="poziom" name="poziom" min="1" max="3" step="1" value="2"
+               aria-describedby="opis-poziomu">
+        <div class="skala" aria-hidden="true">
+          <span>Szybko</span><span>Dokładniej</span><span>Najdokładniej</span>
+        </div>
+        <p class="opis-poziomu" id="opis-poziomu">Wyważone — dobre do zwykłych dokumentów.</p>
+      </div>
+
+      <button type="submit" id="ukryj" class="przycisk-glowny">Ukryj dane</button>
+    </form>
+
+    <div id="status-ukryj" class="status" aria-live="polite"></div>
+
+    <section id="wynik" class="wynik" hidden>
+      <h2>Gotowe — dokument z zamienionymi danymi</h2>
+
+      <div id="komunikat-status" class="komunikat" hidden></div>
+
+      <div id="blok-zamienione" class="blok-zamienione" hidden>
+        <h3>Zamienione dane</h3>
+        <ul id="lista-zamienionych" class="lista-danych"></ul>
+        <div id="blok-ryzyka" hidden>
+          <h3>Szacowane ryzyko pominięcia</h3>
+          <ul id="lista-ryzyka" class="lista-danych"></ul>
+        </div>
+      </div>
+
+      <div id="blok-ostrzezenia" class="komunikat komunikat-ostrzezenie" hidden>
+        <h3>Uwaga — sprawdź te miejsca</h3>
+        <ul id="lista-ostrzezenia"></ul>
+      </div>
+
+      <div id="blok-podglad" class="podglad" hidden>
+        <div class="podglad-naglowek">
+          <h3>Podgląd tekstu</h3>
+          <button type="button" id="kopiuj" class="przycisk-wtorny">Kopiuj</button>
+        </div>
+        <div class="kartka"><p id="podglad-tekstu" class="tekst-kartki"></p></div>
+      </div>
+
+      <div id="blok-pobrania" class="pobrania" hidden>
+        <h3>Pobierz pliki</h3>
+        <p class="pobieracz"><button type="button" id="pobierz-wynik" class="przycisk-wtorny">Pobierz dokument z ukrytymi danymi</button></p>
+        <p class="pobieracz">
+          <button type="button" id="pobierz-mape" class="przycisk-wtorny">Pobierz mapę (.nwidka)</button>
+        </p>
+        <p class="wazne"><strong>Zachowaj mapę</strong> w bezpiecznym miejscu razem z dokumentem.
+        Bez mapy ukryte danych nie przywrócisz — to jedyny klucz do oryginału.</p>
+      </div>
+    </section>
+  </section>
+
+  <section id="panel-przywroc" class="panel" role="tabpanel" aria-labelledby="zakladka-przywroc" hidden>
+
+    <form id="form-przywroc" novalidate>
+      <p class="wyjasnienie">Masz dokument z zamienionymi danymi i jego mapę? Przywrócę oryginalne
+      dane w miejsce znaczników. Pliki muszą pochodzić z tej samej sesji programu.</p>
+
+      <div class="pole-przywroc">
+        <label for="plik-wynik">Dokument z ukrytymi danymi (TXT albo DOCX)</label>
+        <input type="file" id="plik-wynik" name="wynik" accept=".txt,.docx" required>
+      </div>
+      <div class="pole-przywroc">
+        <label for="plik-mapa">Mapa (.nwidka)</label>
+        <input type="file" id="plik-mapa" name="mapa" accept=".nwidka" required>
+      </div>
+
+      <button type="submit" id="przywroc" class="przycisk-glowny">Przywróć dane</button>
+    </form>
+
+    <div id="status-przywroc" class="status" aria-live="polite"></div>
+
+    <section id="wynik-przywroc" class="wynik" hidden>
+      <h2>Przywrócono</h2>
+      <p class="pobieracz"><button type="button" id="pobierz-przywrocony" class="przycisk-glowny">Pobierz przywrócony dokument</button></p>
+      <div id="blok-rozbieznosci" class="komunikat komunikat-ostrzezenie" hidden>
+        <h3>Nie wszystko wróciło idealnie</h3>
+        <ul id="lista-rozbieznosci"></ul>
+      </div>
+    </section>
+  </section>
+
+</main>
+
+<footer class="stopka">
+  <div class="srodek">
+    <p>Niewidka <span id="wersja"></span> — anonimizacja dokumentów na Twoim komputerze.</p>
+  </div>
+</footer>
+
+<div class="zapowiedz-offscreen" aria-live="assertive" id="zapowiedz"></div>
+
+</body>
+</html>

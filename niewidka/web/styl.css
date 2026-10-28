@@ -1,0 +1,397 @@
+/* Niewidka — web lokalny (K5). Papierowa biel, atrament, jedna kolumna.
+   Fonty z katalogu fonty/ (OFL) — strona działa w pełni offline. */
+
+@font-face {
+  font-family: "Lato";
+  src: url("fonty/Lato-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato";
+  src: url("fonty/Lato-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --papier: #FBFBF9;
+  --kartka: #FFFFFF;
+  --atrament: #23282D;
+  --atrament-slaby: #565D64;
+  --tusz: #2D4A6B;
+  --tusz-nacisniety: #243B57;
+  --linie: #D9D6CF;
+  --zaslepka: #1A1D21;
+  --blad: #A62B22;
+  --blad-tlo: #FAEEEC;
+  --ostrzegaj: #7A4D0B;
+  --ostrzegaj-tlo: #FBF3E1;
+  --ok: #1E6B4E;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html { height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--papier);
+  color: var(--atrament);
+  font-family: "Lato", "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+::selection { background: #D9E2EC; }
+
+.srodek {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* ---------- nagłówek i tryb ---------- */
+
+.gora {
+  border-bottom: 1px solid var(--linie);
+  background: var(--kartka);
+}
+
+.gora-srodek {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.1rem 1.25rem 0.9rem;
+}
+
+.nazwa {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tryb {
+  margin: 0.15rem 0 0;
+  color: var(--atrament-slaby);
+  font-size: 0.92rem;
+}
+
+.tryb strong { color: var(--ok); }
+
+/* ---------- zakładki ---------- */
+
+.zakladki {
+  display: flex;
+  gap: 1.75rem;
+  margin-top: 1.4rem;
+  border-bottom: 1px solid var(--linie);
+}
+
+.zakladka {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.55rem 0.1rem;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--atrament-slaby);
+  cursor: pointer;
+}
+
+.zakladka:hover { color: var(--atrament); }
+
+.zakladka[aria-selected="true"] {
+  color: var(--atrament);
+  border-bottom-color: var(--tusz);
+}
+
+/* ---------- formularz ---------- */
+
+.panel { padding: 1.6rem 0 2.5rem; }
+
+.pole-dokumentu {
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+label { display: block; font-weight: 700; margin-bottom: 0.35rem; }
+
+textarea {
+  width: 100%;
+  min-height: 11rem;
+  resize: vertical;
+  border: 1px solid var(--linie);
+  border-radius: 4px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--papier);
+}
+
+textarea::placeholder { color: var(--atrament-slaby); }
+
+.pole-dokumentu.upuszczenie { border-color: var(--tusz); outline: 2px solid var(--tusz); outline-offset: 2px; }
+
+.albo {
+  margin: 0.7rem 0;
+  text-align: center;
+  color: var(--atrament-slaby);
+  font-size: 0.88rem;
+}
+
+.wybor-pliku { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; }
+
+.podpowiedz { color: var(--atrament-slaby); font-size: 0.88rem; flex: 1 1 14rem; }
+
+input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.nazwa-pliku { margin: 0 0 0.4rem; font-weight: 700; word-break: break-all; }
+
+.linkowy {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--tusz);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- suwak jakości ---------- */
+
+.jakosc { margin: 1.5rem 0 1.4rem; }
+
+input[type="range"] {
+  width: 100%;
+  margin: 0.2rem 0 0.15rem;
+  accent-color: var(--tusz);
+}
+
+.skala {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--atrament-slaby);
+}
+
+.opis-poziomu {
+  margin: 0.45rem 0 0;
+  color: var(--atrament-slaby);
+  font-size: 0.92rem;
+}
+
+/* ---------- przyciski ---------- */
+
+button { font: inherit; }
+
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--tusz);
+  outline-offset: 2px;
+}
+
+.przycisk-glowny {
+  display: inline-block;
+  border: none;
+  border-radius: 5px;
+  padding: 0.7rem 1.6rem;
+  background: var(--tusz);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 1.02rem;
+  cursor: pointer;
+}
+
+.przycisk-glowny:hover { background: var(--tusz-nacisniety); }
+
+.przycisk-glowny:active { transform: translateY(1px); }
+
+.przycisk-glowny:disabled,
+.przycisk-wtorny:disabled { opacity: 0.55; cursor: wait; }
+
+.przycisk-wtorny {
+  display: inline-block;
+  border: 1px solid var(--atrament);
+  border-radius: 5px;
+  padding: 0.5rem 1.1rem;
+  background: var(--kartka);
+  color: var(--atrament);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.przycisk-wtorny:hover { background: #F1EFEA; }
+
+/* ---------- komunikaty i wyniki ---------- */
+
+.status:empty { display: none; }
+
+.status { margin-top: 1.1rem; font-weight: 700; }
+
+.komunikat {
+  margin: 1.1rem 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: 6px;
+  font-size: 0.97rem;
+}
+
+.komunikat h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.komunikat p { margin: 0.3rem 0; }
+
+.komunikat-blad { background: var(--blad-tlo); color: var(--blad); border: 1px solid #E5C4C0; }
+.komunikat-blad h3 { color: var(--blad); }
+
+.komunikat-ostrzezenie { background: var(--ostrzegaj-tlo); color: var(--ostrzegaj); border: 1px solid #E8D9B4; }
+.komunikat-ostrzezenie h3 { color: var(--ostrzegaj); }
+
+.komunikat-ok { background: #EAF4EF; color: var(--ok); border: 1px solid #C4DED2; }
+.komunikat-ok h3 { color: var(--ok); }
+
+.wynik { margin-top: 1.6rem; }
+
+.wynik h2 { font-size: 1.2rem; margin: 0 0 0.9rem; }
+
+.wynik h3 { font-size: 1rem; margin: 1.1rem 0 0.45rem; }
+
+.lista-danych {
+  margin: 0.3rem 0 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-danych li {
+  padding: 0.3rem 0;
+  border-bottom: 1px dotted var(--linie);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lista-danych li span:last-child { color: var(--atrament-slaby); text-align: right; }
+
+/* ---------- podgląd kartki z zaślepkami ---------- */
+
+.podglad-naglowek {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.podglad-naglowek h3 { margin: 0; }
+
+.kartka {
+  margin-top: 0.7rem;
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(35, 40, 45, 0.08), 0 10px 26px rgba(35, 40, 45, 0.1);
+  padding: 1.4rem 1.5rem;
+}
+
+.tekst-kartki {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.9;
+}
+
+.zaslepka {
+  display: inline-block;
+  background: var(--zaslepka);
+  color: #FFFFFF;
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* ---------- pobieranie ---------- */
+
+.pobrania { margin-top: 1.3rem; }
+
+.pobieracz { margin: 0.55rem 0; }
+
+.wazne {
+  margin: 0.9rem 0 0;
+  padding: 0.8rem 1rem;
+  background: var(--ostrzegaj-tlo);
+  border-radius: 6px;
+  color: var(--ostrzegaj);
+  font-size: 0.95rem;
+}
+
+.wyjasnienie { color: var(--atrament-slaby); margin-top: 0; }
+
+.pole-przywroc { margin: 1.1rem 0; }
+
+.pole-przywroc input[type="file"] {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  font-size: 0.95rem;
+  max-width: 100%;
+}
+
+#form-przywroc .przycisk-glowny { margin-top: 0.4rem; }
+
+/* ---------- stopka ---------- */
+
+.stopka {
+  margin-top: auto;
+  border-top: 1px solid var(--linie);
+  color: var(--atrament-slaby);
+  font-size: 0.88rem;
+}
+
+.stopka .srodek { padding-top: 1rem; padding-bottom: 1.1rem; }
+.stopka p { margin: 0; }
+
+.zapowiedz-offscreen {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ---------- wąskie ekrany ---------- */
+
+@media (max-width: 480px) {
+  .srodek, .gora-srodek { padding-left: 1rem; padding-right: 1rem; }
+  .przycisk-glowny { width: 100%; }
+  .lista-danych li { flex-direction: column; gap: 0.1rem; }
+  .lista-danych li span:last-child { text-align: left; }
+  .podglad-naglowek { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
