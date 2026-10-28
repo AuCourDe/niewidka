@@ -10,7 +10,7 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Protocol
 
-from niewidka.model import Dokument, Segment
+from niewidka.model import Dokument, RunInfo, Segment
 
 
 class ElementNieobslugiwany(Exception):
@@ -70,6 +70,23 @@ def nazwa_wyniku(oryginalna: str, identyfikator: str) -> str:
     """ZANONIMIZOWANY_<krótki-id>.<ext> (LLD §17 / Astra pkt 5)."""
     rozszerzenie = Path(oryginalna).suffix
     return f"ZANONIMIZOWANY_{identyfikator}{rozszerzenie}"
+
+
+def wstaw_znaczniki(segment: Segment, zamiany: list[tuple[int, int, str]], kopiuj_run) -> None:
+    """Zamień segment wg `zamiany` (mutacja): nowe runy, starts, tekst.
+
+    `kopiuj_run(element, tekst)` buduje element runu dla fragmentu (adapter zna
+    swój format; znacznik dziedziczy styl lewego fragmentu, LLD §9).
+    """
+    fragmenty = podziel_segment(segment, zamiany)
+    stare = segment.runs
+    segment.runs = [RunInfo(tekst, kopiuj_run(stare[idx].element, tekst)) for tekst, idx in fragmenty]
+    segment.starts = []
+    biezacy = 0
+    for run in segment.runs:
+        segment.starts.append(biezacy)
+        biezacy += len(run.tekst)
+    segment.tekst = "".join(run.tekst for run in segment.runs)
 
 
 _REJESTR: dict[str, type] = {}

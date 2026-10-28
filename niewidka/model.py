@@ -58,3 +58,4 @@ class Segment:
 class Dokument:
     format: str  # "docx", "odt", ...
     segmenty: list[Segment]
+    zasoby: Any = None  # stan adaptera formatu (części paczki, drzewo XML; K3)
