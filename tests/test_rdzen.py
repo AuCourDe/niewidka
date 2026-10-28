@@ -217,6 +217,34 @@ def test_zbuduj_detektor_poziom1_z_wagami(katalog_modeli):
     assert {c.nazwa for c in detektor.czesci} == {"reguly", "onnx:bardsai"}
 
 
+@pytest.mark.model
+def test_zbuduj_detektor_poziomy_2_i_3_roznia_sie_od_1(katalog_modeli):
+    """Suwak: 1 = bez progu i półkroku; 2 = wariant A (próg OSOBA + półkrok); 3 = B (+słownik)."""
+    from niewidka.detektory import DetektorUzupełniający
+
+    konfig = Konfig(modele_katalog=katalog_modeli)
+    d1, d2, d3 = (zbuduj_detektor(poziom, konfig) for poziom in (1, 2, 3))
+    assert (d1.nazwa, d2.nazwa, d3.nazwa) == ("poziom1", "poziom2", "poziom3")
+    assert d1.czesci[1]._próg is None and not d1.czesci[1]._pół_krok  # poziom 1 jak dotychczas
+    assert d2.czesci[1]._próg == 0.2 and d2.czesci[1]._pół_krok  # wariant A
+    assert isinstance(d3, DetektorUzupełniający) and d3.uzup.nazwa == "slownik-imion"  # B
+    assert d3.podstawa[1]._próg == 0.2
+
+
+@pytest.mark.model
+def test_poziom2_lapie_co_poziom1_przeoczy(katalog_modeli):
+    """WYNIK-K2d, próbka osoba-011: poziom 1 zostawia „Piotrowi", poziom 2 łapie całą osobę."""
+    konfig = Konfig(modele_katalog=katalog_modeli)
+    tekst = "Przekazano akt do Piotrowi Wiśniewskiemu."
+    d1, d2 = zbuduj_detektor(1, konfig), zbuduj_detektor(2, konfig)
+    trafienia = {
+        poziom: {(z.start, z.koniec) for z in d.znajdz(tekst) if z.typ is TypEncji.OSOBA}
+        for poziom, d in ((1, d1), (2, d2))
+    }
+    assert trafienia[1] == {(18, 26)}  # sam „Piotrowi"
+    assert trafienia[2] == {(18, 40)}  # pełne „Piotrowi Wiśniewskiemu"
+
+
 def test_filtr_bez_daty():
     detektor = _BezDaty(RegulyDetektor())
     znaleziska = detektor.znajdz("PESEL 44051401359 z dnia 13.05.1982")

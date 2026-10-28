@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from niewidka.konfig import PROG_OSOBA_DOMYSLNY
 from niewidka.model import TypEncji, Zakres
 from niewidka.osoby import rdzen_nazwiska
 from niewidka.reguly import REGULY
@@ -375,32 +376,39 @@ def wczytaj_poziom2_uzupelniajacy(
     )
 
 
-def wczytaj_poziom2_a(
+def zbuduj_poziom(
+    poziom: int,
     katalog: Path,
-    próg: float = 0.30,
+    *,
     provider: str = "CPUExecutionProvider",
-) -> DetektorKompozyt:
-    """K2d wariant A: poziom 1 + bardsai z obniżonym progiem pewności OSOBA
-    oraz drugim przebiegiem okien przesuniętym o pół kroku (encje na granicy okien).
+    próg_osoba: float = PROG_OSOBA_DOMYSLNY,
+    reguly: Detektor | None = None,
+) -> Detektor:
+    """Poziomy produktu (suwak jakości, K2d) — JEDYNA funkcja składająca poziom;
+    używa jej rdzeń (`rdzen.zbuduj_detektor`) i pomiar (`narzedzia.pomiar`), więc
+    pomiar mierzy dokładnie to, co liczy produkt.
+
+    1 = reguły + bardsai (bez progu, bez półkroku); 2 = wariant A (`docs/WYNIK-K2d.md`:
+    bardsai z progiem pewności OSOBA `próg_osoba` + drugi przebieg okien o pół kroku);
+    3 = wariant B (2 + słownik imion GUS, CC0). `reguly` = podmiana warstwy reguł
+    (rdzeń wstawia filtr `_BezDaty` przy `wykrywaj_date=False`).
     """
-    return DetektorKompozyt(
-        "poziom2-a",
-        [RegulyDetektor(), wczytaj_bardsai(katalog, próg=próg, pół_krok=True, provider=provider)],
+    if poziom not in (1, 2, 3):
+        raise ValueError(f"poziom poza 1-3: {poziom}")
+    warstwa_regul = RegulyDetektor() if reguly is None else reguly
+    model = wczytaj_bardsai(
+        katalog,
+        provider=provider,
+        próg=None if poziom == 1 else próg_osoba,
+        pół_krok=poziom > 1,
     )
-
-
-def wczytaj_poziom2_b(
-    katalog: Path,
-    próg: float = 0.30,
-    provider: str = "CPUExecutionProvider",
-) -> DetektorUzupełniający:
-    """K2d wariant B: wariant A + słownik polskich imion (GUS/PESEL, CC0).
-    Słownik dodaje OSOBA (imię z listy + następne słowo z wielkiej litery,
-    dowolna forma fleksyjna) tylko tam, gdzie nie nachodzi na reguły/bardsai.
-    """
+    if poziom == 1:
+        return DetektorKompozyt("poziom1", [warstwa_regul, model])
+    if poziom == 2:
+        return DetektorKompozyt("poziom2", [warstwa_regul, model])
     return DetektorUzupełniający(
-        "poziom2-b",
-        podstawa=[RegulyDetektor(), wczytaj_bardsai(katalog, próg=próg, pół_krok=True, provider=provider)],
+        "poziom3",
+        podstawa=[warstwa_regul, model],
         uzup=SlownikImionDetektor(),
     )
 

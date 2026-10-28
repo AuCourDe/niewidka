@@ -13,12 +13,17 @@ from pathlib import Path
 
 DOMYSLNY_PLIK = Path("niewidka.toml")
 
+# K2d (docs/WYNIK-K2d.md): próg pewności OSOBA poziomów 2-3 (wariant A/B); 0.2 i 0.3
+# dawały identyczne wyniki na korpusie 182, przyjęto niższy.
+PROG_OSOBA_DOMYSLNY = 0.2
+
 
 @dataclass(frozen=True)
 class Konfig:
     host: str = "127.0.0.1"
     port: int = 8390
     poziom: int = 1
+    prog_osoba: float = PROG_OSOBA_DOMYSLNY
     modele_katalog: Path | None = None
     provider: str = "CPUExecutionProvider"
     klucz_plik: str | None = None
@@ -47,6 +52,15 @@ def _jako_int(env: Mapping[str, str], zmienna: str, domyslna: int) -> int:
         raise ValueError(f"{zmienna}: oczekiwano liczby, jest {env[zmienna]!r}") from None
 
 
+def _jako_float(env: Mapping[str, str], zmienna: str, domyslna: float) -> float:
+    if zmienna not in env:
+        return domyslna
+    try:
+        return float(env[zmienna])
+    except ValueError:
+        raise ValueError(f"{zmienna}: oczekiwano liczby, jest {env[zmienna]!r}") from None
+
+
 def _jako_sciezka(env: Mapping[str, str], zmienna: str) -> Path | None:
     wartosc = env.get(zmienna)
     return Path(wartosc) if wartosc else None
@@ -70,6 +84,9 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         host=env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1")),
         port=_jako_int(env, "NIEWIDKA_PORT", int(serwer.get("port", 8390))),
         poziom=_jako_int(env, "NIEWIDKA_POZIOM", int(detekcja.get("poziom", 1))),
+        prog_osoba=_jako_float(
+            env, "NIEWIDKA_PROG_OSOBA", float(detekcja.get("prog_osoba", PROG_OSOBA_DOMYSLNY))
+        ),
         modele_katalog=_jako_sciezka(env, "NIEWIDKA_MODELE_KATALOG")
         or (Path(detekcja["modele_katalog"]) if detekcja.get("modele_katalog") else None),
         provider=env.get("NIEWIDKA_PROVIDER", detekcja.get("provider", "CPUExecutionProvider")),

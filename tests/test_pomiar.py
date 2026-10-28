@@ -150,14 +150,35 @@ def test_zbuduj_detektor_poziom2_b_bez_katalogu_blad():
 
 @pytest.mark.model
 def test_zbuduj_detektor_poziom2_a(katalog_modeli):
+    """poziom2-a = produktowy poziom 2 (wariant A, K2d); domyślny próg 0.2 jak w produkcie."""
     d = zbuduj_detektor("poziom2-a", katalog_modeli)
-    assert d.nazwa == "poziom2-a"
+    assert d.nazwa == "poziom2"
     assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai"]
+    assert d.czesci[1]._próg == 0.2 and d.czesci[1]._pół_krok
 
 
 @pytest.mark.model
 def test_zbuduj_detektor_poziom2_b(katalog_modeli):
     d = zbuduj_detektor("poziom2-b", katalog_modeli)
-    assert d.nazwa == "poziom2-b"
+    assert d.nazwa == "poziom3"  # produktowy poziom 3 (wariant B)
     assert [c.nazwa for c in d.podstawa] == ["reguly", "onnx:bardsai"]
     assert d.uzup.nazwa == "slownik-imion"
+
+
+def test_poziomy_produktu_ida_przez_zbuduj_poziom(monkeypatch):
+    """Pomiar i produkt składają poziom TĄ SAMĄ funkcją (REUŻYJ; pomiar mierzy to, co liczy produkt)."""
+    import narzedzia.pomiar as modul_pomiaru
+
+    wywolania: list[tuple] = []
+
+    def atrapa(poziom, katalog, **kwargs):
+        wywolania.append((poziom, kwargs.get("próg_osoba")))
+        return f"atrapa-poziom{poziom}"
+
+    monkeypatch.setattr(modul_pomiaru, "zbuduj_poziom", atrapa)
+    assert zbuduj_detektor("poziom1", Path("/wagi")) == "atrapa-poziom1"
+    assert zbuduj_detektor("poziom2-a", Path("/wagi"), próg_osoba=0.25) == "atrapa-poziom2"
+    assert zbuduj_detektor("poziom2-b", Path("/wagi"), próg_osoba=0.25) == "atrapa-poziom3"
+    # poziomy 1/2/3 produktu; próg istotny dla 2/3 (poziom 1 go ignoruje)
+    assert [poziom for poziom, _ in wywolania] == [1, 2, 3]
+    assert wywolania[1] == (2, 0.25) and wywolania[2] == (3, 0.25)

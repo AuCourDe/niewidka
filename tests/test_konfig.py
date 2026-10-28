@@ -23,6 +23,7 @@ def test_domyslne_wg_lld_14():
     assert k.kolejka == 4
     assert k.timeout_s == 120
     assert k.wykrywaj_date is True
+    assert k.prog_osoba == 0.2  # K2d wariant A; pomiar docs/WYNIK-K2d.md
 
 
 def test_toml_nadaje_domyslne(tmp_path: Path):
@@ -119,3 +120,21 @@ def test_zla_liczba_w_env_jawny_blad():
         assert "NIEWIDKA_PORT" in str(e)
     else:
         raise AssertionError("brak błędu dla złej liczby")
+
+
+def test_prog_osoba_toml_a_env_wygra(tmp_path: Path):
+    """Próg pewności OSOBA (poziomy 2/3) z konfiguracji, nie na sztywno (K2d)."""
+    plik = tmp_path / "niewidka.toml"
+    plik.write_text("[detekcja]\nprog_osoba = 0.35\n", encoding="utf-8")
+    assert wczytaj_konfig(plik, env={}).prog_osoba == 0.35
+    assert wczytaj_konfig(plik, env={"NIEWIDKA_PROG_OSOBA": "0.15"}).prog_osoba == 0.15
+    assert wczytaj_konfig(env={"NIEWIDKA_PROG_OSOBA": "0.5"}).prog_osoba == 0.5
+
+
+def test_zly_prog_osoba_jawny_blad():
+    try:
+        wczytaj_konfig(env={"NIEWIDKA_PROG_OSOBA": "mocno"})
+    except ValueError as e:
+        assert "NIEWIDKA_PROG_OSOBA" in str(e)
+    else:
+        raise AssertionError("brak błędu dla złego progu")

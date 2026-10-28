@@ -714,3 +714,37 @@ class TestSlownikImion:
     def test_brak_slownika_blad(self, tmp_path):
         with pytest.raises(BladDetektora, match="brak"):
             SlownikImionDetektor(plik=tmp_path / "nie-ma.txt")
+
+
+# --- wpięcie poziomów do produktu (K2d): jedna funkcja składająca poziom ---
+
+from niewidka.detektory import zbuduj_poziom
+
+
+@pytest.mark.model
+class TestZbudujPoziom:
+    def test_poziom1_bez_progu_i_pol_kroku(self, katalog_modeli):
+        d = zbuduj_poziom(1, katalog_modeli, próg_osoba=0.2)
+        assert d.nazwa == "poziom1"
+        assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai"]
+        assert d.czesci[1]._próg is None and not d.czesci[1]._pół_krok
+
+    def test_poziom2_wariant_a(self, katalog_modeli):
+        d = zbuduj_poziom(2, katalog_modeli, próg_osoba=0.25)
+        assert d.nazwa == "poziom2"
+        assert d.czesci[1]._próg == 0.25 and d.czesci[1]._pół_krok
+
+    def test_poziom3_wariant_b(self, katalog_modeli):
+        d = zbuduj_poziom(3, katalog_modeli, próg_osoba=0.2)
+        assert d.nazwa == "poziom3"
+        assert d.uzup.nazwa == "slownik-imion"
+        assert d.podstawa[1]._próg == 0.2 and d.podstawa[1]._pół_krok
+
+    def test_poziom_poza_zakresem(self, katalog_modeli):
+        with pytest.raises(ValueError, match="poziom"):
+            zbuduj_poziom(4, katalog_modeli, próg_osoba=0.2)
+
+    def test_podmiana_warstwy_regul(self, katalog_modeli):
+        reguly = RegulyDetektor()  # rdzeń wstawia swój filtr (_BezDaty) przez ten parametr
+        d = zbuduj_poziom(2, katalog_modeli, próg_osoba=0.2, reguly=reguly)
+        assert d.czesci[0] is reguly

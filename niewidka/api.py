@@ -32,6 +32,7 @@ from niewidka.formaty import (
     nazwa_wyniku,
     rozszerzenia_wspierane,
 )
+from niewidka.jakosc import r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
@@ -43,6 +44,7 @@ logger = logging.getLogger("niewidka.api")
 _MB = 1024 * 1024
 _TOKEN_NAGLOWEK = "x-niewidka-token"
 _KATALOG_WEB = Path(__file__).parent / "web"
+_POZIOMY = (1, 2, 3)  # suwak jakości (K2d: 2 = wariant A, 3 = wariant B)
 
 
 class KolejkaPelna(Exception):
@@ -84,7 +86,9 @@ class Kolejka:
 
 
 def _json_naglowek(wartosc: Any) -> str:
-    return json.dumps(wartosc, ensure_ascii=False)
+    # Nagłówki HTTP są latin-1: polskie znaki (fragmenty ostrzeżeń) muszą uciekać
+    # jako \uXXXX, inaczej odpowiedź ginie na UnicodeEncodeError (test suwaka K2d).
+    return json.dumps(wartosc, ensure_ascii=True)
 
 
 def _ostrzezenia_lista(ostrzezenia: list[Ostrzezenie]) -> list[dict]:
@@ -97,8 +101,10 @@ def _ostrzezenia_lista(ostrzezenia: list[Ostrzezenie]) -> list[dict]:
 def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     """Aplikacja API; `detektor` wstrzyknięty (testy/desktop) albo z wag (NIEWIDKA_MODELE_KATALOG)."""
     konfig = konfig or wczytaj_konfig()
-    if detektor is None:
-        detektor = zbuduj_detektor(konfig.poziom, konfig)  # brak wag = awaria startu (fail-closed)
+    wstrzykniety = detektor
+    if wstrzykniety is None:
+        # brak wag = awaria startu (fail-closed); pozostałe poziomy buduje leniwie _detektor_dla
+        wstrzykniety = zbuduj_detektor(konfig.poziom, konfig)
 
     # multipart bez zrzynania na dysk: spool ≥ limit, który i tak pilnujemy przed buforowaniem
     MultiPartParser.spool_max_size = konfig.max_rozmiar_mb * _MB
@@ -106,9 +112,25 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     app = FastAPI(title="Niewidka", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.konfig = konfig
     app.state.token = secrets.token_urlsafe(32)
-    app.state.detektor = detektor
+    app.state.detektor = wstrzykniety
+    # per poziom: wstrzyknięty detektor obsługuje wszystkie; produkcyjnie cache leniwy
+    app.state.detektory: dict[int, Any] = (
+        {} if detektor is not None else {konfig.poziom: wstrzykniety}
+    )
     app.state.kolejka = Kolejka(maks=konfig.kolejka, timeout_s=konfig.timeout_s)
     app.state.identyfikatory: set[str] = set()
+
+    def _detektor_dla(poziom: int):
+        """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
+        poziomy (testy/desktop); produkcyjne budowane leniwie i cache'owane — budowa
+        i tak jest serializowana przez Semaphore(1) kolejki."""
+        if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
+            return detektor
+        zbudowany = app.state.detektory.get(poziom)
+        if zbudowany is None:
+            zbudowany = zbuduj_detektor(poziom, konfig)
+            app.state.detektory[poziom] = zbudowany
+        return zbudowany
     originy = {
         f"http://{konfig.host}:{konfig.port}",
         f"https://{konfig.host}:{konfig.port}",
@@ -193,7 +215,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
         plik: UploadFile | None = File(None),  # noqa: B008 — wzorzec FastAPI
         tekst: str | None = Form(None),
     ) -> Response:
-        if poziom not in (1, 2, 3):
+        if poziom not in _POZIOMY:
             raise HTTPException(status_code=422, detail="poziom poza 1-3")
         if (plik is None) == (tekst is None):
             raise HTTPException(status_code=422, detail="podaj dokładnie jedno: plik albo tekst")
@@ -211,7 +233,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
                 dane,
                 format,
                 poziom,
-                detektor=detektor,
+                detektor=_detektor_dla(poziom),
                 kontrola_blokada=konfig.kontrola_blokada,
                 max_rozpakowane_bajtow=konfig.max_rozpakowane_mb * _MB,
             )
@@ -273,6 +295,8 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             "wersja": __version__,
             "modele": modele,
             "poziom": konfig.poziom,
+            "poziomy": list(_POZIOMY),  # dostępne poziomy suwaka
+            "r95": r95_poziomy(),  # R95 per poziom — interfejs pokazuje dla wybranego
             "limity": {
                 "rozmiar_mb": konfig.max_rozmiar_mb,
                 "rozpakowane_mb": konfig.max_rozpakowane_mb,

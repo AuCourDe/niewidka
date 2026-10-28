@@ -22,10 +22,10 @@ from niewidka.detektory import (
     RegulyDetektor,
     wczytaj_bardsai,
     wczytaj_lfm25,
-    wczytaj_poziom2_a,
-    wczytaj_poziom2_b,
     wczytaj_poziom2_uzupelniajacy,
+    zbuduj_poziom,
 )
+from niewidka.konfig import PROG_OSOBA_DOMYSLNY
 from niewidka.model import Zakres
 
 
@@ -62,27 +62,31 @@ class DetektorPusty:
 
 
 def zbuduj_detektor(
-    nazwa: str, katalog_modeli: Path | None, wariant: str = "int8", próg_osoba: float = 0.30
+    nazwa: str,
+    katalog_modeli: Path | None,
+    wariant: str = "int8",
+    próg_osoba: float = PROG_OSOBA_DOMYSLNY,
 ):
-    """Detektor pomiaru wg nazwy CLI; poziomy wg KRYTERIA §4 (poziom2 = +LFM2.5, K2b).
+    """Detektor pomiaru wg nazwy CLI.
 
-    K2d: poziom2-a = poziom 1 + bardsai z prógiem `próg_osoba` i półkrokowymi
-    oknami; poziom2-b = poziom2-a + słownik imion.
+    Poziomy produktu składa `detektory.zbuduj_poziom` (ta sama funkcja co rdzeń,
+    K2d): poziom1 = reguły+bardsai, poziom2-a = produktowy poziom 2 (wariant A,
+    próg `próg_osoba` + okna półkrokowe), poziom2-b = produktowy poziom 3 (wariant
+    B, +słownik imion). Nazwy `poziom2` (z LFM2.5, K2b) i `poziom2-uzup*` (K2c)
+    zostają wyłącznie dla reprodukcji starych pomiarów.
     """
     if nazwa == "pusty":
         return DetektorPusty()
     if nazwa == "reguly":
         return RegulyDetektor()
-    if nazwa in ("poziom2-a", "poziom2-b"):
+    if nazwa in ("poziom1", "poziom2-a", "poziom2-b"):
         if katalog_modeli is None:
             raise ValueError(
                 f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
             )
-        wczytaj = (
-            wczytaj_poziom2_a if nazwa == "poziom2-a" else wczytaj_poziom2_b
-        )
-        return wczytaj(katalog_modeli, próg=próg_osoba)
-    if nazwa in ("poziom1", "poziom2", "lfm25"):
+        poziom = {"poziom1": 1, "poziom2-a": 2, "poziom2-b": 3}[nazwa]
+        return zbuduj_poziom(poziom, katalog_modeli, próg_osoba=próg_osoba)
+    if nazwa in ("poziom2", "lfm25"):
         if katalog_modeli is None:
             raise ValueError(
                 f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
@@ -243,8 +247,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--prog-osoba",
         type=float,
-        default=0.30,
-        help="próg pewności OSOBA dla poziom2-a/-b (warianty K2d; domyślnie 0.30)",
+        default=PROG_OSOBA_DOMYSLNY,
+        help="próg pewności OSOBA poziomów produktu 2/3 (warianty K2d; "
+        f"domyślnie {PROG_OSOBA_DOMYSLNY}, jak NIEWIDKA_PROG_OSOBA w produkcie)",
     )
     parser.add_argument(
         "--modele",

@@ -345,6 +345,8 @@ async def test_stan_bez_tokenu(konfig):
     assert stan["wersja"]
     assert "reguly" in stan["modele"]
     assert stan["poziom"] == konfig.poziom
+    assert stan["poziomy"] == [1, 2, 3]  # dostępne poziomy suwaka (K2d wpięte do produktu)
+    assert isinstance(stan["r95"], dict)  # R95 per poziom dla interfejsu
     assert stan["limity"]["rozmiar_mb"] == konfig.max_rozmiar_mb
     assert stan["kolejka"]["maks"] == konfig.kolejka
     assert app.state.token not in odpowiedz.text  # token nie wycieka przez stan
@@ -372,6 +374,41 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
     assert "44051401359" not in caplog.text
     assert base64.b64encode(KLUCZ).decode() not in caplog.text
     assert identyfikator_bledu in caplog.text
+
+
+@pytest.mark.model
+@pytest.mark.anyio
+async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik):
+    """Suwak poziomów zmienia detekcję w API (WYNIK-K2d, osoba-011): poziom 1 zostawia
+    „Piotrowi", poziom 2 maskuje pełne „Piotrowi Wiśniewskiemu"; R95 raportowane per poziom.
+    """
+    from niewidka.mapa import odszyfruj
+
+    konfig = Konfig(klucz_plik=klucz_plik, modele_katalog=katalog_modeli)
+    app = create_app(konfig)  # produkcja: bez wstrzyknięcia, detektory per poziom
+    tekst = "Przekazano akt do Piotrowi Wiśniewskiemu."
+    async with _klient(app) as klient:
+        r1 = await klient.post(
+            "/api/ukryj", data={"tekst": tekst, "poziom": "1"}, headers=_naglowki(app)
+        )
+        r2 = await klient.post(
+            "/api/ukryj", data={"tekst": tekst, "poziom": "2"}, headers=_naglowki(app)
+        )
+    assert r1.status_code == r2.status_code == 200
+    assert set(app.state.detektory) == {1, 2}  # leniwy cache per poziom
+
+    def oryginaly(odpowiedz):
+        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+        mapa = odszyfruj(_zip(odpowiedz.content)[f"{identyfikator}.nwidka"], KLUCZ)
+        return [wyst.oryginal for wyst in mapa.wystapienia]
+
+    assert oryginaly(r1) == ["Piotrowi"]
+    assert oryginaly(r2) == ["Piotrowi Wiśniewskiemu"]
+    # kontrola słusznie blokuje poziom 1 — zostawił „Wiśniewskiemu"; poziom 2 czysty
+    assert r1.headers["x-niewidka-status"] == "zablokowany"
+    assert r2.headers["x-niewidka-status"] == "ukonczony"
+    r95_poziom2 = json.loads(r2.headers["x-niewidka-r95"])
+    assert isinstance(r95_poziom2.get("OSOBA"), float)
 
 
 def test_ostrzezenia_lista_zawiera_czesc_archiwum():

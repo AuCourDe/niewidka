@@ -110,10 +110,10 @@
   - [ ] Sekcja „Jak to działa” (prosta + techniczna + lista danych + zastrzeżenia) — treść od Argona
   - [ ] Codex/astra: łącznie do 4 wywołań (#1 K4 mapa/klucze/api teraz)
 - [~] 13:13 (właściciel) „wepnij zmierzone poziomy do produktu”: suwak 1 = jak dziś (reguły+bardsai), 2 = wariant A (próg OSOBA 0.2 z konfiguracji/env NIEWIDKA_PROG_OSOBA + okna półkrokowe), 3 = wariant B (+słownik imion); pomiar.py i rdzen.py używają TEJ SAMEJ funkcji budującej poziom (REUŻYJ z detektory.py, usunąć duplikację); /api/stan podaje dostępne poziomy; R95 poziomów 2 i 3 przeliczyć kalibracją do niewidka/dane/r95.json per poziom; interfejs pokazuje R95 wybranego poziomu; test: zbuduj_detektor(2/3) różni się od 1 + zdanie osoba-011 (marker modelowy); KAMIENIE/README krótko; pytest całości + ruff; NIE zmieniać niewidka/web/ ani niewidka/formaty/; commit (Co-Authored-By: GLM via claude-glm), git add konkretnych ścieżek, pull --rebase, push; bez Dockera, bez codex
-  - [ ] konfig.py: prog_osoba (env NIEWIDKA_PROG_OSOBA, TOML detekcja.prog_osoba, domyślnie 0.2)
-  - [ ] detektory.zbuduj_poziom(1/2/3) = jedyna funkcja składająca poziom; rdzen i pomiar jej używają
-  - [ ] api.py: /api/ukryj używa detektora wybranego poziomu (leniwy cache per poziom), /api/stan podaje poziomy + R95 per poziom
-  - [ ] kalibracja: R95 poziomów 1/2/3 → niewidka/dane/r95.json (struktura per poziom); jakosc.py czyta per poziom
-  - [ ] testy TDD: różnica poziomu 1 vs 2 na osoba-011 (marker modelowy), konfig, stan, kalibracja, routing pomiaru
-  - [ ] pełny pytest (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff (własne pliki); KAMIENIE/README; commit+push
+  - [x] konfig.py: prog_osoba (env NIEWIDKA_PROG_OSOBA, TOML detekcja.prog_osoba, domyślnie 0.2) — testy test_konfig.py
+  - [x] detektory.zbuduj_poziom(1/2/3) = jedyna funkcja składająca poziom; rdzen i pomiar jej używają (wczytaj_poziom2_a/b usunięte)
+  - [x] api.py: /api/ukryj używa detektora wybranego poziomu (leniwy cache per poziom), /api/stan podaje poziomy + R95 per poziom; PRZY OKAZJI fix: nagłówki JSON ensure_ascii (polskie znaki łamały latin-1 → 500)
+  - [x] kalibracja: R95 poziomów 1/2/3 → niewidka/dane/r95.json per poziom (OSOBA 0.0736/0.0599/0.0599); jakosc.r95_z_kalibracji + r95_poziomy
+  - [x] testy TDD: osoba-011 poziom1 „Piotrowi" vs poziom2 „Piotrowi Wiśniewskiemu" (marker modelowy) + przez API, konfig, stan, kalibracja, routing pomiaru
+  - [x] pełny pytest 329 passed/1 xfailed (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff zielone (własne pliki); KAMIENIE/README zaktualizowane; commit+push
 

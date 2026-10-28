@@ -45,6 +45,16 @@ adapter, kompozyt) — **zysku brak** (unia z rozmytymi granicami LFM2.5 obniża
 i precision poziomu 1); LFM2.5 nie wchodzi, ślad mierzalny w repo. R95 odświeżone
 (`niewidka/dane/r95.json`, OSOBA 0.0736).
 
+Dopisek (2026-10-28, wpięcie poziomów do produktu, `docs/WYNIK-K2d.md`): suwak API
+używa zmierzonych poziomów — 2 = wariant A (próg pewności OSOBA z `NIEWIDKA_PROG_OSOBA`,
+domyślnie 0.2, + okna półkrokowe; OSOBA 0.981/0.953), 3 = wariant B (+ słownik imion
+GUS CC0). Poziom składa wyłącznie `detektory.zbuduj_poziom` (ta sama funkcja w rdzeniu
+i pomiarze); `/api/ukryj` buduje detektor wybranego poziomu (leniwy cache), `/api/stan`
+podaje poziomy i R95 per poziom; R95 poziomów 1-3 przeliczone do `niewidka/dane/r95.json`
+(OSOBA: 0.0736 / 0.0599 / 0.0599). Poprawka przy okazji: nagłówki JSON odpowiedzi API
+escapują polskie znaki (`ensure_ascii`), bo nagłówki HTTP są latin-1 — test suwaka
+wyzwolił `UnicodeEncodeError` na ostrzeżeniach z polskim tekstem.
+
 ## K3 — Formaty dokumentów (MVP: txt, docx)
 Zakres: adaptery txt i docx (runy, czyszczenie metadanych/komentarzy/śledzonych zmian,
 allowlist struktury); blokada elementów nieobsługiwanych. odt/xlsx/pptx/pdf — v1 (K6),

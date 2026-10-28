@@ -1,9 +1,10 @@
 """Rdzeń ukryj/przywroc (K4): jedna para funkcji dla API i przyszłego desktopu (LLD §8/§12).
 
 `ukryj(dane, format, poziom)` zwraca (wynik, mapa, raport); detektor idzie
-wstrzyknięty albo buduje się z konfiguracji (poziomy 1-3 = reguły + bardsai;
-LFM2.5 odrzucony pomiarem — `docs/WYNIK-K2b.md`). Kontrola zapisu działa
-ZAWSZE (Astra pkt 8); nowe znaleziska blokują status „ukończony".
+wstrzyknięty albo buduje się z konfiguracji (poziomy 1-3 wg K2d: 1 = reguły +
+bardsai, 2 = wariant A — próg OSOBA + okna półkrokowe, 3 = wariant B —
++słownik imion; LFM2.5 odrzucony pomiarem — `docs/WYNIK-K2b.md`). Kontrola
+zapisu działa ZAWSZE (Astra pkt 8); nowe znaleziska blokują status „ukończony".
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 
-from niewidka.detektory import BladDetektora, DetektorKompozyt, RegulyDetektor, wczytaj_bardsai
+from niewidka.detektory import BladDetektora, RegulyDetektor, zbuduj_poziom
 from niewidka.formaty import NieznanyFormat, adapter_formatu, rozszerzenia_wspierane
 from niewidka.jakosc import r95_z_kalibracji
 from niewidka.kontrola import Ostrzezenie, kontroluj
@@ -59,20 +60,27 @@ class _BezDaty:
 
 
 def zbuduj_detektor(poziom: int, konfig):
-    """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed, LLD §15)."""
+    """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed, LLD §15).
+
+    Skład poziomu (1 = reguły+bardsai; 2 = wariant A; 3 = wariant B, K2d) robi
+    `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze.
+    """
     if poziom not in (1, 2, 3):
         raise ValueError(f"poziom poza 1-3: {poziom}")
-    baza: object = RegulyDetektor()
-    if not konfig.wykrywaj_date:
-        baza = _BezDaty(baza)
     if konfig.modele_katalog is None:
         raise BladDetektora(
             "brak wag modelu: ustaw NIEWIDKA_MODELE_KATALOG — warstwa detekcji modelowej "
             "jest obowiązkowa, nie zwracamy wyniku bez pełnej warstwy (fail-closed)"
         )
-    return DetektorKompozyt(
-        f"poziom{poziom}",
-        [baza, wczytaj_bardsai(konfig.modele_katalog, provider=konfig.provider)],
+    baza: object = RegulyDetektor()
+    if not konfig.wykrywaj_date:
+        baza = _BezDaty(baza)
+    return zbuduj_poziom(
+        poziom,
+        konfig.modele_katalog,
+        provider=konfig.provider,
+        próg_osoba=konfig.prog_osoba,
+        reguly=baza,
     )
 
 

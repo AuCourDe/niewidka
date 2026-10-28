@@ -1,9 +1,14 @@
 """Kalibracja R95 (K2, LLD §11): górna granica Cloppera–Pearsona stopy ucieczek.
 
 R95(typ) = beta.ppf(0.95, FN+1, TP+FN−FN) na korpusie walidacyjnym — runtime nie
-wymaga scipy, liczone wyłącznie tutaj. Wynik: dane/r95.json.
+wymaga scipy, liczone wyłącznie tutaj. Wynik: dane/r95.json ze strukturą per
+poziom (K2d); każdy bieg dopisuje/odświeża swój poziom, pozostałe zostają.
 
     .venv/bin/python -m narzedzia.kalibracja --detektor poziom1 \
+        --modele ~/models/niewidka
+    .venv/bin/python -m narzedzia.kalibracja --detektor poziom2 --prog-osoba 0.2 \
+        --modele ~/models/niewidka
+    .venv/bin/python -m narzedzia.kalibracja --detektor poziom3 --prog-osoba 0.2 \
         --modele ~/models/niewidka
 """
 
@@ -18,7 +23,11 @@ from pathlib import Path
 
 from scipy.stats import beta
 
-from narzedzia.pomiar import wczytaj_probki, zbuduj_detektor, zmierz
+from narzedzia.pomiar import wczytaj_probki, zmierz
+from niewidka.detektory import RegulyDetektor, zbuduj_poziom
+from niewidka.konfig import PROG_OSOBA_DOMYSLNY
+
+WZOR = "beta.ppf(0.95, FN+1, TP+FN-FN) — górna granica Cloppera-Pearsona stopy ucieczek"
 
 
 def r95_gorna(k: int, n: int) -> float:
@@ -28,41 +37,67 @@ def r95_gorna(k: int, n: int) -> float:
     return float(beta.ppf(0.95, k + 1, n - k))
 
 
+def zapisz_poziom(plik: Path, poziom: int, wpis: dict, korpus_probek: int) -> None:
+    """Dopis/odświeżenie wpisu jednego poziomu w dane/r95.json; pozostałe zostają."""
+    raport: dict = {}
+    if plik.is_file():
+        raport = json.loads(plik.read_text(encoding="utf-8"))
+    raport.setdefault("poziomy", {})[str(poziom)] = wpis
+    raport["korpus_probek"] = korpus_probek
+    raport["wzor"] = WZOR
+    raport["wygenerowano"] = datetime.now(UTC).isoformat(timespec="seconds")
+    raport["maszyna"] = platform.machine()
+    plik.write_text(json.dumps(raport, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Kalibracja R95 do dane/r95.json")
     parser.add_argument("--korpus", type=Path, default=Path("tests/korpus"))
-    parser.add_argument("--detektor", choices=("reguly", "poziom1", "poziom2"), default="poziom1")
+    parser.add_argument(
+        "--detektor",
+        choices=("poziom1", "poziom2", "poziom3", "reguly"),
+        default="poziom1",
+        help="poziomy produktu (K2d: 2 = wariant A, 3 = wariant B); reguly = sanity",
+    )
+    parser.add_argument(
+        "--prog-osoba",
+        type=float,
+        default=PROG_OSOBA_DOMYSLNY,
+        help=f"próg pewności OSOBA poziomów 2/3 (domyślnie {PROG_OSOBA_DOMYSLNY})",
+    )
     parser.add_argument(
         "--modele",
         type=Path,
         default=Path(os.environ["NIEWIDKA_MODELE_KATALOG"])
         if os.environ.get("NIEWIDKA_MODELE_KATALOG")
         else None,
+        help="katalog wag (domyślnie z NIEWIDKA_MODELE_KATALOG)",
     )
     parser.add_argument("--dane", type=Path, default=Path("niewidka/dane"))
     argumenty = parser.parse_args(argv)
+    if argumenty.detektor != "reguly" and argumenty.modele is None:
+        parser.error("--detektor poziom1/2/3 wymaga --modele albo NIEWIDKA_MODELE_KATALOG")
 
+    poziom = {"poziom1": 1, "poziom2": 2, "poziom3": 3, "reguly": 1}[argumenty.detektor]
+    detektor = (
+        RegulyDetektor()
+        if argumenty.detektor == "reguly"
+        else zbuduj_poziom(poziom, argumenty.modele, próg_osoba=argumenty.prog_osoba)
+    )
     probki = wczytaj_probki(argumenty.korpus)
-    wyniki = zmierz(probki, zbuduj_detektor(argumenty.detektor, argumenty.modele))
+    wyniki = zmierz(probki, detektor)
     r95 = {}
     for typ, w in sorted(wyniki.items()):
         n = w.tp + w.fn
         r95[typ] = round(r95_gorna(w.fn, n), 4)
         print(f"R95 {typ:10s} k={w.fn} n={n:3d} -> {r95[typ]}")
 
-    raport = {
-        "poziom": 1,
-        "detektor": argumenty.detektor,
-        "korpus_probek": len(probki),
-        "wzor": "beta.ppf(0.95, FN+1, TP+FN-FN) — górna granica Cloppera-Pearsona stopy ucieczek",
-        "wygenerowano": datetime.now(UTC).isoformat(timespec="seconds"),
-        "maszyna": platform.machine(),
-        "r95": r95,
-    }
-    argumenty.dane.mkdir(parents=True, exist_ok=True)
+    wpis: dict = {"detektor": argumenty.detektor, "r95": r95}
+    if poziom > 1:
+        wpis["prog_osoba"] = argumenty.prog_osoba
     plik = argumenty.dane / "r95.json"
-    plik.write_text(json.dumps(raport, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"zapisano {plik}")
+    zapisz_poziom(plik, poziom, wpis, len(probki))
+    print(f"zapisano poziom {poziom} w {plik}")
     return 0
 
 
