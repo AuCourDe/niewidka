@@ -17,6 +17,7 @@ import keyring
 import pytest
 
 from niewidka import okno
+from niewidka.konfig import Konfig
 from niewidka.model import TypEncji
 
 KLUCZ = base64.b64encode(bytes(range(32))).decode()
@@ -213,7 +214,7 @@ def test_ekran_konfiguracji_ma_klucz_i_konfig_konfiguracja(srodowisko):
     atrapa = AtrapaWebview()
     okno.uruchom(detektor=AtrapaDetektora(), webview=atrapa)
     most: okno.Most = atrapa.okna[0].kwargs["js_api"]
-    assert most.konfig.keyring_usluga == USLUGA
+    assert most._konfig.keyring_usluga == USLUGA
 
 
 def test_awaria_importu_webview_ma_komunikat_systemowy(srodowisko, keyring_pamieciowy, monkeypatch):
@@ -316,3 +317,13 @@ def test_teksty_gui_bez_polpauz_i_pauz():
     for tresc in (okno.STRONA_KONFIGURACJI, okno.strona_bledu("przykładowy komunikat")):
         assert "–" not in tresc
         assert "—" not in tresc
+
+
+def test_most_wystawia_tylko_dwie_metody(tmp_path):
+    """Żywy bieg EXE (odbiór K7c): pywebview przegląda rekurencyjnie publiczne atrybuty
+    js_api z wątku spoza UI; publiczne `okno` prowadziło do obiektów WebView2 (.NET)
+    i zakleszczało cały proces (serwer i pobieranie pakietów stawały)."""
+    most = okno.Most(Konfig(klucz_plik=tmp_path / "k"), "http://127.0.0.1:1/")
+    most._okno = object()
+    publiczne = {n for n in dir(most) if not n.startswith("_")}
+    assert publiczne == {"utworz_klucz", "otworz_aplikacje"}

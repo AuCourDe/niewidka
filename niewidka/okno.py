@@ -210,13 +210,13 @@ class Most:
     klucza w magazynie systemowym i przejście do aplikacji. Bez treści dokumentów."""
 
     def __init__(self, konfig: Konfig, url: str):
-        self.konfig = konfig
+        self._konfig = konfig
         self._url = url
-        self.okno = None  # ustawiane po create_window
+        self._okno = None  # po create_window; prywatne: pywebview nie przegląda atrybutów z „_”
 
     def utworz_klucz(self) -> dict:
         try:
-            utworz_klucz_w_keyringu(self.konfig.keyring_usluga)
+            utworz_klucz_w_keyringu(self._konfig.keyring_usluga)
         except KluczJuzIstnieje:
             return {"stan": "jest"}
         except Exception as blad:  # noqa: BLE001 — pad magazynu pokazujemy w oknie
@@ -227,8 +227,8 @@ class Most:
         return {"stan": "ok"}
 
     def otworz_aplikacje(self) -> dict:
-        if self.okno is not None:
-            self.okno.load_url(self._url)
+        if self._okno is not None:
+            self._okno.load_url(self._url)
         return {"stan": "ok"}
 
 
@@ -307,7 +307,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
     print(f"start: tworzę okno ({tytul})", file=sys.stderr)
     try:
         if strona is None:
-            most.okno = modul_webview.create_window(
+            most._okno = modul_webview.create_window(
                 tytul,
                 html=STRONA_KONFIGURACJI,
                 js_api=most,
@@ -315,7 +315,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
                 height=WYSOKOSC_OKNA,
             )
         else:
-            most.okno = modul_webview.create_window(
+            most._okno = modul_webview.create_window(
                 tytul,
                 url=strona,
                 js_api=most,
