@@ -169,4 +169,5 @@
   - [x] 5. logo.svg w h1 (134x42, alt), favicon.svg + favicon-32.png + apple-touch 180, ikona.ico 16/32/48/256 (pełny kontur), docs/logo sprzątnięte + README.md
   - [x] 6. Pełny pytest 420 passed/1 xfailed (z wagami) + ruff czysty (własne pliki; 1 błąd w cudzym test_okno.py sesji K6 nie ruszany); push
 - [x] 15:20 (orkiestrator) odbiór K4b: 15/15 znalezisk Codexa naprawionych z testem ataku (`docs/WYNIK-K4b.md`, `17d3fcb`); pełny pytest u orkiestratora 408 passed / 1 xfailed. K5b (claude-glm 2409) wystartował.
+- [x] 16:10 (orkiestrator) odbiór K5b: DOCX 219 s -> 1,72 s, teksty Argona, „Jak to działa”, logo B (`0a4f446`); zrzuty do Desktop/C. Uwagi orkiestratora -> K5c (claude-glm b8d6): logo za małe, ryzyko pominięcia „podwyższone” dla PESEL przy N=7 mylące, długi identyfikator w podglądzie.
 
