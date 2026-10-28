@@ -200,16 +200,17 @@
   - [x] web: serwer na Windows (klon, venv) http://127.0.0.1:8800, modele w niewidka-build\web-modele, oba pakiety zainstalowane, ukryj poziom 3: LOGIN/SWIFT/OSOBA/PESEL; skrót „Niewidka - wersja web.url” w Desktop/C
   - [x] okienkowa: C:\Users\uzytkownik\Niewidka-test + „Niewidka - uruchom wersję okienkową.bat” (lustro 127.0.0.1:39950); po drodze znalezione i naprawione zakleszczenie EXE przy pierwszym uruchomieniu (js_api `Most.okno` publiczne, `156c2d4`), przebudowa 483 passed/32 skipped, świeża kopia: oba pakiety ~3 s, LOGIN ukryty
 - [ ] 20:02 (właściciel) „stworzyć podobne rozwiązanie, ale dla modeli decyzyjnych” — NA PÓŹNIEJ, werbatim: „jeszcze do tego wrócimy bo się zastanawiam nad sensem modeli decyzyjnych na przykładzie LFM3.0 2.2b omniD”; nie zaczynać bez właściciela
-- [~] 23:36 (właściciel) „w okienkowej kliknąłem „pobierz podstawowy” i nic się nie dzieje”
+- [x] 23:36 (właściciel) „w okienkowej kliknąłem „pobierz podstawowy” i nic się nie dzieje”
   - [x] przyczyna: okno startuje serwer na wolnym porcie, a create_app dostaje konfig.port=8390 → Origin okna odrzucany (403 „niedozwolony Origin”), UI milczy
   - [x] test RED w tests/test_okno.py (403), poprawka w okno.py (port przed create_app), pełny pytest 530 passed / 1 xfailed, ruff czysty — `a9404f5`
   - [x] błąd 403 przy pakietach widoczny na ekranie pierwszego uruchomienia
   - [x] przebudowa EXE (484 passed/32 skipped), test_origin_exe.py: wolny port + Origin, oba pakiety ~3 s, LOGIN/SWIFT/OSOBA/PESEL ukryte; nowa kopia w Niewidka-test, ZIP w Desktop/C; okno ponownie uruchomione (Origin -> 409 zamiast 403)
 - [~] 23:55 (właściciel) „w wersji okienkowej testowałem i nie zmienia się zupełnie nic” — komunikat „STOP: tego dokumentu nie wolno wysyłać… Ponowne sprawdzenie znalazło: 1 osoba”, żaden fragment nie zanonimizowany; „aplikacja nie działa wcale, w sensie jest włączona, ale nie realizuje zadania”. Polecenie: skill testowania, scenariusze per rozwiązanie (web, okienkowa), testy po API, potem przez GUI; pomoc: claude-glm, agy2, agy3, agy4, jeden agent Sonnet; Codex 4× do code review i szukania błędów
-  - [ ] odtworzyć blokadę kontroli na piśmie urzędowym (API web i EXE), znaleźć przyczynę
-  - [ ] poprawka przyczyny + test regresji, pełny pytest
-  - [ ] scenariusze testowe: web i okienkowa (docs/testy/)
+  - [x] odtworzyć blokadę kontroli na piśmie urzędowym — pismo właściciela: poziomy 1-2 blokowane („Anna Kwiatkowska”, potem „Jan Marek”, „Nowicki”), poziom 3 przechodził; przyczyny: (1) kontrola blokowała cały wynik zamiast ukryć znalezisko, (2) losowy identyfikator mapy w dopisku zmieniał kontekst modelu → niedeterministyczne przepuszczanie nazwiska
+  - [x] poprawka + testy regresji, pełny pytest 540 passed/1 xfailed, korpus 0/233 blokad (poz. 1 i 3), pismo 3/3 poziomy ukonczony, 5/5 biegów identycznych — `9cccd41`; przy okazji: adres przez linie („Dotyczy”), słownik imion z małej litery („marki Skoda”), SWIFT w nagłówku („WARSZAWY”); EXE przebudowany (494 passed), web i EXE zweryfikowane po API z Origin
+  - [x] scenariusze testowe: web i okienkowa (docs/testy/SCENARIUSZE.md, 83 scenariusze)
   - [ ] przebieg po API: web i EXE, wyniki z dowodem
   - [ ] przebieg przez GUI: web (przeglądarka) i okno (WebView2), wyniki z dowodem
   - [ ] Codex: code review i szukanie błędów (do 4 wywołań), poprawki
   - [ ] przebudowa EXE, nowa kopia do testów, raport do Desktop/C
+  - [ ] (dopisek właściciela 00:10) „po testach, jeżeli wszystko jest okej, to spisz logikę aplikacji i zapytaj Argona i Astrę, czy to prawidłowe podejście i czy widzą jakieś ułatwienie dla użytkownika” (Astra bez danych klienta: tylko opis logiki)
