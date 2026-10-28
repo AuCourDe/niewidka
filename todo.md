@@ -140,3 +140,5 @@
   - [x] korpus: 4 próbki przeliczone (homonim-059, adr-089/090/091) + 8 nowych = 190; test_korpus 5 passed
   - [x] pomiar poziomu 1: ADRES 16/0/0 = 1.000/1.000 (progi K1 spełnione); R95 ADRES 0.2589→0.1707 w r95.json; sekcja „Poprawka ADRES” w docs/WYNIK-K2d.md + KRYTERIA.md §2 dopisany
   - [x] pytest całości 352 passed/1 xfailed + ruff czysty (zmienione pliki; 10 błędów w cudzych docs/logo/ — nie ruszane); commit+push
+- [~] 13:55 (właściciel) „nazwisko to jedno, a inne? pesel, ulica, numer dowodu?” – LFM2.5 mierzony tylko dla OSOBA
+  - [~] Pomiar LFM2.5 per typ (PESEL, ADRES, DOKUMENT, TELEFON, EMAIL, IBAN, DATA) + typy, których Niewidka nie wykrywa (zdrowie, firma, URL, login…) -> `docs/WYNIK-K2e.md` (opencode 1bbf, /tmp/cc-oc-k2e.md)
