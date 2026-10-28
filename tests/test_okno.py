@@ -327,3 +327,29 @@ def test_most_wystawia_tylko_dwie_metody(tmp_path):
     most._okno = object()
     publiczne = {n for n in dir(most) if not n.startswith("_")}
     assert publiczne == {"utworz_klucz", "otworz_aplikacje"}
+
+
+class AtrapaWebviewZOrigin(AtrapaWebview):
+    """Jak WebView2: POST z okna niesie nagłówek Origin strony (wolny port)."""
+
+    def start(self) -> None:
+        url = self.okna[0].kwargs["url"]
+        zadanie = urllib.request.Request(
+            f"{url}api/ukryj",
+            data=b"tekst=Jan+Kowalski&poziom=1",
+            headers={"X-Niewidka-Token": _token_z_strony(url), "Origin": url.rstrip("/")},
+        )
+        try:
+            with urllib.request.urlopen(zadanie, timeout=5) as odpowiedz:
+                self.status_podczas_startu = odpowiedz.status
+        except urllib.error.HTTPError as blad:
+            self.status_podczas_startu = blad.code
+
+
+def test_okno_na_wolnym_porcie_przyjmuje_origin_wlasnej_strony(srodowisko, keyring_pamieciowy):
+    # 2026-10-28: serwer okna stał na wolnym porcie, a create_app znał tylko
+    # konfig.port (8390) → każdy POST z okna 403 „niedozwolony Origin"
+    keyring.set_password(USLUGA, "mapa", KLUCZ)
+    atrapa = AtrapaWebviewZOrigin()
+    assert okno.uruchom(detektor=AtrapaDetektora(), webview=atrapa) == 0
+    assert atrapa.status_podczas_startu == 200

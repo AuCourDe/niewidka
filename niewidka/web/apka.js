@@ -632,17 +632,23 @@ function rysujListePakietow() {
   }
 }
 
+// postęp i błąd widać i w Ustawieniach, i na ekranie pierwszego uruchomienia
+// (wcześniej ekran startowy nie pokazywał nic, a błąd znikał razem z postępem)
+const MIEJSCA_POSTEPU = [
+  ["postep-pakietu", "postep-pakietu-pasek", "postep-pakietu-status"],
+  ["ekran-pakietow-postep", "ekran-pakietow-pasek", "ekran-pakietow-status"],
+];
+
 function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
-  const blok = document.getElementById("postep-pakietu");
-  const pasek = document.getElementById("postep-pakietu-pasek");
-  const status = document.getElementById("postep-pakietu-status");
-  blok.hidden = !pakietId;
-  if (!pakietId) return;
   const procent = razem > 0 ? Math.round((pobrane / razem) * 100) : 0;
-  pasek.value = procent;
-  status.textContent = blad
+  const tekst = blad
     ? `Nie udało się pobrać pakietu: ${blad}`
     : `Pobieranie pakietu ${pakietId}: ${procent}%…`;
+  for (const [idBloku, idPaska, idStatusu] of MIEJSCA_POSTEPU) {
+    document.getElementById(idBloku).hidden = !pakietId && !blad;
+    document.getElementById(idPaska).value = procent;
+    document.getElementById(idStatusu).textContent = pakietId || blad ? tekst : "";
+  }
 }
 
 async function odswiezPakiety() {
@@ -669,7 +675,6 @@ async function odswiezPakiety() {
   const pokazEkran = brakujeWymagany && !ekranPakietowOdrzucony;
   ekran.hidden = !pokazEkran;
   document.getElementById("ekran-pakietow-wybor").hidden = stanPakietow.postep.pakiet !== null;
-  document.getElementById("ekran-pakietow-postep").hidden = stanPakietow.postep.pakiet === null;
   return stanPakietow;
 }
 
@@ -705,9 +710,10 @@ async function akcjaPakietu(akcja, identyfikator, katalog) {
 }
 
 function komunikatOdpowiedziDlaPakietow(blad) {
-  const status = document.getElementById("postep-pakietu");
-  status.hidden = false;
-  document.getElementById("postep-pakietu-status").textContent = `Nie udało się: ${blad.blad || blad.message}`;
+  for (const [idBloku, , idStatusu] of MIEJSCA_POSTEPU) {
+    document.getElementById(idBloku).hidden = false;
+    document.getElementById(idStatusu).textContent = `Nie udało się: ${blad.blad || blad.message}`;
+  }
 }
 
 function inicjalizujPakiety() {

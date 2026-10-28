@@ -21,6 +21,7 @@ import threading
 import time
 import traceback
 from collections.abc import MutableMapping
+from dataclasses import replace
 from pathlib import Path
 
 import uvicorn
@@ -271,7 +272,9 @@ def uruchom(*, detektor=None, webview=None) -> int:
             import webview
 
             modul_webview = webview
-        konfig = wczytaj_konfig()
+        # port PRZED create_app: kontrola Origin musi znać port, na którym stoi
+        # okno (wolny port ≠ konfig.port → każdy POST z okna 403)
+        konfig = replace(wczytaj_konfig(), port=rozwiaz_port())
         # ładowanie wag tu = kontrola manifestu SHA-256 przy starcie (detektory.py)
         aplikacja = create_app(konfig, detektor=detektor)
         print("start: wagi i aplikacja OK", file=sys.stderr)
@@ -280,7 +283,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
         _pokaz(modul_webview, strona_bledu(f"{type(blad).__name__}: {blad}"))
         return 1
 
-    port = rozwiaz_port()
+    port = konfig.port
     serwer = Serwer(aplikacja, konfig.host, port)
     serwer.start()
     print(f"start: wątek serwera odpalony, port={port}", file=sys.stderr)
