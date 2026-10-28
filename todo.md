@@ -156,5 +156,6 @@
 - [~] 14:08 (właściciel) „uwzględnij ten model [LFM2.5 w pakiecie Najdokładniejszy] i kontynuuj, czekam na testy; paczka musi być możliwa do zbudowania samemu (źródła) oraz pobrania gotowego EXE (osoby nietechniczne) z GitHuba”
   - [x] K7a pomiar Q4 (claude-glm b244, /tmp/cc-glm-k7q4.md): `narzedzia/kwantyzuj_q4.py` (MatMulNBitsQuantizer + GatherBlockQuantized, bloki 32/128, sanity logits vs fp32, manifest SHA-256; podnoszenie opsetu 17→18 dla LFM2.5) + wagi w `~/models/niewidka/{bardsai-fp32,bardsai-q4-bl32,bardsai-q4-bl128,lfm25/q4-*}`; wynik i rekomendacja: `docs/WYNIK-K7-q4.md` — **zysku z LFM2.5 brak** (warunek „tylko jeśli pomiar pokaże zysk” niespełniony; zgodne z K2b/K2c/K2e)
   - [ ] K7b pakiety modeli + pierwsze uruchomienie + Ustawienia + workflow GitHub Actions (EXE w Releases) + README „Pobierz”/„Zbuduj ze źródeł” (claude-glm, startuje po K6w, K4b, K7a, K5b; /tmp/cc-glm-k7b.md)
+    - Decyzja orkiestratora 14:40: DWA pakiety — „Podstawowy” (bardsai Q4 bl32, ~191 MB, wymagany) + „Rozszerzony” (LFM2.5 Q4, ~222 MB, tylko IP/karta/SWIFT/login na poziomie 3); INT8 odpada (Q4 nie gorszy)
   - [ ] Wydanie publiczne EXE dopiero po przeglądzie właściciela (repo prywatne, decyzja 2c)
 
