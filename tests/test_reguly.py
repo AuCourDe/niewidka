@@ -159,3 +159,23 @@ def test_data_liczbowa_i_słowna():
 
 def test_sygnatura_nie_jest_datą():
     assert _znalezione("Sygn. 1234.05.1982 sprawa.", TypEncji.DATA) == []
+
+
+# --- K2b: FN z rozszerzonego korpusu (tel-085, tel-086, data-094) ---
+
+def test_telefon_stacjonarny_3_3_3_pierwsza_cyfra_1_4():
+    assert _znalezione("Tel.: +48 123 456 789.", TypEncji.TELEFON) == ["+48 123 456 789"]
+    assert _znalezione("Tel.: 123-456-789.", TypEncji.TELEFON) == ["123-456-789"]
+
+
+def test_telefon_stacjonarny_wymaga_separatorow():
+    # 9 cyfr bez separatorów to pułapka na REGON — nie telefon (K2b, decyzja reguły).
+    assert _znalezione("REGON 123456789 wpisano błędnie.", TypEncji.TELEFON) == []
+
+
+def test_data_iso_rrrr_mm_dd():
+    assert _znalezione("Data urodzenia: 1982-05-13.", TypEncji.DATA) == ["1982-05-13"]
+
+
+def test_data_iso_nie_zagniezdrza_sie_w_innych_liczbach():
+    assert _znalezione("Kod 12345-05-13-6789 pozycja.", TypEncji.DATA) == []

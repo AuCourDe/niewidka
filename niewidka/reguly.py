@@ -112,15 +112,17 @@ REGULY: tuple[Regula, ...] = (
         suma_kontrolna=True,
     ),
     # Telefon PL: prefiks opcjonalny; stacjonarny 2-3-2-2 (w nawiasach albo
-    # ze spacjami) albo komórkowy 3-3-3 (bez prefiksu tylko od cyfry 5-8,
-    # żeby nie wchodzić w 9-cyfrowe REGON-y).
+    # ze spacjami), komórkowy 3-3-3 (bez prefiksu tylko od cyfry 5-8, żeby nie
+    # wchodzić w 9-cyfrowe REGON-y) albo stacjonarny 3-3-3 od 1-4 — ten ostatni
+    # WYMAGA separatorów (ciąg 9 cyfr bez spacji to pułapka na REGON; K2b tel-085/086).
     Regula(
         typ=TypEncji.TELEFON,
         wzorzec=re.compile(
             r"(?<![\d+(])(?:\+48[ -]?|0048[ -]?)?"
             r"(?:\(\d{2}\)[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}"
             r"|\d{2}[ -]\d{3}[ -]\d{2}[ -]\d{2}"
-            r"|[5-8]\d{2}[ -]?\d{3}[ -]?\d{3})"
+            r"|[5-8]\d{2}[ -]?\d{3}[ -]?\d{3}"
+            r"|[1-4]\d{2}[ -]\d{3}[ -]\d{3})"
             r"(?!\d)"
         ),
         walidator=None,
@@ -142,6 +144,7 @@ REGULY: tuple[Regula, ...] = (
         typ=TypEncji.DATA,
         wzorzec=re.compile(
             rf"(?<![\d./-])(?:\d{{1,2}}[.-]\d{{1,2}}[.-]\d{{4}}"
+            rf"|\d{{4}}-\d{{2}}-\d{{2}}"  # ISO RRRR-MM-DD (K2b data-094)
             rf"|\d{{1,2}}\s+(?:{_MIESIĄCE})\s+\d{{4}})(?!\d)"
         ),
         walidator=None,
