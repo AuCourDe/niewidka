@@ -191,4 +191,7 @@
   - [x] zrzuty E2E odświeżone (desktop start/wynik, jak-to-dziala, mobile start/wynik) na żywym serwerze; pełny pytest 437 passed/1 xfailed (NIEWIDKA_MODELE_KATALOG) + ruff czysty; kopie w Desktop/C
 - [x] 16:42 (orkiestrator) odbiór K6-Windows (`ea03bb3`, `docs/WYNIK-K6-windows.md`): exe startuje 2,3 s, TXT 74 ms identyczny po przywróceniu, DOCX 0,4 s, RAM 716 MB, ZIP 274 MB; 12 biegów budowy, wszystkie przyczyny naprawione. ZIP do Desktop/C (wersja wczesna, z wagami w paczce). K7b wystartował (claude-glm 2a6c).
 - [x] 18:20 (orkiestrator) odbiór K7b: pytest u orkiestratora 490 passed / 1 xfailed (60 s, z wagami), ruff czysty; zrzuty k7-* obejrzane; nowy ZIP 53 MB + WYNIK-K7 w Desktop/C. Uwaga do K7c: przy SWIFT/loginie niewykrytym wynik i tak pokazuje „Kontrola jakości: zaliczona”.
-- [~] 18:20 (orkiestrator) Codex/astra #2 (z 4): przegląd bezpieczeństwa K7b (pobieranie pakietów, lustro, instalacja offline, workflow wydania)
+- [x] 18:20 (orkiestrator) Codex/astra #2 (z 4): przegląd K7b — 11 znalezisk (`docs/konsultacje/07-przeglad-codex-astra-2.md`); nr 1 = pakiet Rozszerzony w ogóle nie działa w anonimizacji (wyjaśnia SWIFT/login na zrzucie)
+- [~] 18:40 (orkiestrator) K7c: naprawa 11 znalezisk Codexa #2 + uczciwy tekst „kontrola zaliczona” (claude-glm c56a, /tmp/cc-glm-k7c.md)
+  - [ ] 12 punktów z testem ataku, docs/WYNIK-K7c.md, pytest + ruff
+  - [ ] przebudowa EXE na Windows i ponowny test, nowy ZIP do Desktop/C
