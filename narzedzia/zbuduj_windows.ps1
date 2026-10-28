@@ -101,7 +101,9 @@ Set-Content -Path $StartPy -Encoding ascii -Value "import sys`r`nfrom niewidka.o
   --distpath (Join-Path $KatalogBudowy "dist") `
   --workpath (Join-Path $KatalogBudowy "praca") `
   --specpath $KatalogBudowy `
-  --collect-all pywebview `
+  --collect-all webview `
+  --add-data ("{0};niewidka\web" -f (Join-Path $Repo "niewidka\web")) `
+  --add-data ("{0};niewidka\dane" -f (Join-Path $Repo "niewidka\dane")) `
   --hidden-import keyring.backends.Windows `
   --copy-metadata keyring `
   --hidden-import uvicorn.loops.auto --hidden-import uvicorn.loops.asyncio `
