@@ -381,45 +381,30 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
 @pytest.mark.model
 @pytest.mark.anyio
 async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik):
-    """Suwak poziomów zmienia detekcję w API (WYNIK-K2d, osoba-011): poziom 1 zostawia
-    „Piotrowi", poziom 2 maskuje pełne „Piotrowi Wiśniewskiemu"; R95 raportowane per poziom.
-    """
+    """Suwak poziomów zmienia detekcję w API. Korekta K7c: wagi produktu to
+    teraz bardsai Q4 bl32 z zaufanego pakiety.json (pkt 2/3) — Q4 na poziomie 1
+    łapie cały „Piotrowi Wiśniewskiemu" (próbka osoba-011 z K2d mierzona była
+    na INT8), więc różnicującą próbką jest inst-061 z korpusu: słownik imion
+    poziomu 3 dodaje „Adama Mickiewicza", poziom 1 go pomija."""
     from niewidka.mapa import odszyfruj
 
     konfig = Konfig(klucz_plik=klucz_plik, modele_katalog=katalog_modeli)
     app = create_app(konfig)  # produkcja: bez wstrzyknięcia, detektory per poziom
-    tekst = "Przekazano akt do Piotrowi Wiśniewskiemu."
+    tekst = "Muzeum im. Adama Mickiewicza zaprasza."
     async with _klient(app) as klient:
         r1 = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "1"}, headers=_naglowki(app)
         )
-        r2 = await klient.post(
-            "/api/ukryj", data={"tekst": tekst, "poziom": "2"}, headers=_naglowki(app)
+        r3 = await klient.post(
+            "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
         )
-    # K4b pkt 1: poziom 1 zostawia „Wiśniewskiemu" → kontrola BLOKUJE (422); poziom 2 = 200
-    assert r1.status_code == 422
-    assert r2.status_code == 200
-    assert set(app.state.detektory) == {1, 2}  # leniwy cache per poziom
-
-    def oryginaly(odpowiedz):
-        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
-        mapa = odszyfruj(_zip(odpowiedz.content)[f"{identyfikator[:12]}.nwidka"], KLUCZ)
-        return [wyst.oryginal for wyst in mapa.wystapienia]
-
-    assert oryginaly(r2) == ["Piotrowi Wiśniewskiemu"]
-    # kontrola słusznie BLOKUJE poziom 1 (zostawił „Wiśniewskiemu") — K4b pkt 1:
-    # 422 z typami, bez dokumentu i bez mapy; poziom 2 czysty
-    assert r1.status_code == 422
-    assert r1.json()["typy"] == {"OSOBA": 1}
-    assert not r1.content.startswith(b"PK")
-    assert r2.headers["x-niewidka-status"] == "ukonczony"
-    r95_poziom2 = json.loads(r2.headers["x-niewidka-r95"])
-    wpis = r95_poziom2.get("OSOBA")
-    # K5c: wpis = {r95, n, k, opis} — UI dostaje gotowy tekst, nie liczy sam
-    assert isinstance(wpis, dict)
-    assert {"r95", "n", "k", "opis"} <= set(wpis)
-    assert isinstance(wpis["r95"], float)
-    assert wpis["opis"]
+    assert r1.status_code == 200 and r3.status_code == 200
+    assert app.state.detektory.keys() == {1, 3}  # leniwy cache per poziom
+    assert "OSOBA" not in json.loads(r1.headers["x-niewidka-statystyki"])
+    assert json.loads(r3.headers["x-niewidka-statystyki"])["OSOBA"] == 1
+    identyfikator = r3.headers["x-niewidka-identyfikator"]
+    mapa = odszyfruj(_zip(r3.content)[f"{identyfikator[:12]}.nwidka"], KLUCZ)
+    assert [wyst.oryginal for wyst in mapa.wystapienia] == ["Adama Mickiewicza"]
 
 
 # --- K7b: pakiety modeli przez API -------------------------------------------
@@ -662,11 +647,12 @@ async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
     app = create_app(konfig, menedzer_pakietow=menedzer)  # produkcja: detektory leniwe
     tekst = "Kontakt na czacie: stefan_wodorost."
     async with _klient(app) as klient:
-        await klient.post(
+        odpowiedz = await klient.post(
             "/api/pakiety",
             json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
             headers=_naglowki(app),
         )
+        assert odpowiedz.status_code == 202  # K7c pkt 8: instalacja w tle
         menedzer.czekaj()
         bez = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
@@ -678,7 +664,7 @@ async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
             json={"akcja": "instaluj", "pakiet": "rozszerzony", "katalog": str(lustro)},
             headers=_naglowki(app),
         )
-        assert odpowiedz.status_code == 200
+        assert odpowiedz.status_code == 202
         menedzer.czekaj()
         z = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import socket
 import sys
 import urllib.request
@@ -41,6 +42,15 @@ class AtrapaOkna:
         self.wczytane_url.append(url)
 
 
+def _token_z_strony(url: str) -> str:
+    """Token sesji z meta strony głównej (ten przepływ co przeglądarka)."""
+    with urllib.request.urlopen(url, timeout=5) as odpowiedz:
+        strona = odpowiedz.read().decode("utf-8")
+    dopasowanie = re.search(r'<meta name="niewidka-token" content="([^"]*)"', strona)
+    assert dopasowanie, "strona startowa bez tokenu sesji"
+    return dopasowanie.group(1)
+
+
 class AtrapaWebview:
     """create_window/start jak w pywebview; start() = użytkownik zamknął okno."""
 
@@ -56,12 +66,18 @@ class AtrapaWebview:
 
     def start(self) -> None:
         url = self.okna[0].kwargs.get("url")
-        if url:
-            try:
-                with urllib.request.urlopen(f"{url}api/stan", timeout=5) as odpowiedz:
-                    self.status_podczas_startu = odpowiedz.status
-            except Exception as blad:  # noqa: BLE001 — atrapa zbiera wszystko do asercji
-                self.blad = blad
+        if not url:
+            return
+        try:
+            # K7c pkt 5: API pilnuje tokenu także na GET /api/stan i /api/pakiety,
+            # więc atrapa bierze token z meta jak prawdziwa przeglądarka
+            zadanie = urllib.request.Request(
+                f"{url}api/stan", headers={"X-Niewidka-Token": _token_z_strony(url)}
+            )
+            with urllib.request.urlopen(zadanie, timeout=5) as odpowiedz:
+                self.status_podczas_startu = odpowiedz.status
+        except Exception as blad:  # noqa: BLE001 — atrapa zbiera wszystko do asercji
+            self.blad = blad
 
 
 @pytest.fixture()
@@ -178,7 +194,10 @@ def test_uruchom_bez_wag_aplikacja_wstaje_z_ekranem_pakietow(srodowisko, keyring
             url = self.okna[0].kwargs.get("url")
             if not url:
                 return
-            with urllib.request.urlopen(f"{url}api/pakiety", timeout=5) as odpowiedz:
+            zadanie = urllib.request.Request(
+                f"{url}api/pakiety", headers={"X-Niewidka-Token": _token_z_strony(url)}
+            )
+            with urllib.request.urlopen(zadanie, timeout=5) as odpowiedz:
                 self.dane_pakietow = json.loads(odpowiedz.read())
 
     atrapa = AtrapaZPakietami()

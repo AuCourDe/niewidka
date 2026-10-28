@@ -716,8 +716,10 @@ class MenedzerPakietow:
                 self.postep.blad = f"{pakiet.id}: {etykieta} nie powiodła się (błąd sieci)"
             finally:
                 self.postep.pakiet = None
+                # K7c pkt 9: świeży stan ZANIM zniknie flaga _w_toku — czekaj()
+                # i polling UI mają widzieć stan po operacji, nie przed odświeżeniem
+                self.odswiez()
                 self._w_toku = False
-                self.odswiez()  # K7c pkt 9: świeży stan po operacji (w tym wątku)
                 self._zglos_zmiane()
 
         threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()

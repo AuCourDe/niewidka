@@ -240,17 +240,20 @@ def test_zbuduj_detektor_poziomy_2_i_3_roznia_sie_od_1(katalog_modeli):
 
 
 @pytest.mark.model
-def test_poziom2_lapie_co_poziom1_przeoczy(katalog_modeli):
-    """WYNIK-K2d, próbka osoba-011: poziom 1 zostawia „Piotrowi", poziom 2 łapie całą osobę."""
+def test_poziom3_lapie_co_poziom1_przeoczy(katalog_modeli):
+    """Suwak zmienia detekcję. Korekta K7c: wagi produktu to bardsai Q4 bl32 z
+    zaufanego pakiety.json (K7c pkt 2/3) — na Q4 poziomy 1 i 2 wykrywają osoba-011
+    identycznie (różnica K2d była kalibrowana na INT8), a realną różnicę daje
+    słownik imion poziomu 3 na próbce inst-061 z korpusu."""
     konfig = Konfig(modele_katalog=katalog_modeli)
-    tekst = "Przekazano akt do Piotrowi Wiśniewskiemu."
-    d1, d2 = zbuduj_detektor(1, konfig), zbuduj_detektor(2, konfig)
+    tekst = "Muzeum im. Adama Mickiewicza zaprasza."
+    d1, d3 = zbuduj_detektor(1, konfig), zbuduj_detektor(3, konfig)
     trafienia = {
         poziom: {(z.start, z.koniec) for z in d.znajdz(tekst) if z.typ is TypEncji.OSOBA}
-        for poziom, d in ((1, d1), (2, d2))
+        for poziom, d in ((1, d1), (3, d3))
     }
-    assert trafienia[1] == {(18, 26)}  # sam „Piotrowi"
-    assert trafienia[2] == {(18, 40)}  # pełne „Piotrowi Wiśniewskiemu"
+    assert trafienia[1] == set()  # poziom 1 pomija
+    assert trafienia[3] == {(11, 28)}  # poziom 3: słownik imion łapie „Adama Mickiewicza"
 
 
 def test_filtr_bez_daty():
