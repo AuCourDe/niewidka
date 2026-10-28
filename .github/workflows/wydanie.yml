@@ -1,0 +1,87 @@
+# Wydanie Niewidki (K7b): na tag v* buduje aplikację Windows (PyInstaller onedir
+# bez wag), uruchamia testy i publikuje ZIP (i instalator, gdy Inno Setup się
+# zbuduje) jako załączniki wydania wraz z SHA256SUMS.
+#
+# Pliki Q4 modeli (Podstawowy i Rozszerzony) trafiają do wydania OSOBNO, z maszyny
+# z wagami (narzędzia/kwantyzuj_q4.py, eksport K7a), bo ich nie ma na runnerze:
+#
+#   gh release upload v1.0.0 podstawowy-model.onnx podstawowy-tokenizer.json \
+#     podstawowy-config.json rozszerzony-model.onnx rozszerzony-tokenizer.json \
+#     rozszerzony-config.json SHA256SUMS --clobber
+#
+# Nazwy plików muszą zgadzać się z polem "zrodlo" w niewidka/dane/pakiety.json
+# (program pobiera {NIEWIDKA_MODELE_ZRODLO}/{zrodlo}).
+#
+# Dry-run bez tagu: uruchom workflow ręcznie (workflow_dispatch) — artefakty
+# budują się i lądują w zakładce Actions, wydanie NIE powstaje.
+
+name: wydanie
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Zależności
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install fastapi uvicorn cryptography keyring onnxruntime python-docx python-multipart python-stdnum tokenizers httpx pywebview pythonnet pyinstaller pytest scipy
+
+      - name: Testy (bez wag: testy modelowe same skaczą)
+        shell: pwsh
+        run: python -m pytest tests/ -q
+
+      - name: Budowa PyInstaller (skrypt budowy, istniejące repo bez klonu)
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File narzedzia/zbuduj_windows.ps1 `
+            -KatalogBudowy "$env:GITHUB_WORKSPACE\budowa" `
+            -Rpo "$env:GITHUB_WORKSPACE" `
+            -Python "python"
+
+      - name: SHA256SUMS
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem "$env:GITHUB_WORKSPACE\budowa\*.zip" | Select-Object -First 1
+          $hash = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower()
+          "$($hash)  $($zip.Name)" | Out-File -Encoding ascii "$env:GITHUB_WORKSPACE\budowa\SHA256SUMS"
+          Get-Content "$env:GITHUB_WORKSPACE\budowa\SHA256SUMS"
+
+      - name: Artefakty (dry-run i wydanie)
+        uses: actions/upload-artifact@v4
+        with:
+          name: niewidka-windows
+          path: |
+            budowa/*.zip
+            budowa/SHA256SUMS
+            budowa/instalator/*.exe
+
+      - name: Publikacja w GitHub Releases (tylko tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            budowa/*.zip
+            budowa/SHA256SUMS
+            budowa/instalator/*.exe
+          draft: true
+          body: |
+            Zainstaluj: rozpakuj ZIP i uruchom Niewidka.exe (albo użyj instalatora).
+            Przy pierwszym uruchomieniu program zaproponuje pobranie pakietów modeli.

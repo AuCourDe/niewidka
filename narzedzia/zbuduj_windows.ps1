@@ -1,21 +1,21 @@
 <#
-Budowa Niewidki dla Windows (K6): klon z GitHuba -> venv (py -3.13) -> PyInstaller
-onedir bez konsoli -> wagi bardsai z weryfikacją SHA-256 wg manifest.json -> paczka
-ZIP. Instalator Inno Setup buduje się tylko, gdy iscc jest w PATH (bez instalowania
-Inno bez potrzeby). Uruchomienie NA WINDOWS (albo z WSL przez powershell.exe):
+Budowa Niewidki dla Windows (K6, bez wag od K7b): klon z GitHuba -> venv (py -3.13)
+-> PyInstaller onedir bez konsoli -> paczka ZIP. Wagi modeli NIE wchodzą do paczki:
+program pobiera je po instalacji (pierwsze uruchomienie albo Ustawienia). Instalator
+Inno Setup buduje się tylko, gdy iscc jest w PATH (bez instalowania Inno bez potrzeby).
+Uruchomienie NA WINDOWS (albo z WSL przez powershell.exe):
 
-  powershell -ExecutionPolicy Bypass -File narzedzia\zbuduj_windows.ps1 [-Wagi <katalog>]
+  powershell -ExecutionPolicy Bypass -File narzedzia\zbuduj_windows.ps1
 
-Domyślne źródło wag: \\wsl.localhost\Ubuntu-24.04\mnt\projekty\models\niewidka (tylko
-pliki wymienione w manifest.json; lfm25 pomijany; uwaga: ~/models to dowiązanie
-do /mnt/projekty/models, którego \\wsl.localhost nie prowadzi). Wynik:
-  <KatalogBudowy>\dist\Niewidka\Niewidka.exe   (wagi w dist\Niewidka\modele)
+-Rpo wskazuje istniejące repozytorium (CI: workflow już ma checkout) i pomija klon.
+Wynik:
+  <KatalogBudowy>\dist\Niewidka\Niewidka.exe
   <KatalogBudowy>\Niewidka-<wersja>-windows-x64.zip
 #>
 param(
   [string]$KatalogBudowy = "C:\Users\uzytkownik\niewidka-build",
   [string]$RepoUrl = "https://github.com/AuCourDe/niewidka.git",
-  [string]$Wagi = "\\wsl.localhost\Ubuntu-24.04\mnt\projekty\models\niewidka",
+  [string]$Rpo = "",
   [string]$Python = "py -3.13",
   [switch]$PominTesty
 )
@@ -29,15 +29,19 @@ if (Get-Process Niewidka -ErrorAction SilentlyContinue) {
   throw "Niewidka jest uruchomiona: zamknij ja przed budowa (blokuje dist\Niewidka)"
 }
 
-$Repo = Join-Path $KatalogBudowy "repo"
-$VenvPython = Join-Path $Repo ".venv\Scripts\python.exe"
-
-Write-Host "== 1. Repozytorium (klon z GitHuba, nie kopia katalogu roboczego) =="
-if (Test-Path (Join-Path $Repo ".git")) {
-  git -C $Repo pull --ff-only
+if ($Rpo -ne "") {
+  $Repo = $Rpo
+  Write-Host "== 1. Repozytorium: używam istniejącego $Repo =="
 } else {
-  git clone $RepoUrl $Repo
+  $Repo = Join-Path $KatalogBudowy "repo"
+  Write-Host "== 1. Repozytorium (klon z GitHuba, nie kopia katalogu roboczego) =="
+  if (Test-Path (Join-Path $Repo ".git")) {
+    git -C $Repo pull --ff-only
+  } else {
+    git clone $RepoUrl $Repo
+  }
 }
+$VenvPython = Join-Path $Repo ".venv\Scripts\python.exe"
 Write-Host ("  commit: " + (git -C $Repo rev-parse --short HEAD))
 
 Write-Host "== 2. Srodowisko wirtualne (Python 3.13) i zaleznosci =="
@@ -112,26 +116,14 @@ Set-Content -Path $StartPy -Encoding ascii -Value "import sys`r`nfrom niewidka.o
   $StartPy
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller nie powiodl sie" }
 
-Write-Host "== 7. Wagi bardsai + manifest SHA-256 =="
-$Modele = Join-Path (Join-Path $KatalogBudowy "dist") "Niewidka\modele"
-New-Item -ItemType Directory -Force -Path $Modele | Out-Null
-Copy-Item (Join-Path $Wagi "manifest.json") $Modele -Force  # sam manifest tez musi lezec w katalogu wag
-$Manifest = Get-Content -Raw (Join-Path $Wagi "manifest.json") | ConvertFrom-Json
-foreach ($Plik in $Manifest.pliki.PSObject.Properties) {
-  Copy-Item (Join-Path $Wagi $Plik.Name) $Modele -Force
-  $Hash = (Get-FileHash (Join-Path $Modele $Plik.Name) -Algorithm SHA256).Hash.ToLower()
-  if ($Hash -ne $Plik.Value) { throw "SHA-256 niezgodny dla $($Plik.Name): $Hash" }
-  Write-Host ("  " + $Plik.Name + " SHA-256 OK")
-}
-
-Write-Host "== 8. Paczka ZIP (onedir) =="
+Write-Host "== 7. Paczka ZIP (onedir, bez wag: modele pobiera program po instalacji) =="
 $Zip = Join-Path $KatalogBudowy "Niewidka-$Wersja-windows-x64.zip"
 if (Test-Path $Zip) { Remove-Item $Zip }
 Compress-Archive -Path (Join-Path $KatalogBudowy "dist\Niewidka") -DestinationPath $Zip
 $Rozmiar = "{0:N0} MB" -f ((Get-Item $Zip).Length / 1MB)
 Write-Host "  $Zip ($Rozmiar)"
 
-Write-Host "== 9. Instalator Inno Setup (tylko gdy iscc jest) =="
+Write-Host "== 8. Instalator Inno Setup (tylko gdy iscc jest) =="
 $Iscc = Get-Command iscc -ErrorAction SilentlyContinue
 if ($Iscc) {
   $Iss = Join-Path $KatalogBudowy "niewidka.iss"

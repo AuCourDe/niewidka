@@ -2,6 +2,48 @@
 
 Lokalna anonimizacja danych osobowych w polskim tekście.
 
+## Pobierz gotowy program (dla osób nietechnicznych)
+
+1. Wejdź na stronę wydań: <https://github.com/AuCourDe/niewidka/releases>.
+2. Pobierz plik `Niewidka-<wersja>-windows-x64.zip` z najnowszego wydania.
+3. Rozpakuj archiwum w dowolnym katalogu i uruchom `Niewidka.exe`.
+4. Przy pierwszym uruchomieniu program poprosi o utworzenie klucza mapy
+   (trafia do systemowego sejfu haseł) i zapyta, czy pobrać pakiety modeli.
+   Wybierz „Pobierz podstawowy (zalecane)": to ok. 190 MB, pobiera się raz.
+5. Potem program nie łączy się z internetem. Twoje dokumenty nigdzie nie wypływają.
+
+Aktualizacja: pobierz nowy ZIP i rozpakuj w to samo miejsce. Pobrane modele
+zostają na komputerze (Windows: `%LOCALAPPDATA%\Niewidka\modele`).
+
+## Zbuduj ze źródeł (dla IT)
+
+Wymagane: Windows 10/11, Python 3.13 (`py -3.13`), git.
+
+```powershell
+git clone https://github.com/AuCourDe/niewidka.git C:\niewidka-zrodla
+cd C:\niewidka-zrodla
+powershell -ExecutionPolicy Bypass -File narzedzia\zbuduj_windows.ps1 -KatalogBudowy C:\niewidka-build
+```
+
+Skrypt tworzy środowisko wirtualne, odpala testy i buduje `Niewidka.exe`
+(PyInstaller onedir) z paczką ZIP. Wagi modeli nie wchodzą do paczki.
+
+Instalacja offline (sieć bez internetu): przygotuj katalog z plikami pakietów
+(nazwy jak w polu `zrodlo` w `niewidka/dane/pakiety.json`), a w Ustawieniach
+aplikacji użyj akcji instalowania z katalogu. Źródło pobierania nadpisuje
+zmienna `NIEWIDKA_MODELE_ZRODLO` (np. wewnętrzny serwer HTTP), katalog wag:
+`NIEWIDKA_MODELE_KATALOG`.
+
+## Pakiety modeli
+
+| pakiet | co daje | rozmiar do pobrania |
+|---|---|---|
+| **Podstawowy** (wymagany) | pełne działanie programu na wszystkich poziomach jakości | ok. 191 MB |
+| **Rozszerzony** (opcjonalny) | na poziomie Najdokładniej rozpoznaje dodatkowo adresy IP, kody SWIFT i loginy | ok. 227 MB |
+
+Adresy IP i numery kart płatniczych (z sumą Luhna) wykrywa już pakiet podstawowy.
+Pomiary: `docs/WYNIK-K7.md`, `docs/WYNIK-K7-q4.md`.
+
 ## Kandydaci (stan 2026-10-28, liczby = pomiary na korpusie 182 próbek)
 
 | Model | Rozmiar | Polski | Licencja | Wynik pomiaru |
