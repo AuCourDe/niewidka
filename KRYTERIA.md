@@ -13,8 +13,18 @@ zakazana — rewizja kryteriów to nowy plik i nowy pomiar, nigdy dopasowanie pr
    unia, typ wybierany według priorytetów LLD §5 (zgodnie z pkt 1 przeglądu Astry,
    `docs/konsultacje/04-przeglad-astra.md`).
 3. Dopasowanie dokładne: **TP** = detekcja o identycznych (start, koniec, typ) jak oczekiwana
-   encja; **FN** = oczekiwana bez trafienia; **FP** = detekcja bez dokładnie pasującego
-   oczekiwania. Pokrycie częściowe liczy się jednocześnie jako FN i FP (zero tolerancji).
+   encja; **FN** = oczekiwana bez trafienia; **FP** = detekcja **pewna** (`podejrzana=False`)
+   bez dokładnie pasującego oczekiwania. Pokrycie częściowe liczy się jednocześnie jako FN
+   i FP (zero tolerancji).
+   **PN** (podejrzane nadmaskowanie, doprecyzowanie definicji 2026-10-28): detekcja z
+   flagą `podejrzana=True` (wzorzec pasuje, suma kontrolna błędna) bez dokładnie pasującego
+   oczekiwania — liczona osobno, **nie** wchodzi do FP ani do precision. Powód: przyjęcie
+   pkt 14 przeglądu Astry (`docs/konsultacje/04-przeglad-astra.md`) zmienia zachowanie reguł
+   na polecenie właściciela — numer z błędną sumą (możliwa literówka prawdziwego numeru) jest
+   od teraz świadomie maskowany z flagą, więc stare liczenie „trafienie na pułapce = FP"
+   opisywałoby zamierzone nadmaskowanie jako błąd. Zmiana dotyczy WYŁĄCZNIE definicji —
+   progi (tabela §3, bramy) zostają bez zmian; pomiar powtórzony po zmianie zachowania,
+   wynik w dopisku `docs/WYNIK-K1.md`.
 4. `recall(T) = TP/(TP+FN)`, `precision(T) = TP/(TP+FP)` per typ; **„łącznie”** =
    mikro-uśrednienie po wszystkich wystąpieniach typów mierzonych na danym poziomie.
 5. Sanity narzędzia: detektor pusty daje recall 0 (test w `tests/test_pomiar.py`).
@@ -68,7 +78,8 @@ trafficień na numerach z błędną sumą. W tabeli odpowiadają temu wiersze �
 
 - ≥ 40 próbek; każdy typ z tabeli K1 ma ≥ 2 oczekiwane encje pozytywne.
 - Każdy typ z walidatorem sumy kontrolnej (PESEL, NIP, REGON, IBAN, DOKUMENT) ma ≥ 1
-  wystąpienie z **błędną** sumą — bez oczekiwanej encji; trafienie tam liczy się jako FP.
+  wystąpienie z **błędną** sumą — bez oczekiwanej encji; pewne trafienie tam liczy się
+  jako FP, nadmaskowanie z flagą `podejrzana` — jako PN (§1.3).
 - Homonimy („Róża”, „Wiśniewski”/„wiśnie”) i nazwiska-rzeczowniki („Kowal”, „Nowak”)
   obecne jako próbki z tagami `homonim` / `rzeczownik-nazwisko` (łącznie ≥ 4 próbki).
 - ≥ 2 próbki negatywne (bez żadnej oczekiwanej encji).

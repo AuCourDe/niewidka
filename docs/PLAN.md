@@ -5,6 +5,10 @@ progi recall/precision przed pierwszym pomiarem); TDD w rdzeniu; gotowe bibliote
 własnego kodu; kodowanie w claude-glm (polecenie właściciela), dyrygent planuje, odbiera
 i weryfikuje; konsultacje Astra/Argon na przejściach etapów; przegląd końcowy codex.
 
+**MVP zawężone 2026-10-28 po przeglądach** (Astra pkt 15, `LLD.md` §17): wklejony tekst +
+TXT + DOCX + web lokalny; odt/xlsx/pptx/pdf, tryb serwera organizacji, desktop i Android →
+Etap 6 = v1.
+
 ## 0. Przegląd bibliotek (Library survey)
 
 Gotowe biblioteki zamiast własnego kodu — decyzja domyślna dla każdej potrzeby:
@@ -63,39 +67,52 @@ Gotowe biblioteki zamiast własnego kodu — decyzja domyślna dla każdej potrz
       jeśli eksport do ONNX wymaga torch w runtime — odpuszczamy, odnotowujemy).
 - [ ] T2.5 (2 h) `narzedzia/kalibracja.py` → `dane/r95.json`; `jakosc.py` (R95 + wskaźnik).
 
-## Etap 3 — Formaty (~13–15 h)
+## Etap 3 — Formaty MVP: txt, docx (~7–9 h)
 
 - [ ] T3.1 (1 h) `formaty/tekst.py` + rejestr formatów.
-- [ ] T3.2 (3–4 h) `docx_.py`: scalanie runów, `starts`, wstawianie ze stylem, czyszczenie
-      (komentarze, śledzone zmiany, metadane).
-- [ ] T3.3 (2 h) `odt_.py`.
-- [ ] T3.4 (2 h) `xlsx_.py` (komórki, arkusz dopisku, ukryte arkusze).
-- [ ] T3.5 (3 h) `pdf_.py` (PyMuPDF: ekstrakcja bloków, redakcja + znacznik; skan → blokada).
-- [ ] T3.6 (2 h) `pptx_.py` (+ notatki prelegenta).
-- [ ] T3.7 (1–2 h) Blokady nieobsługiwanych elementów + `tests/test_formaty.py` (round-trip 6 formatów).
+- [ ] T3.2 (3–4 h) `docx_.py`: scalanie runów, `starts`, wstawianie ze stylem (cięcie
+      respektujące hiperłącza/pola/zakładki), czyszczenie (komentarze, śledzone zmiany,
+      metadane), allowlist części archiwum, parser bez encji/sieci.
+- [ ] T3.3 (1–2 h) Blokady nieobsługiwanych elementów (makra, osadzone obiekty; obrazy —
+      polityka usuń/ostrzeż) + `tests/test_formaty.py` (round-trip TXT + DOCX).
+- Pozostałe formaty (odt, xlsx z liczbami/formułami/cache, pptx, pdf z redakcją) → Etap 6.
 
 ## Etap 4 — Mapa, przywracanie, API (~8–10 h)
 
-- [ ] T4.1 (2 h) `mapa.py` + `klucze.py`: AES-256-GCM, keyring/plik, CLI.
-- [ ] T4.2 (2 h) Przywracanie wg `kolejny` + rozbieżności form + testy.
-- [ ] T4.3 (2 h) `kontrola.py` (poziom 3: ponowny odczyt, okna przesunięte).
-- [ ] T4.4 (2–3 h) `api.py`: 3 endpointy, kolejka, limity, błędy wg LLD §15.
-- [ ] T4.5 (1 h) `tests/test_api.py`: end-to-end ukryj → przywróć = oryginał; 413/422/503.
+- [ ] T4.1 (2 h) `mapa.py` (identyfikator zadania, warianty form) + `klucze.py`:
+      AES-256-GCM, keyring/plik (0600 tylko POSIX), CLI.
+- [ ] T4.2 (2 h) Przywracanie wg pary (oznaczenie, wariant) + weryfikacja `kolejny`
+      + testy (także po przestawieniu zdań w wyniku).
+- [ ] T4.3 (2 h) `kontrola.py`: weryfikacja zapisu na każdym poziomie, blokada statusu
+      „ukończony"; poziom 3 = okna przesunięte.
+- [ ] T4.4 (2–3 h) `api.py`: 3 endpointy na 127.0.0.1, token sesji + walidacja Host/Origin,
+      pula wątków + timeout, kolejka, limity przed buforowaniem i po dekompresji,
+      odpowiedź ZIP, middleware logów bez treści; błędy wg LLD §15.
+- [ ] T4.5 (1 h) `tests/test_api.py`: end-to-end ukryj → przywróć (dane zastąpione = oryginał
+      wystąpień); 413/422 (zły identyfikator)/503.
 
-## Etap 5 — Web, MVP (~4–6 h)
+## Etap 5 — Web lokalny, MVP (~4–6 h)
 
-- [ ] T5.1 (3–4 h) `web/`: upload/wklejenie, wynik + mapa do pobrania, wskaźnik, R95,
-      ostrzeżenia, przywracanie.
-- [ ] T5.2 (1–2 h) Suwak poziomów 1-3 + jawny tryb („Na tym urządzeniu" / „Na serwerze organizacji").
+- [ ] T5.1 (3–4 h) `web/`: upload/wklejenie, wynik + mapa do pobrania, R95 z etykietą
+      „dokładność na korpusie wzorcowym", ostrzeżenia, przywracanie.
+- [ ] T5.2 (1–2 h) Suwak poziomów 1-3 + jawny tryb „Na tym urządzeniu"; czyszczenie sesji
+      w UI (Astra pkt 12).
 
 **Brama G2 = MVP (K5):** pokazanie właścicielowi — ocena percepcyjna należy do właściciela.
 
-## Etap 6 — Desktop i Android, v1 (~5–8 h)
+## Etap 6 — v1: pozostałe formaty, serwer, desktop, Android (~13–18 h)
 
-- [ ] T6.1 (1–2 h) pywebview ładujące `web/`.
-- [ ] T6.2 (2–3 h) PyInstaller (onedir) + test uruchomienia na Windows.
-- [ ] T6.3 (2 h) PWA: manifest + service worker (cache tylko powłoki, `no-store` na `/api/*`).
-- [ ] T6.4 (2 h, opcja) TWA (Bubblewrap).
+- [ ] T6.1 (2 h) `odt_.py`.
+- [ ] T6.2 (2 h) `xlsx_.py`: komórki + liczby renderowane + formuły + cache, arkusz
+      dopisku, ukryte arkusze.
+- [ ] T6.3 (3 h) `pdf_.py`: `apply_redactions` + pełny zapis z `garbage`, blokada
+      dokumentów mieszanych, jednokierunkowy (przywracanie → 422/TXT); decyzja licencyjna AGPL.
+- [ ] T6.4 (2 h) `pptx_.py` (+ notatki prelegenta).
+- [ ] T6.5 (2–3 h) Tryb „Na serwerze organizacji": uwierzytelnianie, HTTPS, klucz per
+      dokument/hasło klienta, autoryzacja odszyfrowania.
+- [ ] T6.6 (1–2 h) pywebview ładujące `web/` + PyInstaller (onedir) na Windows.
+- [ ] T6.7 (2 h) PWA: manifest + service worker (cache tylko powłoki, `no-store` na `/api/*`).
+- [ ] T6.8 (2 h, opcja) TWA (Bubblewrap).
 
 ## Zamknięcie (poza etapami)
 
@@ -109,4 +126,4 @@ Gotowe biblioteki zamiast własnego kodu — decyzja domyślna dla każdej potrz
 - LFM2.5: `trust_remote_code` i eksport ONNX — brama T2.3, odpuszczamy bez kosztu jakości MVP.
 - PyMuPDF AGPL-3.0: dla użycia wewnątrz organizacji OK; decyzja przed dystrybucją zewnętrzną.
 - Pobieranie z HF: wyłącznie `httpx` (środowisko B); wagi nigdy do repo.
-- Szacunek łączny: ~58–74 h (bez opcjonalnego T6.4).
+- Szacunek łączny: ~63–83 h po zawężeniu MVP (MVP ~50–65 h; v1 ~13–18 h, bez opcjonalnego T6.8).
