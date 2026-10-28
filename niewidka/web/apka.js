@@ -214,6 +214,12 @@ function pokazWynik(naglowki, czesci) {
   const opis = document.createElement("p");
   opis.textContent = "Ponowne sprawdzenie wyniku nie znalazło żadnych danych osobowych.";
   blok.append(opis);
+  const uwagi = JSON.parse(naglowki.get("x-niewidka-uwagi") || "[]");
+  for (const uwaga of uwagi) {
+    const wiersz = document.createElement("p");
+    wiersz.textContent = uwaga;
+    blok.append(wiersz);
+  }
   poleStatusu.append(blok);
 
   const zamienione = document.getElementById("blok-zamienione");

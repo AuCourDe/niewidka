@@ -128,11 +128,11 @@ class TestSkanSurowy:
 
     def test_oryginal_w_czesci_nie_xml(self):
         dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
-        brudny = _docx_przebuduj(dane, dodaj={"word/media/skrytka.bin": f"losowe dane {PESEL} koniec".encode()})
+        brudny = _docx_przebuduj(dane, dodaj={"word/media/skrytka.png": f"losowe dane {PESEL} koniec".encode()})
 
         uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa(), oryginaly=[PESEL])
 
-        assert any(u.typ == "ORYGINAL" and u.czesc == "word/media/skrytka.bin" for u in uwagi)
+        assert any(u.typ == "ORYGINAL" and u.czesc == "word/media/skrytka.png" for u in uwagi)
 
     def test_czysty_wynik_z_oryginalami_zero_ostrzezen(self):
         """PESEL zamieniony na znacznik i nigdzie w archiwum nieobecny = bez alarmu."""

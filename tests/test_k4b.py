@@ -21,6 +21,7 @@ from niewidka.konfig import Konfig
 
 KLUCZ = bytes(range(32))
 PESEL = "44051401359"
+_MB = 1024 * 1024
 
 
 @pytest.fixture()
@@ -118,3 +119,70 @@ def test_pkt1_ui_blokada_wylacza_pobieranie_i_kopiowanie():
     assert 'status === "zablokowany"' in apka  # obsługa 422 zablokowanego
     assert "STOP" in apka
     assert '"x-niewidka-status"' not in apka  # wynik 200 nigdy nie jest zablokowany
+
+
+# --- pkt 2: obrazy usuwane, niezweryfikowane części binarne = blokada ----------
+
+from niewidka.formaty import ElementNieobslugiwany
+from niewidka.rdzen import ukryj
+
+
+def test_pkt2_obrazy_usuwane_z_uwaga_w_raporcie():
+    """K4b pkt 2: bez OCR obraz nie daje się sprawdzić — domyślnie USUWANY,
+    w jego miejscu neutralny tekst, raport ma uwagę, status zostaje czysty."""
+    wynik, _, raport = ukryj(
+        _wzorzec_docx(), "docx", 1, detektor=RegulyDetektor(), max_rozpakowane_bajtow=200 * _MB
+    )
+    czesci = _zip(wynik)
+    assert not [n for n in czesci if n.startswith("word/media/")], "obraz zostawiony w wyniku"
+    assert "[OBRAZ USUNIĘTY]" in czesci["word/document.xml"].decode()
+    assert any("OBRAZ" in uwaga for uwaga in raport.uwagi)
+    assert raport.status == "ukonczony"  # usunięcie = uwaga, nie blokada
+
+
+@pytest.mark.anyio
+async def test_pkt2_niezweryfikowana_czesc_binarna_blokada(konfig):
+    """K4b pkt 2: word/media/*.bin nie da się zweryfikować bez OCR ani skanu — blokada."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    dane = _docx_przebuduj(_wzorzec_docx(), dodaj={"word/media/skrytka.bin": b"\x00\x01\x02dane"})
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("umowa.docx", dane)},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 422
+
+
+def test_pkt2_polityka_obrazow_z_konfiguracji():
+    """K4b pkt 2: polityka obrazów konfigurowalna — „zostaw" zachowuje obraz,
+    ale raport ostrzega; „blokuj" podnosi ElementNieobslugiwany."""
+    wynik, _, raport = ukryj(
+        _wzorzec_docx(),
+        "docx",
+        1,
+        detektor=RegulyDetektor(),
+        max_rozpakowane_bajtow=200 * _MB,
+        polityka_obrazow="zostaw",
+    )
+    assert [n for n in _zip(wynik) if n.startswith("word/media/")], "polityka zostaw straciła obraz"
+    assert any("OBRAZ" in uwaga for uwaga in raport.uwagi)
+    with pytest.raises(ElementNieobslugiwany):
+        ukryj(
+            _wzorzec_docx(),
+            "docx",
+            1,
+            detektor=RegulyDetektor(),
+            polityka_obrazow="blokuj",
+        )
+
+
+def test_pkt2_konfig_wcztuje_polityke_obrazow():
+    from niewidka.konfig import wczytaj_konfig
+
+    assert wczytaj_konfig(env={"NIEWIDKA_OBRAZY": "zostaw"}).obrazy == "zostaw"
+    assert wczytaj_konfig(env={}).obrazy == "usun"
+    with pytest.raises(ValueError, match="NIEWIDKA_OBRAZY"):
+        wczytaj_konfig(env={"NIEWIDKA_OBRAZY": "czarodziejka"})
+

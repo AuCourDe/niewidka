@@ -43,6 +43,7 @@ class Raport:
     poziom: int
     statystyki: dict[str, int]  # typ -> liczba zastąpionych encji
     ostrzezenia: list[Ostrzezenie] = field(default_factory=list)
+    uwagi: list[str] = field(default_factory=list)  # nieblokujące (K4b pkt 2: usunięte obrazy)
     r95: dict[str, float | None] = field(default_factory=dict)
     status: str = "ukonczony"  # "zablokowany", gdy kontrola znalazła nowe znaleziska
 
@@ -107,8 +108,13 @@ def ukryj(
     konfig=None,
     kontrola_blokada: bool = True,
     max_rozpakowane_bajtow: int | None = None,
+    polityka_obrazow: str = "usun",
 ) -> tuple[bytes, Mapa, Raport]:
-    """Dokument -> wynik ze znacznikami + mapa + raport (kontrola zapisu zawsze)."""
+    """Dokument -> wynik ze znacznikami + mapa + raport (kontrola zapisu zawsze).
+
+    `polityka_obrazow` (K4b pkt 2): usun | blokuj | zostaw — domyślnie usuwamy
+    obrazy (bez OCR nie dają się zweryfikować) i zostawiamy uwagę w raporcie.
+    """
     _sprawdz_format(format)
     if detektor is None:
         if konfig is None:
@@ -116,7 +122,7 @@ def ukryj(
         detektor = zbuduj_detektor(poziom, konfig)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
-    dok = adapter.wczytaj(dane)
+    dok = adapter.wczytaj(dane, polityka_obrazow=polityka_obrazow)
 
     segmenty_encji = [
         [Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec]) for z in detektor.znajdz(segment.tekst)]
@@ -157,11 +163,22 @@ def ukryj(
         forma for wpis in wpisy.values() for forma in wpis.formy.values()
     }
     ostrzezenia = kontroluj(wynik, f"wynik.{format}", detektor, oryginaly=sorted(oryginaly))
+    uwagi: list[str] = []
+    obrazy = (dok.zasoby or {}).get("obrazy", {})
+    if obrazy.get("usuniete"):
+        uwagi.append(
+            f"OBRAZ USUNIĘTY ({obrazy['usuniete']} szt.): bez OCR treść obrazu nie daje się sprawdzić"
+        )
+    if obrazy.get("pozostale"):
+        uwagi.append(
+            f"OBRAZ BEZ OCR ({obrazy['pozostale']} szt.): treść obrazu pozostała w wyniku i nie daje się sprawdzić"
+        )
     raport = Raport(
         identyfikator=mapa.identyfikator,
         poziom=poziom,
         statystyki=statystyki,
         ostrzezenia=ostrzezenia,
+        uwagi=uwagi,
         r95={typ: r95_z_kalibracji(poziom, typ) for typ in statystyki},
         status="zablokowany" if ostrzezenia and kontrola_blokada else "ukonczony",
     )

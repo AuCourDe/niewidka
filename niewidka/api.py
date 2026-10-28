@@ -266,6 +266,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
                 detektor=_detektor_dla(poziom),
                 kontrola_blokada=konfig.kontrola_blokada,
                 max_rozpakowane_bajtow=konfig.max_rozpakowane_mb * _MB,
+                polityka_obrazow=konfig.obrazy,
             )
             return wynik, mapa, raport, zaszyfruj(mapa, klucz)
 
@@ -282,6 +283,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             "x-niewidka-identyfikator": mapa.identyfikator,
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
             "x-niewidka-ostrzezenia": _json_naglowek(_ostrzezenia_lista(raport.ostrzezenia)),
+            "x-niewidka-uwagi": _json_naglowek(raport.uwagi),
             "x-niewidka-r95": _json_naglowek(raport.r95),
             "x-niewidka-status": raport.status,
             "content-disposition": 'attachment; filename="wynik.zip"',

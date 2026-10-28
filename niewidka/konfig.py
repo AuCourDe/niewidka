@@ -17,6 +17,11 @@ DOMYSLNY_PLIK = Path("niewidka.toml")
 # dawały identyczne wyniki na korpusie 182, przyjęto niższy.
 PROG_OSOBA_DOMYSLNY = 0.2
 
+# K4b pkt 2: polityka obrazów w DOCX — bez OCR nie dają się zweryfikować.
+# „usun" (domyślnie) usuwa obrazy z ostrzeżeniem w raporcie, „blokuj" odrzuca
+# dokument, „zostaw" to świadome ryzyko (obraz zostaje, raport ostrzega).
+POLITYKI_OBRAZOW = ("usun", "blokuj", "zostaw")
+
 
 @dataclass(frozen=True)
 class Konfig:
@@ -32,6 +37,7 @@ class Konfig:
     max_rozpakowane_mb: int = 200
     max_tekst_mb: int = 1
     kontrola_blokada: bool = True
+    obrazy: str = "usun"
     kolejka: int = 4
     timeout_s: int = 120
     wykrywaj_date: bool = True
@@ -80,6 +86,11 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
     klucze = toml.get("klucze", {})
     limity = toml.get("limity", {})
     kontrola = toml.get("kontrola", {})
+    obrazy = env.get("NIEWIDKA_OBRAZY", kontrola.get("obrazy", "usun"))
+    if obrazy not in POLITYKI_OBRAZOW:
+        raise ValueError(
+            f"NIEWIDKA_OBRAZY: nieznana polityka obrazów {obrazy!r}; dozwolone: {', '.join(POLITYKI_OBRAZOW)}"
+        )
     return Konfig(
         host=env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1")),
         port=_jako_int(env, "NIEWIDKA_PORT", int(serwer.get("port", 8390))),
@@ -98,6 +109,7 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         ),
         max_tekst_mb=_jako_int(env, "NIEWIDKA_MAX_TEKST_MB", int(limity.get("tekst_mb", 1))),
         kontrola_blokada=_jako_bool(env.get("NIEWIDKA_KONTROLA_BLOKADA", kontrola.get("blokada", True))),
+        obrazy=obrazy,
         kolejka=_jako_int(env, "NIEWIDKA_KOLEJKA", int(limity.get("kolejka", 4))),
         timeout_s=_jako_int(env, "NIEWIDKA_TIMEOUT_S", int(limity.get("timeout_s", 120))),
         wykrywaj_date=_jako_bool(env.get("NIEWIDKA_WYKRYWAJ_DATE", detekcja.get("wykrywaj_date", True))),

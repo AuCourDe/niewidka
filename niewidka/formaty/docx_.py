@@ -25,9 +25,23 @@ W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 VML = "urn:schemas-microsoft-com:vml"
 
+# K4b pkt 2: bez OCR treść obrazu nie daje się zweryfikować. Rozszerzenia, które
+# traktujemy jako obrazy; wszystko inne pod word/media/ to niezweryfikowana
+# część binarna = blokada.
+OBRAZY_ROZSZERZENIA = frozenset({"png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "emf", "wmf"})
+TEKST_USUNIETEGO_OBRAZU = "[OBRAZ USUNIĘTY]"
+
 
 def _q(nazwa: str) -> str:
     return f"{{{W}}}{nazwa}"
+
+
+def _media(nazwa: str) -> bool:
+    return nazwa.startswith("word/media/")
+
+
+def _rozszerzenie(nazwa: str) -> str:
+    return nazwa.rsplit(".", 1)[-1].lower() if "." in nazwa.rpartition("/")[2] else ""
 
 
 # Części paczki, które adapter usuwa z wyniku (z ich wpisami w Content_Types/rels).
@@ -93,7 +107,9 @@ class AdapterDocx:
 
     # --- wczytanie ----------------------------------------------------------
 
-    def wczytaj(self, dane: bytes) -> Dokument:
+    def wczytaj(self, dane: bytes, polityka_obrazow: str | None = None) -> Dokument:
+        """`polityka_obrazow` (K4b pkt 2): „usun" usuwa obrazy z treści (brak OCR),
+        „blokuj" odrzuca dokument z obrazami, „zostaw" i None zostawiają je."""
         with zipfile.ZipFile(io.BytesIO(dane)) as paczka:
             nazwy = paczka.namelist()
             problemy = [n for n in nazwy if not _dozwolona(n)]
@@ -101,16 +117,54 @@ class AdapterDocx:
                 raise ElementNieobslugiwany(problemy)
             czesci = {n: paczka.read(n) for n in nazwy}
 
+        obce_binarnie = [n for n in nazwy if _media(n) and _rozszerzenie(n) not in OBRAZY_ROZSZERZENIA]
+        if obce_binarnie:
+            # niezweryfikowana część binarna — nie wiemy, co niesie (K4b pkt 2)
+            raise ElementNieobslugiwany(obce_binarnie)
+        obrazy = [n for n in nazwy if _media(n)]
+        if polityka_obrazow == "blokuj" and obrazy:
+            raise ElementNieobslugiwany([f"obrazy ({len(obrazy)} szt.)"])
+
         drzewo = etree.fromstring(czesci["word/document.xml"], _parser())
         zasoby: dict[str, Any] = {
             "czesci": czesci,
             "drzewo": drzewo,
             "usun_relacje": set(),
+            "obrazy": {"usuniete": 0, "pozostale": len(obrazy)},
         }
+        if polityka_obrazow == "usun" and obrazy:
+            for nazwa in obrazy:
+                czesci.pop(nazwa, None)
+            zasoby["obrazy"]["usuniete"] = self._usun_obrazy(drzewo, zasoby)
+            zasoby["obrazy"]["pozostale"] = 0
         self._wyczysc_drzewo(drzewo, czesci["word/_rels/document.xml.rels"], zasoby)
         dok = Dokument("docx", self._segmenty(drzewo))
         dok.zasoby = zasoby
         return dok
+
+    def _usun_obrazy(self, drzewo: etree._Element, zasoby: dict) -> int:
+        """K4b pkt 2: run z obrazem (w:drawing albo w:pict) zamieniony na neutralny
+        tekst; relacje obrazu dołączone do `usun_relacje` (znikną z .rels przy zapisie)."""
+        usuniete = 0
+        grafiki = list(drzewo.iter(_q("drawing"))) + list(drzewo.iter(_q("pict")))
+        for grafika in grafiki:
+            for element in grafika.iter():
+                for atrybut in (f"{{{R}}}embed", f"{{{R}}}id", f"{{{R}}}link"):
+                    if atrybut in element.attrib:
+                        zasoby["usun_relacje"].add(element.attrib[atrybut])
+            run = grafika.getparent()
+            while run is not None and run.tag != _q("r"):
+                run = run.getparent()
+            nowy = etree.Element(_q("r"))
+            t = etree.SubElement(nowy, _q("t"))
+            t.text = TEKST_USUNIETEGO_OBRAZU
+            if run is not None and run.getparent() is not None:
+                run.addprevious(nowy)
+                run.getparent().remove(run)
+            else:  # grafika bez runu-rodzica (patologiczny dokument) — podmień w miejscu
+                grafika.getparent().replace(grafika, nowy)
+            usuniete += 1
+        return usuniete
 
     def _wyczysc_drzewo(self, drzewo: etree._Element, rels_xml: bytes, zasoby: dict) -> None:
         """Czyszczenie treści dokument.xml przed odczytem segmentów (K3+K3b)."""
@@ -383,9 +437,9 @@ def _przefiltruj_content_types(
             korzen.remove(override)
     for default in list(korzen.iter(f"{{{CT}}}Default")):
         rozszerzenie = (default.get("Extension") or "").lower()
-        if rozszerzenie in {"jpeg", "jpg", "emf", "wmf"} and not any(
-            nazwa.lower().endswith(f".{rozszerzenie}") for nazwa in pozostale
-        ):
+        # K4b pkt 2: ogólnie — Default bez części o tym rozszerzeniu znika
+        # (po usunięciu obrazów paczka nie może deklarować pustych typów)
+        if not any(nazwa.lower().endswith(f".{rozszerzenie}") for nazwa in pozostale):
             korzen.remove(default)
     return etree.tostring(korzen, xml_declaration=True, encoding="UTF-8", standalone=True)
 

@@ -182,18 +182,23 @@ def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
     zrodlo = zipfile.ZipFile(io.BytesIO(wzorzec))
     czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
     zrodlo.close()
-    czesci["word/media/skrytka.bin"] = b"\x00\x01 PESEL 44051401359 \xff"
+    czesci["word/media/skrytka.png"] = b"\x00\x01 PESEL 44051401359 \xff"
     bufor = io.BytesIO()
     with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
         for nazwa, zawartosc in czesci.items():
             paczka.writestr(nazwa, zawartosc)
 
-    _wynik, mapa, raport = ukryj(bufor.getvalue(), "docx", 1, detektor=RegulyDetektor())
+    # polityka "zostaw": od K4b pkt 2 domyślnie obrazy są usuwane (wyciek znikałby
+    # zanim kontrola zdąży go zgłosić); testujemy tu SKAN SUROWY części nie-XML,
+    # więc obraz świadomie zostaje w wyniku
+    _wynik, mapa, raport = ukryj(
+        bufor.getvalue(), "docx", 1, detektor=RegulyDetektor(), polityka_obrazow="zostaw"
+    )
 
     oryginaly = [w.oryginal for w in mapa.wystapienia]
     assert "44051401359" in oryginaly
     assert any(
-        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/media/skrytka.bin"
+        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/media/skrytka.png"
         for o in raport.ostrzezenia
     )
     assert raport.status == "zablokowany"
