@@ -71,7 +71,8 @@
     - [x] Pomiar poziomu 2 → `docs/WYNIK-K2b.md`: **zysku brak — strata** (unia z rozmytymi granicami LFM2.5 psuje dokładne trafienia bardsai: OSOBA 0.971/0.943 → 0.922/0.888 fp32); LFM2.5 nie wchodzi; decyzja orkiestratora zapisana (brama nie blokuje, próg bez zmian, R95 odświeżone OSOBA 0.0736)
     - [x] K3: adaptery TXT i DOCX (runy + tabele + pola tekstowe; czyszczone komentarze/przypisy/nagłówki/stopki/właściwości/miniatura/customXml; w:del usunięte, w:ins treść; hiperłącza http zostają, mailto rozpakowane; allowlista – makra i osadzone obiekty = blokada), dopisek ZANONIMIZOWANO, nazwa `ZANONIMIZOWANY_<krótki-id>.<ext>`, weryfikacja zapisu ZAWSZE = `niewidka/kontrola.py` + round-trip (0 nowych znalezisk); descr obrazów czyszczone; generator wzorców (python-docx); przegląd panelu NIM 6/13 (2 defekty naprawione: Content_Types Default, core.xml); pełny zestaw **195 zielonych** + 1 xfail, ruff czysty; push `9c50dd8`
   - [~] K5 web (claude-glm, /tmp/cc-glm-k5.md; równolegle z K3b)
-  - [ ] K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu
+  - [ ] K6 Windows NAJPIERW (właściciel 12:45): pywebview + PyInstaller, budowa na Windows z klonu GitHub, klucz w Credential Manager, test exe + zrzut (claude-glm, startuje po K5; /tmp/cc-glm-k6w.md)
+  - [ ] K6 potem: Linux / Mac / Android (PWA)
 - [x] (właściciel) ZADANIE K4 — mapa, przywracanie, API: TDD, REUŻYJ istniejące moduły (model, znaczniki, formaty/, kontrola, jakosc), kod prosty, bez duplikacji, komentarze tylko gdy niezbędne. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm) + push. Bez Dockera, bez codex.
   - [x] konfig.py: TOML + env (env wygrywa), wszystkie klucze z LLD §14 (commit `c5b3328`)
   - [x] klucze.py: plik 0600/keyring, BrakKlucza bez fallbacku, klucz poza logami/wyjątkami, CLI nowy-plik/do-keyringa (commit `81c74cd`)
@@ -98,3 +99,6 @@
   - [ ] pomiar poziom 1 / A (3 progi) / B na korpusie 182 (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + lista FN poziomu 1 złapanych przez A/B
   - [ ] docs/WYNIK-K2d.md (OSOBA TP/FP/FN, recall, precision, czas, RAM; werdykt wg KRYTERIA §4, próg bez zmian)
   - [ ] pełny pytest + ruff zielone; commit tylko własnych plików, pull --rebase, push; bez Dockera; NIE zmieniać niewidka/formaty/, kontrola.py, api.py
+- [~] 12:45 (właściciel) „pokaż zrzuty jak będą” + „wersja okienkowa na windows? potem dopiero linux / mac / android”
+  - [ ] Zrzuty K5 pokazać właścicielowi (kopia do C na pulpicie) do oceny tak/nie
+  - [ ] K6 Windows przed Linux/Mac/Android
