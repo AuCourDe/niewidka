@@ -203,6 +203,7 @@ import hashlib
 import itertools
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from niewidka.detektory import (
@@ -272,7 +273,9 @@ ID_B_KLASA1 = 1  # B-KLASA1 w atrapie konfiguracji (B: 1-4, I: 5-8)
 ID_I_KLASA1 = 5  # I-KLASA1
 
 
-def zbuduj_onnx(tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None):
+def zbuduj_onnx(
+    tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None, próg=None, pół_krok=False
+):
     config = {
         "id2label": {
             i: e
@@ -296,6 +299,8 @@ def zbuduj_onnx(tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None):
         sesja=sesja or AtrapaSesja(etykieta_na_token),
         tokenizer_obj=tokenizer or AtrapaTokenizer(slowa),
         laduj_manifest=True,
+        próg=próg,
+        pół_krok=pół_krok,
     )
 
 
@@ -560,3 +565,152 @@ class TestRozciagnijDoSlowTrim:
     def test_zwykle_zakresy_niezmienione(self):
         tekst = "Jan Kowalski poszedł."
         assert rozciagnij_do_slow([(0, 12)], tekst) == [(0, 12)]
+
+
+# --- K2d (wariant A/B): próg pewności OSOBA, półkrokowe okna, słownik imion ---
+
+from niewidka.detektory import SlownikImionDetektor
+
+
+class AtrapaSesjaLogity:
+    """Logity per token: {id tokenu: {id etykiety: logit}}; reszta 0.0."""
+
+    wejscia: ClassVar[list[str]] = ["input_ids", "attention_mask"]
+
+    def __init__(self, logity: dict[int, dict[int, float]], n_etykiet: int = 9):
+        self._logity = logity
+        self._n = n_etykiet
+
+    def run(self, _, feed):
+        idy = list(feed["input_ids"][0])
+        return [
+            [
+                [
+                    [self._logity.get(id, {}).get(k, 0.0) for k in range(self._n)]
+                    for id in idy
+                ]
+            ]
+        ]
+
+
+class TestProgPewnosciOSOBA:
+    # O = 4.5 (argmax), B-KLASA1 = 4.0 -> p(KLASA1) ≈ 0.34: kandydat PONIŻEJ argmaxu.
+    LOGITY_JAN: ClassVar[dict[int, dict[int, float]]] = {1: {0: 4.5, 1: 4.0}}
+
+    def test_powyzej_progu_dodaje_osoba_bez_argmaxu(self, tmp_path):
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN), próg=0.2
+        )
+        wynik = d.znajdz("Jan biegł")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 3, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:test"
+
+    def test_ponizej_progu_brak_osoby(self, tmp_path):
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN), próg=0.4
+        )
+        assert d.znajdz("Jan biegł") == []
+
+    def test_bez_progu_zachowanie_niezmienione(self, tmp_path):
+        d = zbuduj_onnx(tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN))
+        assert d.znajdz("Jan biegł") == []  # argmax = O -> bez detekcji, jak przed K2d
+
+    def test_kontynuacja_kleje_b_i_i(self, tmp_path):
+        logity = {1: {0: 4.5, 1: 4.0}, 2: {0: 4.5, 1: 4.0}}
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "Kowalski", "biegł"], None, sesja=AtrapaSesjaLogity(logity), próg=0.2
+        )
+        wynik = d.znajdz("Jan Kowalski biegł")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 12, TypEncji.OSOBA)]
+
+    def test_prog_poza_zakresem_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="próg"):
+            zbuduj_onnx(tmp_path, ["Jan"], None, próg=1.5)
+
+
+class TestPolKrokOkien:
+    def test_encja_na_granicy_okien_lapana_przesunieciem(self, tmp_path):
+        # n=1100; encja B/I…/I na tokenach 445-515 (71 tokenów > zakładki 62
+        # tokenów). Okno (0,510) ma tylko część, okno (448,958) zaczyna się DALEJ
+        # niż B-token -> tam wszystko I bez swojego B, odpada; przesunięte okno
+        # (224,734) obejmuje całą encję -> pełny łańcuch B..I.
+        n = 1100
+        slowa = [f"w{i:04d}" for i in range(n)]
+        tekst = " ".join(slowa)
+        # id tokenu = indeks słowa + 1 (id 0 = <s>); B na słowie 445, I na 446-515
+        logity = {446: {1: 4.0}}
+        logity.update({id: {5: 4.0} for id in range(447, 517)})
+        sesja = AtrapaSesjaLogity(logity)
+        s = tekst.index("w0445")  # każde słowo 5 znaków + spacja: słowa co 6 znaków
+        d_bez = zbuduj_onnx(tmp_path, slowa, None, sesja=sesja, pół_krok=False)
+        fragment = [(z.start, z.koniec) for z in scal(tekst, d_bez.znajdz(tekst))]
+        assert fragment == [(s, s + 63 * 6 + 5)], fragment  # słowa 445-508 (fragment)
+        d_z = zbuduj_onnx(tmp_path, slowa, None, sesja=AtrapaSesjaLogity(logity), pół_krok=True)
+        calość = [(z.start, z.koniec) for z in scal(tekst, d_z.znajdz(tekst))]
+        assert calość == [(s, s + 70 * 6 + 5)], calość  # słowa 445-515 (całość)
+
+
+def mini_slownik(tmp_path: Path, tresc: str = "# nagłówek\nJan\t516\nAnna\t1063\nPiotr\t700\n") -> Path:
+    plik = tmp_path / "imiona.txt"
+    plik.write_text(tresc, encoding="utf-8")
+    return plik
+
+
+class TestSlownikImion:
+    @pytest.mark.parametrize(
+        "forma,nazwisko",
+        [("Jan", "Kowalski"), ("Jana", "Kowalskiego"), ("Janem", "Kowalskim"),
+         ("Piotr", "Kowalski"), ("Piotra", "Kowalskiego"), ("Piotrem", "Kowalskim")],
+    )
+    def test_odmiany_meskie(self, tmp_path, forma, nazwisko):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        tekst = f"{forma} {nazwisko} podpisał."
+        assert [(z.start, z.koniec, z.typ) for z in d.znajdz(tekst)] == [
+            (0, len(f"{forma} {nazwisko}"), TypEncji.OSOBA)
+        ]
+
+    @pytest.mark.parametrize("forma", ["Anna", "Anny", "Annie"])
+    def test_odmiany_zenskie(self, tmp_path, forma):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert [(z.start, z.koniec, z.typ) for z in d.znajdz(f"{forma} Kowalska podpisała.")] == [
+            (0, len(f"{forma} Kowalska"), TypEncji.OSOBA)
+        ]
+
+    def test_nastepne_slowo_wielka_litera(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Jan podpisał.") == []  # następne słowo z małej litery
+        assert [(z.start, z.koniec) for z in d.znajdz("biegł Jan Kowalski.")] == [(6, 18)]
+
+    def test_osoba_nieobecna_w_slowniku(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Marek Kowalski podpisał.") == []
+
+    def test_dwie_osoby_w_jednym_tekście(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        tekst = "Jan Kowalski i Anna Nowak"
+        assert [(z.start, z.koniec) for z in d.znajdz(tekst)] == [(0, 12), (15, 25)]
+
+    def test_interpunkcja_nie_rozszerza_zakresu(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert [(z.start, z.koniec) for z in d.znajdz("Jan Kowalski, PESEL 44051401359.")] == [(0, 12)]
+
+    def test_przedział_środek_bez_bialego(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        # przecinek bez spacji między słowami - to nie jest para imię+nazwisko
+        assert d.znajdz("Jan,Kowalski podpisał.") == []
+
+    def test_janina_nie_pasuje_do_jana(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Janina Kowalska podpisała.") == []
+
+    def test_puste_fragmenty_i_pomijanie_komentarzy(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz(".") == []
+
+    def test_pusty_slownik_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="pusty"):
+            SlownikImionDetektor(plik=mini_slownik(tmp_path, tresc="# tylko nagłówek\n"))
+
+    def test_brak_slownika_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="brak"):
+            SlownikImionDetektor(plik=tmp_path / "nie-ma.txt")

@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from niewidka.model import TypEncji, Zakres
+from niewidka.osoby import rdzen_nazwiska
 from niewidka.reguly import REGULY
 from niewidka.reguly import znajdz as znajdz_reguly
 from niewidka.scalanie import scal
@@ -103,6 +105,8 @@ class OnnxDetektor:
         tokenizer_obj: object | None = None,
         laduj_manifest: bool = True,
         provider: str = "CPUExecutionProvider",
+        próg: float | None = None,
+        pół_krok: bool = False,
     ):
         self.nazwa = nazwa
         self.etykiety = etykiety
@@ -110,6 +114,29 @@ class OnnxDetektor:
         self._id2etykieta = {str(k): v for k, v in id2etykieta.items()}
         self._okno = okno
         self._krok = krok
+        if próg is not None and not 0.0 <= próg <= 1.0:
+            raise BladDetektora(f"{nazwa}: próg pewności klas poza [0, 1]: {próg}")
+        self._próg = próg
+        self._pół_krok = pół_krok
+        # Obniżony próg (K2d): kolumny etykiet klas z mapy (B-/I-/E-/S-) oraz
+        # pary (B-etykieta, I-etykieta) do sklejenia ponadprogowej kontynuacji.
+        self._kolumny_klas: dict[tuple[str, ...], list[int]] = {}
+        self._etykiety_klas: dict[tuple[str, ...], tuple[str, str]] = {}
+        for klucz in self.etykiety:
+            klasa = klucz[0]
+            kol = [
+                int(id_tekstu)
+                for id_tekstu, et in self._id2etykieta.items()
+                if len(et) > 2 and et[1] == "-" and et[2:] == klasa
+            ]
+            self._kolumny_klas[klucz] = kol
+            litery = {
+                et[:1]: et
+                for et in self._id2etykieta.values()
+                if len(et) > 2 and et[1] == "-" and et[2:] == klasa and et[:1] in ("B", "I")
+            }
+            if "B" in litery and "I" in litery:
+                self._etykiety_klas[klucz] = (litery["B"], litery["I"])
         if laduj_manifest:
             self._sprawdz_manifest(model.parent)
         try:
@@ -165,7 +192,16 @@ class OnnxDetektor:
         enc = self._tokenizer.encode(tekst, add_special_tokens=True)
         tokeny = list(zip(enc.ids, enc.offsets))
         wynik: list[Zakres] = []
-        for start, koniec in okna_tokenow(len(tokeny), self._okno, self._krok):
+        # Drugi przebieg okien przesuniętych o pół kroku (K2d): encja na granicy
+        # okien ma pełny łańcuch etykiet w przesuniętym oknie — bez tego pierwsza
+        # część pada jako B-frAGMENT, a reszta (I bez B) jest odpadana w dekodowaniu.
+        okna: list[tuple[int, int]] = []
+        przesunięcia = (0, self._krok // 2) if self._pół_krok else (0,)
+        for przesunięcie in przesunięcia:
+            for okno in okna_tokenow(len(tokeny), self._okno, self._krok, przesunięcie):
+                if okno not in okna:  # przebieg półkrokowy powtarza okno końcowe
+                    okna.append(okno)
+        for start, koniec in okna:
             ids = tokeny[start:koniec]
             feed = {
                 "input_ids": np.asarray([ids_w for ids_w, _ in ids], dtype=np.int64)[None],
@@ -174,18 +210,43 @@ class OnnxDetektor:
             logits = np.asarray(self._sesja.run(None, feed)[0][0])
             prawdopodobienstwa = _softmax(np, logits)
             najlepsze = prawdopodobienstwa.argmax(axis=-1)
-            etykiety_tokenow = [
-                (
-                    self._id2etykieta[str(int(najlepsze[i]))],
-                    offsets,  # (start, koniec) w znakach CAŁEGO tekstu
-                    float(prawdopodobienstwa[i, najlepsze[i]]),
-                )
-                for i, (_, offsets) in enumerate(ids)
-            ]
+            etykiety_tokenow = []
+            poprz_klasa: tuple[str, ...] | None = None
+            for i, (_, offsets) in enumerate(ids):
+                if offsets[0] == offsets[1]:  # token specjalny/wypadek
+                    etykiety_tokenow.append(
+                        (self._id2etykieta[str(int(najlepsze[i]))], offsets, float(prawdopodobienstwa[i, najlepsze[i]]))
+                    )
+                    poprz_klasa = None
+                    continue
+                et = self._id2etykieta[str(int(najlepsze[i]))]
+                klasa = (et[2:],) if len(et) > 2 and et[1] == "-" else None
+                etykieta, pewnosc = et, float(prawdopodobienstwa[i, najlepsze[i]])
+                if self._próg is not None and (klasa is None or klasa not in self.etykiety):
+                    kandydat = self._najlepsza_klasa_mapy(prawdopodobienstwa, i)
+                    if kandydat is not None and kandydat[1] >= self._próg:
+                        litery = self._etykiety_klas.get(kandydat[0])
+                        if litery is not None:
+                            # ponowne trafienie tej samej klasy podbija się kontynuacją I-
+                            etykieta = litery[1] if poprz_klasa == kandydat[0] else litery[0]
+                            pewnosc, klasa = kandydat[1], kandydat[0]
+                etykiety_tokenow.append((etykieta, offsets, pewnosc))
+                poprz_klasa = klasa
             for zn_start, zn_koniec, typ, pewnosc in zdekoduj_bio(etykiety_tokenow, self.etykiety):
                 ((zn_start, zn_koniec),) = rozciagnij_do_slow([(zn_start, zn_koniec)], tekst)
                 wynik.append(Zakres(zn_start, zn_koniec, typ, pewnosc, self.nazwa))
         return wynik
+
+    def _najlepsza_klasa_mapy(
+        self, prawdopodobienstwa, i: int  # type: ignore[no-untyped-def]
+    ) -> tuple[tuple[str, ...], float] | None:
+        """Najpewniejsza klasa z mapy adaptera w tokenie i (niezależnie od argmax)."""
+        najlepsza: tuple[tuple[str, ...], float] | None = None
+        for klucz, kolumny in self._kolumny_klas.items():
+            p = max((float(prawdopodobienstwa[i, k]) for k in kolumny), default=0.0)
+            if najlepsza is None or p > najlepsza[1]:
+                najlepsza = (klucz, p)
+        return najlepsza
 
 
 def rozciagnij_do_slow(zakresy: list[tuple[int, int]], tekst: str) -> list[tuple[int, int]]:
@@ -222,8 +283,14 @@ def wczytaj_bardsai(
     provider: str = "CPUExecutionProvider",
     okno: int = 510,
     krok: int = 448,
+    próg: float | None = None,
+    pół_krok: bool = False,
 ) -> OnnxDetektor:
-    """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14)."""
+    """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14).
+
+    K2d: `próg` = obniżony próg pewności klas OSOBA (dodaje kandydatów poniżej
+    argmaxu) i `pół_krok` = drugi przebieg okien o pół kroku (granice okien).
+    """
     config = json.loads((katalog / "config.json").read_text(encoding="utf-8"))
     return OnnxDetektor(
         nazwa=ADAPTER_BARDSAI.nazwa,
@@ -234,6 +301,8 @@ def wczytaj_bardsai(
         okno=okno,
         krok=krok,
         provider=provider,
+        próg=próg,
+        pół_krok=pół_krok,
     )
 
 
@@ -306,6 +375,104 @@ def wczytaj_poziom2_uzupelniajacy(
     )
 
 
+def wczytaj_poziom2_a(
+    katalog: Path,
+    próg: float = 0.30,
+    provider: str = "CPUExecutionProvider",
+) -> DetektorKompozyt:
+    """K2d wariant A: poziom 1 + bardsai z obniżonym progiem pewności OSOBA
+    oraz drugim przebiegiem okien przesuniętym o pół kroku (encje na granicy okien).
+    """
+    return DetektorKompozyt(
+        "poziom2-a",
+        [RegulyDetektor(), wczytaj_bardsai(katalog, próg=próg, pół_krok=True, provider=provider)],
+    )
+
+
+def wczytaj_poziom2_b(
+    katalog: Path,
+    próg: float = 0.30,
+    provider: str = "CPUExecutionProvider",
+) -> DetektorUzupełniający:
+    """K2d wariant B: wariant A + słownik polskich imion (GUS/PESEL, CC0).
+    Słownik dodaje OSOBA (imię z listy + następne słowo z wielkiej litery,
+    dowolna forma fleksyjna) tylko tam, gdzie nie nachodzi na reguły/bardsai.
+    """
+    return DetektorUzupełniający(
+        "poziom2-b",
+        podstawa=[RegulyDetektor(), wczytaj_bardsai(katalog, próg=próg, pół_krok=True, provider=provider)],
+        uzup=SlownikImionDetektor(),
+    )
+
+
+class SlownikImionDetektor:
+    """Wykrywacz słownikowy OSOBA (K2d, wariant B): imię z listy + następne
+    słowo z wielkiej litery, w dowolnej formie fleksyjnej — dopasowanie po
+    rdzeniu imienia (`osoby.rdzen_nazwiska`, ta sama heurystyka końcówek).
+
+    SIMPLIFICATION: rdzeń = zrzucenie jednej końcówki fleksyjnej zamiast
+    lematyzacji (Jan/Jana/Janem, Anna/Anny/Annie działają); rozbudować, gdy
+    pomiar pokaże FN na nietrywialnych odmianach.
+    """
+
+    nazwa = "slownik-imion"
+    typy = frozenset({TypEncji.OSOBA})
+    DANY_PLIK = Path(__file__).resolve().parent / "dane" / "imiona_gus.txt"
+
+    def __init__(self, plik: Path | None = None):
+        self._stemy = wczytaj_imiona(plik or self.DANY_PLIK)
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        fragmenty = [(m.start(), m.end(), m.group()) for m in _SLOWO.finditer(tekst)]
+        wynik: list[Zakres] = []
+        for i in range(len(fragmenty) - 1):
+            (s1, e1, _), (s2, e2, _) = fragmenty[i], fragmenty[i + 1]
+            s1, e1 = _zadość_liter(tekst, s1, e1)
+            s2, e2 = _zadość_liter(tekst, s2, e2)
+            if s1 >= e1 or s2 >= e2:
+                continue  # sam_interpunkcja
+            if not tekst[s2].isupper():
+                continue  # wymagane: następne słowo z wielkiej litery
+            if not tekst[e1 : s2].isspace():
+                continue  # pomiędzy słowami tylko biały znak
+            if rdzen_nazwiska(tekst[s1:e1]) in self._stemy:
+                wynik.append(Zakres(s1, e2, TypEncji.OSOBA, 1.0, self.nazwa))
+        return wynik
+
+
+_SLOWO = re.compile(r"\S+")
+
+
+def _zadość_liter(tekst: str, start: int, koniec: int) -> tuple[int, int]:
+    """Obcięcie interpunkcji na brzegach fragmentu („Jan,” -> „Jan")."""
+    while start < koniec and not tekst[start].isalpha():
+        start += 1
+    while koniec > start and not tekst[koniec - 1].isalpha():
+        koniec -= 1
+    return start, koniec
+
+
+def wczytaj_imiona(plik: Path) -> dict[str, str]:
+    """Słownik imion -> rdzeń -> forma bazowa; `#` nagłówki pominięte.
+
+    Plik `niewidka/dane/imiona_gus.txt` (K2d): rejestrowane kolumny `Imię<TAB>liczba`,
+    wygenerowany przez `narzedzia/pobierz_imiona.py` (GUS/dane.gov.pl, CC0 1.0).
+    """
+    if not plik.is_file():
+        raise BladDetektora(f"brak słownika imion: {plik}")
+    stemy: dict[str, str] = {}
+    for linia in plik.read_text(encoding="utf-8").splitlines():
+        linia = linia.strip()
+        if not linia or linia.startswith("#"):
+            continue
+        imię = linia.split("\t", 1)[0].strip()
+        if imię and imię.isalpha():
+            stemy[rdzen_nazwiska(imię)] = imię
+    if not stemy:
+        raise BladDetektora(f"pusty słownik imion: {plik}")
+    return stemy
+
+
 class DetektorKompozyt:
     """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie (LLD §4)."""
 
@@ -313,7 +480,6 @@ class DetektorKompozyt:
         self.nazwa = nazwa
         self.czesci = czesci
         self.typy: frozenset[TypEncji] = frozenset().union(*(c.typy for c in czesci))
-
     def znajdz(self, tekst: str) -> list[Zakres]:
         kandydaci = [z for czesc in self.czesci for z in czesc.znajdz(tekst)]
         return scal(tekst, kandydaci)
@@ -368,13 +534,19 @@ class DetektorUzupełniający:
         return scal(tekst, wszystkie)
 
 
-def okna_tokenow(n: int, okno: int, krok: int) -> list[tuple[int, int]]:
-    """Przesuwne okna tokenów (zakładka = okno - krok); ostatnie dociągnięte do końca."""
+def okna_tokenow(n: int, okno: int, krok: int, offset: int = 0) -> list[tuple[int, int]]:
+    """Przesuwne okna tokenów (zakładka = okno - krok); ostatnie dociągnięte do końca.
+
+    `offset` = start pierwszego okna (przebieg półkrokowy K2d: offset = krok // 2);
+    puste okno wyjście dla offsetu != 0 przy tekstach krótszych niż okno (duplikat).
+    """
     if n <= 0:
         return []
     if n <= okno:
-        return [(0, n)]
-    wynik = [(start, start + okno) for start in range(0, n - okno + 1, krok)]
+        return [(0, n)] if offset == 0 else []
+    wynik = [(start, start + okno) for start in range(offset, n - okno + 1, krok)]
+    if not wynik:
+        return [(n - okno, n)]
     if wynik[-1][1] < n:
         wynik.append((n - okno, n))
     return wynik

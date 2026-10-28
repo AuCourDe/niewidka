@@ -134,3 +134,30 @@ def test_zbuduj_detektor_poziom2(wagi_lfm25):
 def test_zbuduj_detektor_lfm25_wariant_fp32(wagi_lfm25):
     d = zbuduj_detektor("lfm25", wagi_lfm25, wariant="fp32")
     assert d.nazwa == "onnx:lfm25"
+
+
+# --- K2d: warianty A (próg + półkrok) i B (+ słownik imion) ---
+
+def test_zbuduj_detektor_poziom2_a_bez_katalogu_blad():
+    with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
+        zbuduj_detektor("poziom2-a", None)
+
+
+def test_zbuduj_detektor_poziom2_b_bez_katalogu_blad():
+    with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
+        zbuduj_detektor("poziom2-b", None)
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_poziom2_a(katalog_modeli):
+    d = zbuduj_detektor("poziom2-a", katalog_modeli)
+    assert d.nazwa == "poziom2-a"
+    assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai"]
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_poziom2_b(katalog_modeli):
+    d = zbuduj_detektor("poziom2-b", katalog_modeli)
+    assert d.nazwa == "poziom2-b"
+    assert [c.nazwa for c in d.podstawa] == ["reguly", "onnx:bardsai"]
+    assert d.uzup.nazwa == "slownik-imion"

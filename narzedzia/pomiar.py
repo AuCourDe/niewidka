@@ -22,6 +22,8 @@ from niewidka.detektory import (
     RegulyDetektor,
     wczytaj_bardsai,
     wczytaj_lfm25,
+    wczytaj_poziom2_a,
+    wczytaj_poziom2_b,
     wczytaj_poziom2_uzupelniajacy,
 )
 from niewidka.model import Zakres
@@ -59,12 +61,27 @@ class DetektorPusty:
         return []
 
 
-def zbuduj_detektor(nazwa: str, katalog_modeli: Path | None, wariant: str = "int8"):
-    """Detektor pomiaru wg nazwy CLI; poziomy wg KRYTERIA §4 (poziom2 = +LFM2.5, K2b)."""
+def zbuduj_detektor(
+    nazwa: str, katalog_modeli: Path | None, wariant: str = "int8", próg_osoba: float = 0.30
+):
+    """Detektor pomiaru wg nazwy CLI; poziomy wg KRYTERIA §4 (poziom2 = +LFM2.5, K2b).
+
+    K2d: poziom2-a = poziom 1 + bardsai z prógiem `próg_osoba` i półkrokowymi
+    oknami; poziom2-b = poziom2-a + słownik imion.
+    """
     if nazwa == "pusty":
         return DetektorPusty()
     if nazwa == "reguly":
         return RegulyDetektor()
+    if nazwa in ("poziom2-a", "poziom2-b"):
+        if katalog_modeli is None:
+            raise ValueError(
+                f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
+            )
+        wczytaj = (
+            wczytaj_poziom2_a if nazwa == "poziom2-a" else wczytaj_poziom2_b
+        )
+        return wczytaj(katalog_modeli, próg=próg_osoba)
     if nazwa in ("poziom1", "poziom2", "lfm25"):
         if katalog_modeli is None:
             raise ValueError(
@@ -215,12 +232,20 @@ def main(argv: list[str] | None = None) -> int:
             "poziom1",
             "poziom2",
             "lfm25",
+            "poziom2-a",
+            "poziom2-b",
             "poziom2-uzup",
             "poziom2-uzup-b",
         ),
         default="reguly",
     )
     parser.add_argument("--wariant", choices=("int8", "fp32"), default="int8")
+    parser.add_argument(
+        "--prog-osoba",
+        type=float,
+        default=0.30,
+        help="próg pewności OSOBA dla poziom2-a/-b (warianty K2d; domyślnie 0.30)",
+    )
     parser.add_argument(
         "--modele",
         type=Path,
@@ -230,9 +255,14 @@ def main(argv: list[str] | None = None) -> int:
         help="katalog wag (domyślnie z NIEWIDKA_MODELE_KATALOG)",
     )
     argumenty = parser.parse_args(argv)
-    detektor = zbuduj_detektor(argumenty.detektor, argumenty.modele, wariant=argumenty.wariant)
+    detektor = zbuduj_detektor(
+        argumenty.detektor, argumenty.modele, wariant=argumenty.wariant, próg_osoba=argumenty.prog_osoba
+    )
     probki = wczytaj_probki(argumenty.korpus)
-    print(f"Detektor: {argumenty.detektor}, próbki: {len(probki)}")
+    print(
+        f"Detektor: {argumenty.detektor}, próbki: {len(probki)}"
+        + (f", próg OSOBA: {argumenty.prog_osoba}" if argumenty.detektor in ("poziom2-a", "poziom2-b") else "")
+    )
     wyniki, czasy = zmierz_z_czasem(probki, detektor)
     wypisz_raport(wyniki)
     wypisz_czasy(czasy)
