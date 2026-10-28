@@ -64,6 +64,12 @@ def _dowod_ok(zapis: str) -> bool:
     return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == int(nr[3])
 
 
+# Miesiące w dopełniaczu (zapis słowny dat).
+_MIESIĄCE = (
+    "stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia"
+    "|września|października|listopada|grudnia"
+)
+
 REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.PESEL,
@@ -100,6 +106,48 @@ REGULY: tuple[Regula, ...] = (
         wzorzec=re.compile(r"(?<![A-Za-z0-9])[A-Z]{3}[ -]?\d{6}(?![A-Za-z0-9])"),
         walidator=_dowod_ok,
         suma_kontrolna=True,
+    ),
+    # Telefon PL: prefiks opcjonalny; stacjonarny 2-3-2-2 (w nawiasach albo
+    # ze spacjami) albo komórkowy 3-3-3 (bez prefiksu tylko od cyfry 5-8,
+    # żeby nie wchodzić w 9-cyfrowe REGON-y).
+    Regula(
+        typ=TypEncji.TELEFON,
+        wzorzec=re.compile(
+            r"(?<![\d+(])(?:\+48[ -]?|0048[ -]?)?"
+            r"(?:\(\d{2}\)[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}"
+            r"|\d{2}[ -]\d{3}[ -]\d{2}[ -]\d{2}"
+            r"|[5-8]\d{2}[ -]?\d{3}[ -]?\d{3})"
+            r"(?!\d)"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    # Adres: heurystyka (LLD §3) — od wyróżnika do numeru z lokalem, bez kodu i miasta.
+    Regula(
+        typ=TypEncji.ADRES,
+        wzorzec=re.compile(
+            r"(?:ulica|aleja|ul\.|al\.|plac|pl\.)\s+"
+            r"[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*"
+            r"(?:\s+[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*)*"
+            r"\s+\d+[A-Za-z]?(?:\s*(?:/\s*\d+|m\.\s*\d+))?"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    Regula(
+        typ=TypEncji.DATA,
+        wzorzec=re.compile(
+            rf"(?<![\d./-])(?:\d{{1,2}}[.-]\d{{1,2}}[.-]\d{{4}}"
+            rf"|\d{{1,2}}\s+(?:{_MIESIĄCE})\s+\d{{4}})(?!\d)"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    Regula(
+        typ=TypEncji.EMAIL,
+        wzorzec=re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
+        walidator=None,
+        suma_kontrolna=False,
     ),
 )
 
