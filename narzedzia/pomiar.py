@@ -136,13 +136,18 @@ def zbuduj_detektor(
         return DetektorPusty()
     if nazwa == "reguly":
         return RegulyDetektor()
-    if nazwa in ("poziom1", "poziom2-a", "poziom2-b"):
+    if nazwa in ("poziom1", "poziom2-a", "poziom2-b", "poziom3-rozszerzony"):
         if katalog_modeli is None:
             raise ValueError(
                 f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
             )
-        poziom = {"poziom1": 1, "poziom2-a": 2, "poziom2-b": 3}[nazwa]
-        return zbuduj_poziom(poziom, katalog_modeli, próg_osoba=próg_osoba)
+        poziom = {"poziom1": 1, "poziom2-a": 2, "poziom2-b": 3, "poziom3-rozszerzony": 3}[nazwa]
+        return zbuduj_poziom(
+            poziom,
+            katalog_modeli,
+            próg_osoba=próg_osoba,
+            pakiet_rozszerzony=(nazwa == "poziom3-rozszerzony"),
+        )
     if nazwa == "lfm25-solo":
         if katalog_modeli is None:
             raise ValueError(
@@ -306,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
             "lfm25-solo",
             "poziom2-a",
             "poziom2-b",
+            "poziom3-rozszerzony",
             "poziom2-uzup",
             "poziom2-uzup-b",
         ),

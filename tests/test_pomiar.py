@@ -192,3 +192,19 @@ def test_poziomy_produktu_ida_przez_zbuduj_poziom(monkeypatch):
     # poziomy 1/2/3 produktu; próg istotny dla 2/3 (poziom 1 go ignoruje)
     assert [poziom for poziom, _ in wywolania] == [1, 2, 3]
     assert wywolania[1] == (2, 0.25) and wywolania[2] == (3, 0.25)
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_poziom3_rozszerzony(katalog_modeli):
+    """K7b: poziom 3 z pakietem Rozszerzonym składa się TYM SAMYM zbuduj_poziom."""
+    from pathlib import Path
+
+    if not (Path(katalog_modeli) / "lfm25" / "q4-bl32" / "model.onnx").is_file():
+        pytest.skip("brak LFM2.5 q4-bl32")
+    d = zbuduj_detektor("poziom3-rozszerzony", katalog_modeli)
+    assert d.nazwa == "poziom3+rozszerzony"
+
+
+def test_poziom3_rozszerzony_bez_katalogu_blad():
+    with pytest.raises(ValueError, match="katalog"):
+        zbuduj_detektor("poziom3-rozszerzony", None)
