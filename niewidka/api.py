@@ -61,6 +61,57 @@ class BladKontroli(Exception):
         super().__init__("kontrola zapisu zablokowała wynik")
 
 
+class LimitBajtow:
+    """K4b pkt 9: liczy bajty treści żądania PRZED parserem formularza — także
+    przy transferze chunked, bez nagłówka Content-Length. Po przekroczeniu limitu
+    aplikacja nie dostaje ani bajtu (nic nie wpada do buforów, spool na dysk nie
+    zdąży się uruchomić), klient dostaje 413. Limit objęte są wszystkie POST-y,
+    więc też /api/przywroc."""
+
+    def __init__(self, app, limit_bajtow: int):
+        self.app = app
+        self.limit = limit_bajtow
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+        zebrane: list[dict] = []
+        stan = {"razem": 0, "przekroczone": False}
+
+        async def odczytaj():
+            message = await receive()
+            if message["type"] == "http.request":
+                stan["razem"] += len(message.get("body", b""))
+                if stan["razem"] > self.limit:
+                    stan["przekroczone"] = True
+                else:
+                    zebrane.append(message)
+            return message
+
+        while True:
+            message = await odczytaj()
+            if stan["przekroczone"]:
+                break
+            if message["type"] != "http.request" or not message.get("more_body"):
+                break
+        if stan["przekroczone"]:
+            mb = self.limit // (1024 * 1024)
+            await JSONResponse({"blad": f"wejście ponad limit {mb} MB"}, status_code=413)(
+                scope, receive, send
+            )
+            return
+        pozycja = {"i": 0}
+
+        async def odtworz():
+            if pozycja["i"] < len(zebrane):
+                pozycja["i"] += 1
+                return zebrane[pozycja["i"] - 1]
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        await self.app(scope, odtworz, send)
+
+
 @dataclass
 class Kolejka:
     """Jedna inferencja naraz (Semaphore w puli wątków), `kolejka` oczekujących."""
@@ -122,6 +173,8 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     MultiPartParser.spool_max_size = konfig.max_rozmiar_mb * _MB
 
     app = FastAPI(title="Niewidka", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    # K4b pkt 9: licznik bajtów NAJGŁĘBIEJ z dodanych middleware (doda się jako pierwszy)
+    app.add_middleware(LimitBajtow, limit_bajtow=konfig.max_rozmiar_mb * _MB)
     app.state.konfig = konfig
     app.state.token = secrets.token_urlsafe(32)
     app.state.detektor = wstrzykniety

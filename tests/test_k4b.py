@@ -408,3 +408,56 @@ async def test_pkt8_naglowki_bez_fragmentow(klucz_plik):
     ostrzezenia = json.loads(odpowiedz.headers["x-niewidka-ostrzezenia"])
     assert ostrzezenia == {"PESEL": 1}  # typy + liczniki
 
+
+# --- pkt 9: licznik bajtów PRZED parserem (chunked), limit w /przywroc ----------
+
+
+@pytest.mark.anyio
+async def test_pkt9_chunked_ponad_limit_413_bez_spoolowania(konfig, monkeypatch):
+    """K4b pkt 9: upload bez Content-Length ponad limit → 413, zanim JAKIKOLWIEK
+    bajt trafi do parsera formularza; rollover na dysk nigdy nie następuje."""
+    import tempfile
+
+    rollovery = []
+    oryginalny_rollover = tempfile.SpooledTemporaryFile.rollover
+
+    def sledzony_rollover(self):
+        rollovery.append(1)
+        return oryginalny_rollover(self)
+
+    monkeypatch.setattr(tempfile.SpooledTemporaryFile, "rollover", sledzony_rollover)
+
+    async def strumien():
+        kawalek = b"x" * 65536
+        for _ in range(18):  # 1,125 MB > limit 1 MB, bez Content-Length (chunked)
+            yield kawalek
+
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            headers=_naglowki(app, **{"content-type": "multipart/form-data; boundary=x"}),
+            content=strumien(),
+        )
+    assert odpowiedz.status_code == 413
+    assert not rollovery, "treść dotarła do parsera — rollover na dysk się wydarzył"
+
+
+@pytest.mark.anyio
+async def test_pkt9_przywroc_ma_limit_przed_buforowaniem(konfig):
+    """K4b pkt 9: /api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
+
+    async def strumien():
+        kawalek = b"m" * 65536
+        for _ in range(18):
+            yield kawalek
+
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/przywroc",
+            headers=_naglowki(app, **{"content-type": "multipart/form-data; boundary=x"}),
+            content=strumien(),
+        )
+    assert odpowiedz.status_code == 413
+
