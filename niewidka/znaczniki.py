@@ -47,5 +47,5 @@ def zamien_w_segment(
             raise ValueError("encja bez oznaczenia — najpierw nadaj_oznaczenia")
         kolejne.append(poczatek_kolejnego + numer)
     for encja in reversed(posortowane):
-        wynik = wynik[: encja.zakres.start] + encja.oznaczenie + wynik[encja.zakres.koniec :]
+        wynik = wynik[: encja.zakres.start] + f"[{encja.oznaczenie}]" + wynik[encja.zakres.koniec :]
     return wynik, kolejne

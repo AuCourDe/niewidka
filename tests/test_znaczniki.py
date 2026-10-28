@@ -35,7 +35,7 @@ def test_zamiana_w_segmencie():
     tekst = "Jan Kowalski, PESEL 44051401359."
     encje = [
         _encja(TypEncji.OSOBA, "Jan Kowalski", 0, klucz="jan|kowalsk"),
-        _encja(TypEncji.PESEL, "44051401359", 16),
+        _encja(TypEncji.PESEL, "44051401359", 21),
     ]
     nadaj_oznaczenia(encje)
     nowy, kolejne = zamien_w_segment(tekst, encje)
@@ -47,7 +47,7 @@ def test_poczatek_kolejnego_ciągiem_miedzy_segmentami():
     tekst = "PESEL 44051401359 oraz PESEL 55010101234."
     encje = [
         _encja(TypEncji.PESEL, "44051401359", 6),
-        _encja(TypEncji.PESEL, "55010101234", 27),
+        _encja(TypEncji.PESEL, "55010101234", 29),
     ]
     nadaj_oznaczenia(encje)
     nowy, kolejne = zamien_w_segment(tekst, encje, poczatek_kolejnego=5)
