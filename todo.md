@@ -5,8 +5,8 @@
   - [x] Katalog `~/niewidka` z git, CLAUDE.md, README (lista modeli)
 - [ ] (właściciel) przegląd lokalnych modeli anonimizujących, m.in. LFM 350M (obsługuje polski)
   - [x] Lista kandydatów w `README.md`
-  - [ ] Polskie próbki testowe + `KRYTERIA.md`
-  - [ ] Pomiar kandydatów na stacjonarce
+  - [x] Polskie próbki testowe + `KRYTERIA.md` (2026-10-28: korpus 62 próbek `tests/korpus/`, commit `1a3320c`; progi commit `2d173a6`)
+  - [ ] Pomiar kandydatów na stacjonarce (= kamień K2; pomiar reguł K1 zrobiony, `docs/WYNIK-K1.md`)
 - [~] 23:36 (właściciel) „zbuduj możliwie najprostsze narzędzie do anonimizacji tekstu”: wklejony tekst albo lokalny dokument biurowy -> lokalny model (CPU/GPU) -> ten sam format z dopiskiem ZANONIMIZOWANY; ocena jakości anonimizacji w trakcie + odwracalność (numeracja); web (serwer w organizacji), okienkowa Win/Mac/Linux, Android; polski; suwak „Jakość wykrywania danych” (1-3 przebiegi/modele); sekrety tylko z key vault/pliku; kod nienaganny; konsultacje Argon+Astra na każdym kroku; HLD -> LLD -> kamienie milowe -> plan (testy na początku) -> wytwarzanie; ultraterminal masowo; codex na końcu do przeglądu.
   - [x] Konsultacja architektoniczna Astra (ChatGPT www) + Argon (Gemini www, odpowiedział Flash-Lite) – linki `docs/konsultacje/03-odpowiedzi-www.md`. Dostęp: TYLKO przez Chrome po stronie Windows (Claude in Chrome); `czaty.py` z WSL niezalogowany. Pytanie wklejać przez schowek (`powershell Set-Clipboard`), odpowiedź czytać `javascript_tool` kawałkami po ~1400 znaków (`window.__t.slice`).
   - [x] Synteza konsultacji -> `docs/KONSULTACJE.md` (commit „Nazwa Niewidka, synteza…”)
@@ -14,8 +14,8 @@
   - [x] `docs/LLD.md` (commit ba3cad5)
   - [x] `docs/KAMIENIE.md` (kamienie milowe; commit ba3cad5)
   - [x] `docs/PLAN.md` (plan wykonania, testy jako pierwsze; commit ba3cad5)
-  - [ ] Zestaw testowy (polskie próbki + oczekiwane encje) i `KRYTERIA.md`
-  - [ ] Rdzeń: wykrywanie (reguły + model), zamiana na znaczniki numerowane, mapa przywracania, ocena jakości
+  - [x] Zestaw testowy (polskie próbki + oczekiwane encje) i `KRYTERIA.md` (2026-10-28: korpus 62 próbek + progi; `docs/WYNIK-K1.md`)
+  - [~] Rdzeń: wykrywanie (reguły + model), zamiana na znaczniki numerowane, mapa przywracania, ocena jakości — reguły + scalanie + osoby + znaczniki zrobione (K1, `docs/WYNIK-K1.md`); model ONNX = K2, mapa = K4, ocena jakości = K2
   - [ ] Formaty: txt, docx, odt, xlsx, pdf (tekst) - ten sam format na wyjściu
   - [ ] Aplikacja web (serwer lokalny) + GUI okienkowe + Android
   - [ ] Przegląd kodu codex na końcu
@@ -24,14 +24,14 @@
   - [~] Wybrana **Niewidka** (`docs/KONSULTACJE.md`); zmienione README/CLAUDE.md/todo. ZOSTAJE: przeniesienie katalogu `niewidka` -> `niewidka` po zakończeniu sesji (zmiana w trakcie psuje hooki/cwd); repo GitHub `niewidka` – utworzenie publicznego repo wymaga zgody właściciela
 
 ## 2026-10-28
-- [~] (właściciel) „zrealizuj kamienie K0 i K1 dokładnie wg PLAN.md/LLD.md”: K0 = korpus ≥40 próbek JSONL (polskie, fikcyjne, poprawne i błędne sumy kontrolne) + `KRYTERIA.md` (osobny commit PRZED pierwszym pomiarem) + `narzedzia/pomiar.py` (recall/precision per typ); K1 TDD = `model.py`, `reguly.py` (python-stdnum), `scalanie.py`, `osoby.py` (grupowanie odmian nazwisk), `znaczniki.py`; bez modeli ONNX (to K2). Venv `.venv`, pyproject, pytest lokalnie, ruff czysty, bez Dockera. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm), bez pusha. Wynik: `docs/WYNIK-K1.md` (per typ vs progi, bez przesuwania progów) + statusy w todo.md.
-  - [ ] K0: `KRYTERIA.md` z progami recall/precision (osobny commit przed pierwszym pomiarem)
-  - [ ] K0: korpus ≥40 próbek JSONL (autor inny niż autor detektorów) + `tests/test_korpus.py` (walidacja formatu)
-  - [ ] K0: `narzedzia/pomiar.py` — recall/precision per typ, działa na detektorze pustym
-  - [ ] K1 TDD: `model.py` (TypEncji, Zakres, Encja, RunInfo, Segment, Dokument wg LLD §2)
-  - [ ] K1 TDD: `reguly.py` (PESEL, NIP, REGON, IBAN, dowód, e-mail, telefon PL, adres, data; sumy kontrolne python-stdnum)
-  - [ ] K1 TDD: `scalanie.py` (unia, priorytet sumy kontrolnej, wg LLD §5)
-  - [ ] K1 TDD: `osoby.py` (grupowanie odmian nazwisk po rdzeniu, wg LLD §6)
-  - [ ] K1 TDD: `znaczniki.py` ([TYP_N], zamiana od końca, wg LLD §7)
-  - [ ] Pomiar K1 na korpusie → `docs/WYNIK-K1.md` (liczby per typ vs progi, co nie spełnia i dlaczego)
-  - [ ] Aktualizacja statusów w todo.md + commit
+- [x] (właściciel) „zrealizuj kamienie K0 i K1 dokładnie wg PLAN.md/LLD.md”: K0 = korpus ≥40 próbek JSONL (polskie, fikcyjne, poprawne i błędne sumy kontrolne) + `KRYTERIA.md` (osobny commit PRZED pierwszym pomiarem) + `narzedzia/pomiar.py` (recall/precision per typ); K1 TDD = `model.py`, `reguly.py` (python-stdnum), `scalanie.py`, `osoby.py` (grupowanie odmian nazwisk), `znaczniki.py`; bez modeli ONNX (to K2). Venv `.venv`, pyproject, pytest lokalnie, ruff czysty, bez Dockera. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm), bez pusha. Wynik: `docs/WYNIK-K1.md` (per typ vs progi, bez przesuwania progów) + statusy w todo.md.
+  - [x] K0: `KRYTERIA.md` z progami recall/precision (osobny commit `2d173a6` PRZED pierwszym pomiarem)
+  - [x] K0: korpus 62 próbki JSONL (autor zewnętrzny opencode/deepseek, commit `1a3320c`) + `tests/test_korpus.py` zielone (walidacja formatu, sum przez stdnum, pułapki, pokrycie)
+  - [x] K0: `narzedzia/pomiar.py` (commit `e7ed6fa`) — sanity na detektorze pustym: recall 0,0
+  - [x] K1 TDD: `model.py` (commit `2d8f8a9`)
+  - [x] K1 TDD: `reguly.py` — cykle A/B/C (`ec057a2`, `64bef30`, `66f5e48`); sumy kontrolne: python-stdnum (PESEL/NIP/REGON/IBAN) + własny walidator dowodu (stdnum nie obejmuje; algorytm z algorytm.org)
+  - [x] K1 TDD: `scalanie.py` (commit `3b0abc4`) — maskowanie UNIĄ grup nakładań (przegląd Astry pkt 1), etykieta wg priorytetów LLD §5
+  - [x] K1 TDD: `osoby.py` (commit `6c7e103`) — rdzenie odmian nazwiska i imienia, asocjacja wsteczna (Gemini #13), niejednoznaczne rozdzielone (Astra #10)
+  - [x] K1 TDD: `znaczniki.py` (commity `70a3fec`, `788db17`) — `[TYP_N]`, zamiana od końca, dopisek bez nawiasów (Gemini #7)
+  - [x] Pomiar K1 → `docs/WYNIK-K1.md`: recall 1.000 / precision 1.000 na WSZYSTKICH typach K1 (40/40 TP, 0 FP na pułapkach); OSOBA 0/23 poza zakresem reguł (K2); progi nieprzesunięte, nic nie wymagało przesunięcia
+  - [x] Aktualizacja statusów w todo.md + commit (pełny zestaw: 71 testów zielonych, ruff czysty, bez pusha)
