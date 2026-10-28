@@ -78,12 +78,21 @@ brief „bez efekciarstwa”, ruch ograniczony do `:active` + reduced-motion.
 
 ## E2E (żywy serwer: uvicorn 127.0.0.1:8393, wagi z `~/models/niewidka`, klucz CLI)
 
-Playwright headless, pełny przepływ: wklejenie wniosku (osoba, adres, PESEL, telefon,
-e-mail, dowód) → „Ukryj dane” (poziom 2) → wynik: 6 zaślepek widocznych (OSOBA/ADRES/
-PESEL/TELEFON/EMAIL/DOKUMENT), status „Kontrola jakości: zaliczona”, pobrania klikalne →
-zakładka Przywróć → upload pary wynik+mapa (z tego samego zadania) → „Przywrócono”,
-lista rozbieżności pusta. Zrzuty po recapture: `docs/zrzuty/k5-desktop-start.png`,
-`k5-desktop-wynik.png` (1440), `k5-mobile-start.png`, `k5-mobile-wynik.png` (390).
+Playwright headless, pełne przepływy przez UI:
+- **wklejony tekst** (osoba, adres, PESEL, telefon, e-mail, dowód; poziom 2) → 6 zaślepek
+  widocznych (OSOBA/ADRES/PESEL/TELEFON/EMAIL/DOKUMENT), „Kontrola jakości: zaliczona”,
+  pobrania klikalne → zakładka Przywróć → upload pary → „Przywrócono”, rozbieżności puste;
+- **plik TXT** przez UI (upload → ukryj → zaślepki w podglądzie → przywróć) — ✓;
+- **plik DOCX** przez UI — ✗, **defekt spoza K5**: `POST /api/ukryj` przekracza
+  `NIEWIDKA_TIMEOUT_S=120` i kończy 500 (fail-closed). Faulthandler wskazuje
+  `kontrola.py:_skan_surowy` (K3b): detektor ONNX odpalany na surowych częściach XML
+  archiwum — na DOCX to setki okien na CPU. TXT przechodzi w 0,18 s. Regresja
+  wydajnościowa kontroli zapisu (K3b), nie interfejsu; do naprawy w sesji rdzenia
+  (zmiany `kontrola.py` są dla K5 zakazane). Na żywym serwerze K4 DOCX przechodził,
+  bo surowy skan wtedy nie istniał.
+
+Zrzuty po recapture: `docs/zrzuty/k5-desktop-start.png`, `k5-desktop-wynik.png` (1440),
+`k5-mobile-start.png`, `k5-mobile-wynik.png` (390); kopie w `Desktop/C/Niewidka - k5-*.png`.
 
 Błędy startowe sesji (odnotowane): klucz wygenerowany ręcznie (44 znaki base64 = 33 B)
 dawał 500 — naprawiony przez projektowy CLI `python -m niewidka.klucze nowy-plik`;
@@ -111,4 +120,6 @@ NIEWIDKA_MODELE_KATALOG=~/models/niewidka .venv/bin/python -m pytest tests/ -q
   zleceniem właściciela (12:55) i zostawione niezmienione, żeby nie kolidować z pracą
   równoległą (logo, „Jak to działa” — ta sama sesja).
 - ocena percepcyjna właściciela (kamień K5 w KAMIENIE.md) — **czeka**: zrzuty poszły do
-  `Desktop/C/`, decyzja tak/nie należy do właściciela.
+  `Desktop/C/`, decyzja tak/nie należy do właściciela;
+- 🔴 do zgłoszenia sesji rdzenia (K3b/K4): surowa kontrola zapisu spowalnia DOCX ponad
+  timeout 120 s (500 fail-closed) — znalezione E2E K5, szczegóły wyżej.
