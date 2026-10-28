@@ -62,11 +62,30 @@ def test_nie_base64_w_pliku(tmp_path: Path):
         pobierz_klucz(konfig, z_keyringa=lambda usluga: None)
 
 
-@pytest.mark.skipif(not hasattr(os, "chmod"), reason="uprawnienia POSIX")
+@pytest.mark.skipif(os.name != "posix", reason="uprawnienia sprawdzane tylko na POSIX")
 def test_zbyt_otwarte_uprawnienia_pliku(tmp_path: Path):
     konfig = Konfig(klucz_plik=_plik_klucza(tmp_path, tryb=0o644))
     with pytest.raises(BrakKlucza, match="0600"):
         pobierz_klucz(konfig, z_keyringa=lambda usluga: None)
+
+
+def test_windows_ignoruje_uprawnienia_pliku(tmp_path, monkeypatch):
+    """Windows: chmod ma tylko bit tylko-do-odczytu (plik zgłasza 0o666); kontrola
+    0600 nie może blokować klucza (LLD §8, Gemini pkt 10) — inaczej desktop
+    odrzucałby każdy klucz z pliku. Podmieniamy os TYLKO w module klucze: globalna
+    zmiana os.name przekłamałaby też pathlib (Path wybiera wariant wg os.name)."""
+
+    class FałszywyOs:
+        name = "nt"
+
+        def __getattr__(self, nazwa):
+            return getattr(os, nazwa)
+
+    from niewidka import klucze
+
+    monkeypatch.setattr(klucze, "os", FałszywyOs())
+    konfig = Konfig(klucz_plik=_plik_klucza(tmp_path, tryb=0o666))
+    assert pobierz_klucz(konfig, z_keyringa=lambda usluga: None) == KLUCZ
 
 
 def test_klucz_nie_w_wyjatku(tmp_path: Path):

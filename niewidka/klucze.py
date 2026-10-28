@@ -45,7 +45,7 @@ def utworz_klucz_w_keyringu(usluga: str, nadpisz: bool = False) -> None:
 def _z_pliku(sciezka: Path) -> bytes:
     try:
         tryb = stat.S_IMODE(sciezka.stat().st_mode)
-        if tryb & 0o077 and hasattr(os, "chmod"):  # 0600 wymagane tylko na POSIX
+        if tryb & 0o077 and os.name == "posix":  # 0600 wymagane tylko na POSIX (Windows: tylko bit R/O)
             raise BrakKlucza(f"plik klucza ma uprawnienia {oct(tryb)}, wymagane 0600")
         zdekodowane = base64.b64decode(sciezka.read_bytes(), validate=True)
     except BrakKlucza:
