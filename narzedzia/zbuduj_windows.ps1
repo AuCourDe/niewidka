@@ -6,19 +6,23 @@ Inno bez potrzeby). Uruchomienie NA WINDOWS (albo z WSL przez powershell.exe):
 
   powershell -ExecutionPolicy Bypass -File narzedzia\zbuduj_windows.ps1 [-Wagi <katalog>]
 
-Domyślne źródło wag: \\wsl.localhost\Ubuntu-24.04\home\rev\models\niewidka (tylko
-pliki wymienione w manifest.json; lfm25 pomijany). Wynik:
+Domyślne źródło wag: \\wsl.localhost\Ubuntu-24.04\mnt\projekty\models\niewidka (tylko
+pliki wymienione w manifest.json; lfm25 pomijany; uwaga: ~/models to dowiązanie
+do /mnt/projekty/models, którego \\wsl.localhost nie prowadzi). Wynik:
   <KatalogBudowy>\dist\Niewidka\Niewidka.exe   (wagi w dist\Niewidka\modele)
   <KatalogBudowy>\Niewidka-<wersja>-windows-x64.zip
 #>
 param(
   [string]$KatalogBudowy = "C:\Users\uzytkownik\niewidka-build",
   [string]$RepoUrl = "https://github.com/AuCourDe/niewidka.git",
-  [string]$Wagi = "\\wsl.localhost\Ubuntu-24.04\home\rev\models\niewidka",
+  [string]$Wagi = "\\wsl.localhost\Ubuntu-24.04\mnt\projekty\models\niewidka",
   [string]$Python = "py -3.13",
   [switch]$PominTesty
 )
 $ErrorActionPreference = "Stop"
+# katalog roboczy musi byc lokalny dla Windows: z cwd na \\wsl.localhost PyInstaller
+# wlaczylby drzewo robocze WSL w sciezki przeszukiwania modulow
+Set-Location $KatalogBudowy
 
 $Repo = Join-Path $KatalogBudowy "repo"
 $VenvPython = Join-Path $Repo ".venv\Scripts\python.exe"
@@ -36,13 +40,14 @@ Invoke-Expression "$Python -m venv $Repo\.venv"
 & $VenvPython -m pip install --upgrade pip
 # zaleznosci runtime = [project].dependencies z pyproject.toml + desktop/budowa
 & $VenvPython -m pip install fastapi uvicorn cryptography keyring onnxruntime python-docx `
-  python-multipart python-stdnum tokenizers httpx pywebview pythonnet pyinstaller pytest
+  python-multipart python-stdnum tokenizers httpx pywebview pythonnet pyinstaller pytest scipy
 & $VenvPython -c "import webview, onnxruntime, keyring; print('importy OK')"
 
 if (-not $PominTesty) {
   Write-Host "== 3. Testy jednostkowe na Windows (bez wag: testy modelowe same skacza) =="
   Push-Location $Repo
   & $VenvPython -m pytest tests/ -q
+  if ($LASTEXITCODE -ne 0) { Pop-Location; throw "testy jednostkowe nie przeszly" }
   Pop-Location
 }
 
@@ -58,8 +63,8 @@ while ($Czesci.Count -lt 4) { $Czesci += "0" }
 # -*- coding: UTF-8 -*-
 VSVersionInfo(
   ffi=FixedFileInfo(
-    file_version=($($Czesci[0]), $($Czesci[1]), $($Czesci[2]), $($Czesci[3])),
-    product_version=($($Czesci[0]), $($Czesci[1]), $($Czesci[2]), $($Czesci[3])),
+    filevers=($($Czesci[0]), $($Czesci[1]), $($Czesci[2]), $($Czesci[3])),
+    prodvers=($($Czesci[0]), $($Czesci[1]), $($Czesci[2]), $($Czesci[3])),
     mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[
     StringFileInfo([StringTable("041504b0", [
@@ -70,6 +75,8 @@ VSVersionInfo(
       StringStruct("ProductVersion", "$Wersja")])]),
     VarFileInfo([VarStruct("Translation", [1045, 1200])])])
 "@ | Out-File -Encoding ascii (Join-Path $KatalogBudowy "wersja.txt")
+# walidacja PRZED PyInstallerem: loader wypisuje pelny lancuch wyjatkow przy bledzie
+& $VenvPython -c "from PyInstaller.utils.win32.versioninfo import load_version_info_from_text_file; load_version_info_from_text_file(r'$KatalogBudowy\wersja.txt'); print('wersja OK')"
 
 Write-Host "== 6. PyInstaller (onedir, bez konsoli) =="
 $StartPy = Join-Path $KatalogBudowy "start.py"
