@@ -203,3 +203,21 @@ def test_pkt3_pesel_w_ogonie_xml_blokuje():
         u.typ == "PESEL" and u.czesc == "word/theme/proba.xml" for u in uwagi
     ), f"skan nie widzi ogonka elementu: {uwagi}"
 
+
+# --- pkt 4: błąd parsowania zachowanej części XML = blokada (fail-closed) ------
+
+
+def test_pkt4_nieprawidlowy_xml_zachowanej_czesci_blokuje():
+    """K4b pkt 4: niedomknięty XML w zachowywanej części to fail-closed,
+    nie ciche „continue" — treści, której nie da się przeskanować, nie wysyłamy."""
+    from niewidka.kontrola import kontroluj
+
+    dane = _docx_przebuduj(
+        _wzorzec_docx(),
+        dodaj={"word/theme/proba.xml": b"<?xml version='1.0'?><root>55010101234"},
+    )
+    uwagi = kontroluj(dane, "umowa.docx", RegulyDetektor())
+    assert any(
+        u.typ == "XML_NIEPRAWIDLOWY" and u.czesc == "word/theme/proba.xml" for u in uwagi
+    ), f"błąd parsowania przeszedł cicho: {uwagi}"
+

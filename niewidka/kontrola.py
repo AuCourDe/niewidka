@@ -82,7 +82,10 @@ def _skan_surowy(
         try:
             korzen = etree.fromstring(zawartosc, _parser())
         except etree.XMLSyntaxError:
-            continue  # część binarna o mylącej nazwie — łapie ją skan bajtowy
+            # K4b pkt 4: części XML, której nie da się sparsować, nie wysyłamy
+            # (fail-closed); ciche „continue" przepuszczało niedomknięte pułapki
+            uwagi.append(Ostrzezenie("XML_NIEPRAWIDLOWY", "", -1, nazwa))
+            continue
         wartosci = chain(
             # K4b pkt 3: także e.tail — dane za znacznikiem omijały skan wartości
             (t for e in korzen.iter() for t in (e.text, e.tail) if t),
