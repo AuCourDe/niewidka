@@ -230,6 +230,22 @@ def test_strumienie_domyslnie_devnull(monkeypatch):
     assert sys.stderr is not None  # otwarty strumień zamiast None (logi uvicorna nie zabiją)
 
 
+def test_uruchom_ustawia_katalog_roboczy_na_aplikacje(srodowisko, keyring_pamieciowy, monkeypatch):
+    """Start z lim/tuneli dziedziczy cwd na UNC, na którym WebView2 wisi: uruchom
+    musi najpierw przenieść cwd na katalog aplikacji."""
+    zrobione: list[str] = []
+    monkeypatch.setattr(okno, "ustaw_katalog_roboczy", lambda: zrobione.append("x"))
+    okno.uruchom(detektor=AtrapaDetektora(), webview=AtrapaWebview())
+    assert zrobione == ["x"]
+
+
+def test_ustaw_katalog_roboczy_celuje_w_katalog_aplikacji(monkeypatch):
+    cel: list[str] = []
+    monkeypatch.setattr(okno.os, "chdir", lambda sciezka: cel.append(str(sciezka)))
+    okno.ustaw_katalog_roboczy()
+    assert cel == [str(okno.katalog_aplikacji())]
+
+
 def test_teksty_gui_bez_polpauz_i_pauz():
     """Zlecenie 12:55: zero półpauz i pauz w tekstach GUI."""
     for tresc in (okno.STRONA_KONFIGURACJI, okno.strona_bledu("przykładowy komunikat")):

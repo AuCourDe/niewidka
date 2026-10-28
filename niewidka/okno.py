@@ -158,9 +158,17 @@ def _ukryj_strumienie_bez_konsoli(env: MutableMapping[str, str] | None = None) -
     env = os.environ if env is None else env
     cel = env.get("NIEWIDKA_LOG_PLIK") or os.devnull
     if sys.stdout is None:
-        sys.stdout = open(cel, "w", encoding="utf-8")  # noqa: SIM115 — na czas życia procesu
+        # buffering=1: tracebacky wątku serwera muszą do pliku od razu, nie w buforze
+        sys.stdout = open(cel, "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — na czas życia procesu
     if sys.stderr is None:
-        sys.stderr = open(cel, "w", encoding="utf-8")  # noqa: SIM115 — jw.
+        sys.stderr = open(cel, "w", encoding="utf-8", buffering=1)  # noqa: SIM115 — jw.
+
+
+def ustaw_katalog_roboczy() -> None:
+    """cwd na katalog aplikacji: GUI startowany z lim/tuneli (WSL, harmonogram)
+    dziedziczy cwd na ścieżce UNC, na której WebView2 wisi, a bind potrafi paść;
+    przy okazji niewidka.toml obok exe staje się czytelny."""
+    os.chdir(katalog_aplikacji())
 
 
 class Serwer:
@@ -246,6 +254,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
     multiprocessing.freeze_support()
     _ukryj_strumienie_bez_konsoli()
     przygotuj_srodowisko()
+    ustaw_katalog_roboczy()
     modul_webview = webview
     try:
         if modul_webview is None:
