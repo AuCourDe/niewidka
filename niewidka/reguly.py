@@ -172,7 +172,12 @@ REGULY: tuple[Regula, ...] = (
     ),
     Regula(
         typ=TypEncji.EMAIL,
-        wzorzec=re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
+        # K4b pkt 13: granica początku (lookbehind) — bez niej długie ciągi bez @
+        # cofały kwadratowo z KAŻDEJ pozycji (7 s na 100 tys. znaków); z nią próba
+        # startuje wyłącznie na pierwszym znaku ciągu i koszt jest liniowy
+        wzorzec=re.compile(
+            r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"
+        ),
         walidator=None,
         suma_kontrolna=False,
     ),

@@ -633,3 +633,30 @@ async def test_pkt12_nadmiarowe_zlecenie_503_zanim_czyta_tresc(klucz_plik):
         brama.set()  # pierwsze może się skończyć
         assert (await pierwsze).status_code == 200
 
+
+# --- pkt 13: regex e-maila liniowy ------------------------------------------------
+
+
+def test_pkt13_regex_email_liniowy():
+    """K4b pkt 13: długi ciąg bez @ nie może uruchamiać kwadratowego cofania —
+    100 tys. znaków poniżej 50 ms (audyt: 0,24 s już przy 16 tys., GIL zajęty)."""
+    import time
+
+    from niewidka.reguly import znajdz
+
+    tekst = "a" * 100_000 + " koniec"
+    start_pomiar = time.perf_counter()
+    wynik = znajdz(tekst)
+    czas = time.perf_counter() - start_pomiar
+    assert czas < 0.05, f"regex e-maila kwadratowy: {czas:.3f} s na 100 tys. znaków"
+    assert wynik == []
+
+
+def test_pkt13_email_nadal_wykrywany():
+    from niewidka.reguly import znajdz
+
+    tekst = "Napisz na jan.kowalski@example.com.pl proszę."
+    trafienia = [t for t in znajdz(tekst) if t.typ.value == "EMAIL"]
+    assert len(trafienia) == 1
+    assert tekst[trafienia[0].start : trafienia[0].koniec] == "jan.kowalski@example.com.pl"
+
