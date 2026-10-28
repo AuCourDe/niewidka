@@ -61,9 +61,7 @@ def test_detekcja_złego_typu_to_fp_oraz_fn():
 
 def test_detekcja_podejrzana_nie_jest_fp():
     # KRYTERIA §1.3: podejrzane nadmaskowanie (PN) liczone osobno, nie jako FP.
-    detektor = DetektorStałozakresowy(
-        [Zakres(6, 17, TypEncji.PESEL, 0.5, "regula", False, True)]
-    )
+    detektor = DetektorStałozakresowy([Zakres(6, 17, TypEncji.PESEL, 0.5, "regula", False, True)])
     wyniki = zmierz([PROBKA_PULAPKA], detektor)
     assert wyniki["PESEL"] == WynikTypu(tp=0, fp=0, fn=0, pn=1)
     assert precision(wyniki["PESEL"]) is None  # PN nie zaniża precision
@@ -80,3 +78,39 @@ def test_wczytywanie_jsonl(tmp_path: Path):
     assert len(probki) == 1
     assert probki[0].encje[0].typ == "PESEL"
     assert probki[0].encje[0].suma is True
+
+
+# --- K2: budowa detektorów + czas na próbkę ---
+
+import pytest
+
+from narzedzia.pomiar import zbuduj_detektor, zmierz_z_czasem
+
+
+def test_zbuduj_detektor_reguly():
+    assert zbuduj_detektor("reguly", None).nazwa == "reguly"
+
+
+def test_zbuduj_detektor_nieznany_pad():
+    with pytest.raises(SystemExit):
+        zbuduj_detektor("czarodziej", None)
+
+
+def test_zbuduj_detektor_poziom1_bez_katalogu_blad():
+    with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
+        zbuduj_detektor("poziom1", None)
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_poziom1(katalog_modeli):
+    d = zbuduj_detektor("poziom1", katalog_modeli)
+    assert d.nazwa == "poziom1"
+    assert TypEncji.OSOBA in d.typy  # model
+    assert TypEncji.PESEL in d.typy  # reguły
+
+
+def test_zmierz_z_czasem_zwraca_czasy():
+    wyniki, czasy = zmierz_z_czasem([PROBKA_PESEL, PROBKA_PULAPKA], DetektorPusty())
+    assert len(czasy) == 2
+    assert all(c >= 0 for c in czasy)
+    assert wyniki["PESEL"].fn == 1

@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from niewidka.detektory import DetektorKompozyt, RegulyDetektor, wczytaj_bardsai
 from niewidka.model import Zakres
-from niewidka.reguly import znajdz
-from niewidka.scalanie import scal
 
 
 @dataclass
@@ -52,11 +53,46 @@ class DetektorPusty:
         return []
 
 
-class DetektorReguly:
-    """Reguły + scalanie — warstwa detekcji kamienia K1."""
+def zbuduj_detektor(nazwa: str, katalog_modeli: Path | None):
+    """Detektor pomiaru wg nazwy CLI; poziom1 = reguły + bardsai (KRYTERIA §4)."""
+    if nazwa == "pusty":
+        return DetektorPusty()
+    if nazwa == "reguly":
+        return RegulyDetektor()
+    if nazwa == "poziom1":
+        if katalog_modeli is None:
+            raise ValueError("poziom1 wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele")
+        return DetektorKompozyt("poziom1", [RegulyDetektor(), wczytaj_bardsai(katalog_modeli)])
+    raise SystemExit(f"nieznany detektor: {nazwa}")
 
-    def znajdz(self, tekst: str) -> list[Zakres]:
-        return scal(tekst, znajdz(tekst))
+
+def zmierz_z_czasem(probki: list[Probka], detektor) -> tuple[dict[str, WynikTypu], list[float]]:
+    """Pomiar jakości + czasu detekcji (ms) na próbkę, w kolejności próbek."""
+    czasy: list[float] = []
+    wyniki: dict[str, WynikTypu] = {}
+
+    def wynik(typ: str) -> WynikTypu:
+        return wyniki.setdefault(typ, WynikTypu())
+
+    for probka in probki:
+        start = time.perf_counter()
+        detekcje = detektor.znajdz(probka.tekst)
+        czasy.append((time.perf_counter() - start) * 1000)
+        oczekiwane = {(e.start, e.koniec, e.typ) for e in probka.encje}
+        trafione: set[tuple[int, int, str]] = set()
+        for z in detekcje:
+            klucz = (z.start, z.koniec, z.typ.value)
+            trafione.add(klucz)
+            w = wynik(klucz[2])
+            if klucz in oczekiwane:
+                w.tp += 1
+            elif z.podejrzana:
+                w.pn += 1
+            else:
+                w.fp += 1
+        for brak in oczekiwane - trafione:
+            wynik(brak[2]).fn += 1
+    return wyniki, czasy
 
 
 def wczytaj_probki(katalog: Path) -> list[Probka]:
@@ -76,32 +112,14 @@ def wczytaj_probki(katalog: Path) -> list[Probka]:
                 )
                 for e in surowa["encje"]
             ]
-            probki.append(Probka(id=surowa["id"], opis=surowa["opis"], tekst=surowa["tekst"], encje=encje))
+            probki.append(
+                Probka(id=surowa["id"], opis=surowa["opis"], tekst=surowa["tekst"], encje=encje)
+            )
     return probki
 
 
 def zmierz(probki: list[Probka], detektor) -> dict[str, WynikTypu]:
-    wyniki: dict[str, WynikTypu] = {}
-
-    def wynik(typ: str) -> WynikTypu:
-        return wyniki.setdefault(typ, WynikTypu())
-
-    for probka in probki:
-        detekcje = detektor.znajdz(probka.tekst)
-        oczekiwane = {(e.start, e.koniec, e.typ) for e in probka.encje}
-        trafione: set[tuple[int, int, str]] = set()
-        for z in detekcje:
-            klucz = (z.start, z.koniec, z.typ.value)
-            trafione.add(klucz)
-            w = wynik(klucz[2])
-            if klucz in oczekiwane:
-                w.tp += 1
-            elif z.podejrzana:
-                w.pn += 1
-            else:
-                w.fp += 1
-        for brak in oczekiwane - trafione:
-            wynik(brak[2]).fn += 1
+    wyniki, _ = zmierz_z_czasem(probki, detektor)
     return wyniki
 
 
@@ -146,15 +164,42 @@ def wypisz_raport(wyniki: dict[str, WynikTypu]) -> None:
         )
 
 
+def wypisz_czasy(czasy: list[float]) -> None:
+    posortowane = sorted(czasy)
+    srednia = sum(czasy) / len(czasy) if czasy else 0.0
+    mediana = posortowane[len(posortowane) // 2] if czasy else 0.0
+    print(
+        f"\nCzas na próbkę (CPU): średnia {srednia:.1f} ms, mediana {mediana:.1f} ms, "
+        f"max {max(czasy, default=0.0):.1f} ms (próbek: {len(czasy)})"
+    )
+    try:
+        import resource
+
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # KiB na Linux
+        print(f"RAM procesu (szczyt RSS): {rss / 1024:.0f} MiB")
+    except (ImportError, AttributeError):  # nie-POSIX
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pomiar detektora na korpusie Niewidki")
     parser.add_argument("--korpus", type=Path, default=Path("tests/korpus"))
-    parser.add_argument("--detektor", choices=("pusty", "reguly"), default="reguly")
+    parser.add_argument("--detektor", choices=("pusty", "reguly", "poziom1"), default="reguly")
+    parser.add_argument(
+        "--modele",
+        type=Path,
+        default=Path(os.environ["NIEWIDKA_MODELE_KATALOG"])
+        if os.environ.get("NIEWIDKA_MODELE_KATALOG")
+        else None,
+        help="katalog wag (domyślnie z NIEWIDKA_MODELE_KATALOG)",
+    )
     argumenty = parser.parse_args(argv)
-    detektor = DetektorPusty() if argumenty.detektor == "pusty" else DetektorReguly()
+    detektor = zbuduj_detektor(argumenty.detektor, argumenty.modele)
     probki = wczytaj_probki(argumenty.korpus)
     print(f"Detektor: {argumenty.detektor}, próbki: {len(probki)}")
-    wypisz_raport(zmierz(probki, detektor))
+    wyniki, czasy = zmierz_z_czasem(probki, detektor)
+    wypisz_raport(wyniki)
+    wypisz_czasy(czasy)
     return 0
 
 
