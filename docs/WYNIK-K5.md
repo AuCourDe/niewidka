@@ -123,3 +123,89 @@ NIEWIDKA_MODELE_KATALOG=~/models/niewidka .venv/bin/python -m pytest tests/ -q
   `Desktop/C/`, decyzja tak/nie należy do właściciela;
 - 🔴 do zgłoszenia sesji rdzenia (K3b/K4): surowa kontrola zapisu spowalnia DOCX ponad
   timeout 120 s (500 fail-closed) — znalezione E2E K5, szczegóły wyżej.
+
+---
+
+# K5b — 2026-10-28 (naprawa timeoutu DOCX, teksty Argona, „Jak to działa”, logo)
+
+Zlecenie 15:19. Punkty 0-5 zlecenia; TDD tam, gdzie kod rdzenia; bez Dockera, bez codex.
+
+## 0. DOCX przekraczał timeout 120 s — NAPRAWIONE
+
+Przyczyna (potwierdzona pomiarem): `kontrola.py:_skan_surowy` puszczał detektor
+z modelem ONNX na każdą część XML archiwum — setki inferencji na surowym DOCX.
+
+| pomiar (wzorzec generatora, poziom 3) | czas | status |
+|---|---|---|
+| PRZED (model na surowym XML) | **219,25 s** | zablokowany, 11 ostrzeżeń (fałszywe, z metadanych XML) |
+| PO (skan surowy: wyłącznie reguły + oryginały z mapy) | **1,72 s** | ukonczony, 0 ostrzeżeń |
+| PO przez API `/api/ukryj` (DOCX, poziomy 1/2/3) | 0,52 / 0,68 / 2,38 s | 200, round-trip przywrócenia 200 |
+
+TDD: `tests/test_kontrola.py::TestWydajnoscKontroli` (ukrycie wzorcowego DOCX na
+poziomie 3 trwa < 10 s, marker `model`; RED: 224,73 s, status zablokowany) oraz
+`TestSkanSurowyReguly` (skan surowy stosuje reguły nawet z detektorem bez reguł).
+Model uruchamia się odtąd wyłącznie na treści czytanej adapterem; siatka kontroli
+bez zmian (reguły na surowych częściach + oryginały z mapy; testy K3b/K4b zielone).
+
+## Znalezione przy okazji (E2E): model odpalał OSOBA na tekście znacznika
+
+Po naprawie timeoutu DOCX przeszedł, ale zwykły tekst (wniosek z Janem Kowalskim)
+był blokowany na każdym poziomie: bardsai klasyfikował `[OSOBA_1_F1]`, `[PESEL_1]`
+(nawet fragmenty typu `PESEL_1]`) jako osobę w wyniku, a kontrola nie wykluczała
+znaczników — obietnica „znaleziska niebędące znacznikami” z LLD §10 nigdy nie była
+w kodzie (reguły na znacznikach nie odpalały, więc błąd spał do czasu modelu
+w kontroli). Naprawa (TDD, `TestKontrolaZnaczniki`): kontrola wyjmuje znaczniki
+`WZORZEC_ZNACZNIKA` ze skanowanej treści (spacja za znak, offsety bez zmian) —
+w znaczniku nie ma oryginału, prawdziwe wycieki blokują dalej (test z wyciekiem
+`79020853217` obok znaczników). Stabilność: 4 biegi × poziomy 1/2/3, zawsze
+`ukonczony`, 0 ostrzeżeń. Bezpieczeństwo kontroli bez osłabienia: surowy skan
+regułowy, oryginały z mapy i fail-closed bez zmian.
+
+## 1-3. Teksty Argona (Część 1), sekcja „Jak to działa” (Część 2), zakaz półpauz
+
+- Tabela „Część 1” wdrożona w `apka.js` i `index.html` (m.in. „Gotowe: dokument
+  z ukrytymi danymi”, „Ukryte dane”, STOP: „Wynik zatrzymany przez kontrolę
+  jakości…”, ryzyka „małe do umiarkowanego: …”); nowy dopisek w `znaczniki.DOPISEK`
+  („ZANONIMIZOWANY. Dane osobowe zastąpiono znacznikami (Niewidka). Oryginalne dane
+  przywrócisz plikiem mapy.”) z podniesionymi asercjami testów (test_rdzen/test_api:
+  „ZANONIMIZOWANY not in” zamiast „ZANONIMIZOWANO not in”, które nowemu dopiskowi
+  nie patrzało na ręce).
+- Sekcja „Jak to działa”: `<details>` pod formularzem zakładki Ukryj; W skrócie,
+  wyróżniona lista wykrywanych danych (nazwy typów z `ETYKIETY` w `apka.js` — jedno
+  źródło z wynikiem, opisy i przykłady w `TYPY_WYKRYWANE`), „Ważne zastrzeżenie”
+  w wyróżnionym bloku, „Szczegóły techniczne” jako zagnieżdżony `<details>`; styl:
+  granat `#2C4560`, tło `#F8F7F4`, reszta palety projektu bez zmian.
+- Zakaz – —: `tests/test_web.py::test_bez_polpauz_i_pauz_w_tekstach` pada przy
+  choć jednym znaku w index.html, apka.js albo dopisku (RED potwierdzony, potem
+  sprzątnięte wszystkie wystąpienia, także w komentarzach apka.js).
+
+## 4. Zrzuty E2E odświeżone (żywy serwer 127.0.0.1:8393, wagi z magazynu, klucz z CLI)
+
+Przepływy Playwright: tekst wklejony poziom 2 (zaślepki, kontrola zaliczona),
+DOCX wzorcowy przez UI (poprzednio defekt K5 — teraz przechodzi), mobilne 390.
+Pliki: `docs/zrzuty/k5-desktop-start.png`, `k5-desktop-wynik.png`,
+`k5-jak-to-dziala.png` (nowy), `k5-mobile-start.png`, `k5-mobile-wynik.png`;
+kopie w `Desktop/C/Niewidka - k5-*.png`. Ocena percepcyjna → właściciel (tak/nie).
+
+## 5. Logo (wariant B właściciela)
+
+- `web/logo.svg` = wybrany `docs/logo/logo-agy4-2.svg` bez tła (`rect`), wpięty
+  w `<h1>` (alt „Niewidka”, 134x42); favicon: `favicon.svg` (kopia
+  `logo-agy4-2-favicon.svg`) + `favicon-32.png` (czytelność 32 px sprawdzona na
+  rastrze) + `apple-touch-icon.png` 180 px (rasteryzacja `rsvg-convert`).
+- `web/ikona.ico` (16/32/48/256, wpisy PNG) — ten sam znak z **pełnym konturem**
+  (bez zanikającego gradientu: w 16-32 px wychodził zbyt blado); używa jej
+  `zbuduj_windows.ps1` (fallback na `narzedzia/ikona.py`, gdyby pliku zabrakło).
+- `docs/logo/`: usunięte szkice odrzucone i skrypty agentów; zostały
+  `logo-agy4-2*.svg/png` + `README.md` (wybór B, data, autor Gemini agy4, mapa
+  plików i przepis przebudowy ikony).
+
+## Weryfikacja całości
+
+```
+NIEWIDKA_MODELE_KATALOG=~/models/niewidka .venv/bin/python -m pytest tests/ -q
+→ 420 passed, 1 xfailed in 73.21s   (przed K5b: 408 passed / 1 xfailed)
+.venv/bin/python -m ruff check niewidka/ tests/ narzedzia/  → All checks passed!
+```
+
+Procesy po teście ubite (serwer E2E zatrzymany, przeglądarka zamknięta).
