@@ -36,10 +36,14 @@ kalibracja R95, pomiar porównawczy „reguły" vs „reguły+model" (poziom 1/2
 **Ukończono, gdy:** poziom 1 osiąga progi `KRYTERIA.md` (recall OSOBA i precision); decyzja
 o LFM2.5 udokumentowana pomiarem; `dane/r95.json` wygenerowany (dowód: WYNIK pomiaru + r95.json).
 
-Status (2026-10-28, `docs/WYNIK-K2.md`): pomiar wykonany; progi K1 i „łącznie" poziomu 1
-spełnione, OSOBA recall 0.957 spełnia, **precision 0.917 nie spełnia progu 0.95** — brama
-niezaliczona, opcje dalsze w WYNIK-K2. R95 wygenerowane (`niewidka/dane/r95.json`).
-Poziom 2 (LFM2.5, 1.4 GB): **czeka na miejsce na dysku** (`~/models` — 887 MB wolne).
+Status (2026-10-28, `docs/WYNIK-K2b.md`): korpus rozszerzony do 182 próbek (autor
+zewnętrzny), pomiar poziomu 1 powtórzony po naprawie reguł (TELEFON/DATA) — wszystkie
+progi K1 i „łącznie" **spełnione** (1.000/1.000); OSOBA recall 0.971 ✓, precision 0.943
+✗ (próg 0.95). **Decyzja właściciela: FN groźniejszy niż FP — brama nie blokuje dalszych
+kamieni**, próg zostaje. Poziom 2 (LFM2.5): pomiar wykonany (eksport ONNX fp32/int8,
+adapter, kompozyt) — **zysku brak** (unia z rozmytymi granicami LFM2.5 obniża recall
+i precision poziomu 1); LFM2.5 nie wchodzi, ślad mierzalny w repo. R95 odświeżone
+(`niewidka/dane/r95.json`, OSOBA 0.0736).
 
 ## K3 — Formaty dokumentów (MVP: txt, docx)
 Zakres: adaptery txt i docx (runy, czyszczenie metadanych/komentarzy/śledzonych zmian,
@@ -49,6 +53,15 @@ z decyzjami z `LLD.md` §9 (skan liczb/formuł w XLSX, redakcja PDF, polityka ob
 **Ukończono, gdy:** automatyczny test round-trip na plikach wzorcowych TXT i DOCX
 potwierdza znacznik dokładnie na pozycji encji i poprawność mapowania przesunięć na runy;
 dokument z makrem kończy się blokadą 422 z listą (dowód: `pytest tests/test_formaty.py`).
+
+Status (2026-10-28, `docs/WYNIK-K2b.md`): **zrealizowany** — TXT (segment pojedynczy,
+BOM tolerowany) i DOCX (akapity + komórki tabel + pola tekstowe; czyszczone: komentarze,
+przypisy, nagłówki/stopki, właściwości app/core, miniatura, customXml; w:del usunięte,
+w:ins jako treść; hiperłącza http zostają, mailto/file rozpakowane; allowlista — makra
+i osadzone obiekty = blokada z listą); dopisek „ZANONIMIZOWANO w Niewidka…" na początku;
+nazwa wyniku `ZANONIMIZOWANY_<krótki-id>.<ext>`; weryfikacja zapisu ZAWSZE (round-trip:
+ponowne wczytanie i skan = 0 nowych znalezisk). Pliki wzorcowe: `narzedzia/generator_
+dokumentow.py` (python-docx). Dowód: `pytest tests/test_formaty.py` — 27 zielonych.
 
 ## K4 — Mapa, przywracanie, API
 Zakres: `mapa.py` (identyfikator zadania, warianty form), `klucze.py` (AES-256-GCM,
