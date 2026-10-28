@@ -1,0 +1,68 @@
+{
+  "zrodlo_domyslne": "https://github.com/AuCourDe/niewidka/releases/latest/download",
+  "pakiety": [
+    {
+      "id": "podstawowy",
+      "nazwa": "Podstawowy",
+      "opis": "Model wykrywający imiona i nazwiska we wszystkich formach. Wystarcza do pełnej pracy programu na wszystkich poziomach jakości.",
+      "wymagany": true,
+      "poziomy": [
+        1,
+        2,
+        3
+      ],
+      "katalog_rel": "",
+      "pliki": [
+        {
+          "nazwa": "model.onnx",
+          "zrodlo": "podstawowy-model.onnx",
+          "rozmiar": 174085050,
+          "sha256": "d7941decb2946b8d7a9d427cdcf9a66568c9bc744d43bb258bb279e221c72e7a"
+        },
+        {
+          "nazwa": "tokenizer.json",
+          "zrodlo": "podstawowy-tokenizer.json",
+          "rozmiar": 16781584,
+          "sha256": "2464f9721707cb3d5edcf9a3d73454b13e8a7b3bb8fdba94b3de3d843f30e946"
+        },
+        {
+          "nazwa": "config.json",
+          "zrodlo": "podstawowy-config.json",
+          "rozmiar": 4979,
+          "sha256": "33424b38df39e6df478e73b5fee6790367a8fffb45befb911b8d83d49793b3dd"
+        }
+      ]
+    },
+    {
+      "id": "rozszerzony",
+      "nazwa": "Rozszerzony",
+      "opis": "Dodatkowy model wykrywający to, czego reguły nie obejmują: adresy IP, kody SWIFT i loginy (na poziomie Najdokładniej). Wymaga pakietu Podstawowy.",
+      "wymagany": false,
+      "poziomy": [
+        3
+      ],
+      "katalog_rel": "lfm25/q4-bl32",
+      "wymaga": "podstawowy",
+      "pliki": [
+        {
+          "nazwa": "lfm25/q4-bl32/model.onnx",
+          "zrodlo": "rozszerzony-model.onnx",
+          "rozmiar": 222447337,
+          "sha256": "f34fa3e27d56ca4922498d84c67512559c8f5a7e81ab916e6fbf17abe6c6694e"
+        },
+        {
+          "nazwa": "lfm25/q4-bl32/tokenizer.json",
+          "zrodlo": "rozszerzony-tokenizer.json",
+          "rozmiar": 4733371,
+          "sha256": "1efc3a6609abf6b63b1f47188d139f3b59973a6a434dffe970a7261a51ed2711"
+        },
+        {
+          "nazwa": "lfm25/q4-bl32/config.json",
+          "zrodlo": "rozszerzony-config.json",
+          "rozmiar": 12497,
+          "sha256": "ced1b2917ec78c766b309233a38dd3351b6bd1cb4ba22c18363ce47c190679ac"
+        }
+      ]
+    }
+  ]
+}
