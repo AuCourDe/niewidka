@@ -194,7 +194,7 @@ function pokazWynik(naglowki, czesci) {
   const identyfikator = naglowki.get("x-niewidka-identyfikator");
   const statystyki = JSON.parse(naglowki.get("x-niewidka-statystyki") || "{}");
   const r95 = JSON.parse(naglowki.get("x-niewidka-r95") || "{}");
-  const ostrzezenia = JSON.parse(naglowki.get("x-niewidka-ostrzezenia") || "[]");
+  const ostrzezenia = JSON.parse(naglowki.get("x-niewidka-ostrzezenia") || "{}");
 
   const nazwaWyniku = Object.keys(czesci).find((n) => !n.endsWith(".nwidka"));
   const nazwaMapy = Object.keys(czesci).find((n) => n.endsWith(".nwidka"));
@@ -262,10 +262,10 @@ function pokazWynik(naglowki, czesci) {
   const blokOstrzezenia = document.getElementById("blok-ostrzezenia");
   const listaOstrzezenia = document.getElementById("lista-ostrzezenia");
   listaOstrzezenia.innerHTML = "";
-  for (const ostrzezenie of ostrzezenia) {
+  for (const [typ, ile] of Object.entries(ostrzezenia)) {
+    /* K4b pkt 8: nagłówek niesie wyłącznie typy i liczniki, nigdy fragmenty danych */
     const wiersz = document.createElement("li");
-    const krotszy = ostrzezenie.fragment.length > 10 ? `${ostrzezenie.fragment.slice(0, 10)}…` : ostrzezenie.fragment;
-    wiersz.textContent = `W wyniku pozostał fragment podobny do oryginalnych danych („${krotszy}”) — sprawdź to miejsce.`;
+    wiersz.textContent = `W wyniku zostały dane przypominające oryginalne: ${etykieta(typ, ile)}. Zobacz, gdzie dokładnie, zanim dokument opuści ten komputer.`;
     listaOstrzezenia.append(wiersz);
   }
   blokOstrzezenia.hidden = listaOstrzezenia.children.length === 0;

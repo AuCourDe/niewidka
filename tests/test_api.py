@@ -411,12 +411,3 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
     assert r2.headers["x-niewidka-status"] == "ukonczony"
     r95_poziom2 = json.loads(r2.headers["x-niewidka-r95"])
     assert isinstance(r95_poziom2.get("OSOBA"), float)
-
-
-def test_ostrzezenia_lista_zawiera_czesc_archiwum():
-    """K3b: skan surowy raportuje część archiwum — klient ma ją widzieć."""
-    from niewidka.api import _ostrzezenia_lista
-    from niewidka.kontrola import Ostrzezenie
-
-    lista = _ostrzezenia_lista([Ostrzezenie("ORYGINAL", "44051401359", -1, "word/settings.xml")])
-    assert lista == [{"typ": "ORYGINAL", "fragment": "44051401359", "segment": -1, "czesc": "word/settings.xml"}]

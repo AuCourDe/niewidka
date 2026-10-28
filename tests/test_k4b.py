@@ -379,3 +379,32 @@ async def test_pkt7_krotki_id_w_nazwach_plikow(konfig):
     assert f"{identyfikator[:12]}.nwidka" in nazwy
     assert not [n for n in nazwy if identyfikator in n], "pełny id wycieka do nazw plików"
 
+
+# --- pkt 8: nagłówki X-Niewidka-* bez fragmentów i nazw części ------------------
+
+
+@pytest.mark.anyio
+async def test_pkt8_naglowki_bez_fragmentow(klucz_plik):
+    """K4b pkt 8: nawet przy kontrola_blokada=False nagłówki niosą wyłącznie
+    typy i liczniki — zero fragmentów danych i zero nazw części."""
+    import json
+
+    konfig = Konfig(klucz_plik=klucz_plik, kontrola_blokada=False)
+    app = create_app(konfig, detektor=RegulyDetektor())
+    dane = _docx_przebuduj(
+        _wzorzec_docx(), dodaj={"word/theme/proba.xml": _theme_z_peselem("55010101234")}
+    )
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("umowa.docx", dane)},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 200  # kontrola_blokada=False: wynik wychodzi
+    calosc = odpowiedz.text + str(dict(odpowiedz.headers))
+    assert "55010101234" not in calosc, "fragment danych wycieka nagłówkiem"
+    assert "proba.xml" not in calosc, "nazwa części wycieka nagłówkiem"
+    ostrzezenia = json.loads(odpowiedz.headers["x-niewidka-ostrzezenia"])
+    assert ostrzezenia == {"PESEL": 1}  # typy + liczniki
+

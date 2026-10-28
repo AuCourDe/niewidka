@@ -101,15 +101,9 @@ def _json_naglowek(wartosc: Any) -> str:
     return json.dumps(wartosc, ensure_ascii=True)
 
 
-def _ostrzezenia_lista(ostrzezenia: list[Ostrzezenie]) -> list[dict]:
-    return [
-        {"typ": o.typ, "fragment": o.fragment, "segment": o.segment, "czesc": o.czesc}
-        for o in ostrzezenia
-    ]
-
-
 def _licznik_typow(ostrzezenia: list[Ostrzezenie]) -> dict[str, int]:
-    """Typy znalezisk z licznikami — nagłówki i błędy nigdy nie niosą fragmentów (K4b pkt 8)."""
+    """Typy znalezisk z licznikami — nagłówki i błędy nigdy nie niosą fragmentów
+    ani nazw części (K4b pkt 8; wcześniejsze PII wyciekało nagłówkiem HTTP)."""
     licznik: dict[str, int] = {}
     for ostrzezenie in ostrzezenia:
         licznik[ostrzezenie.typ] = licznik.get(ostrzezenie.typ, 0) + 1
@@ -290,7 +284,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
         naglowki = {
             "x-niewidka-identyfikator": mapa.identyfikator,
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
-            "x-niewidka-ostrzezenia": _json_naglowek(_ostrzezenia_lista(raport.ostrzezenia)),
+            "x-niewidka-ostrzezenia": _json_naglowek(_licznik_typow(raport.ostrzezenia)),
             "x-niewidka-uwagi": _json_naglowek(raport.uwagi),
             "x-niewidka-r95": _json_naglowek(raport.r95),
             "x-niewidka-status": raport.status,
