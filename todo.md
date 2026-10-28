@@ -177,4 +177,5 @@
   - [x] podgląd: dopisek zwinięty do „ZANONIMIZOWANY. …” (natywne details), rozwinięcie pokazuje pełną linię z identyfikatorem; plik wynikowy nietknięty (E2E potwierdzone)
   - [x] logo: viewBox 640x200 przycięty do treści (479x151), 48 px desktop / 36 px mobile, flex wiersz z „Na tym urządzeniu…” (napis w logo ~21 px = rozmiar dawnego tytułu)
   - [x] zrzuty E2E odświeżone (desktop start/wynik, jak-to-dziala, mobile start/wynik) na żywym serwerze; pełny pytest 437 passed/1 xfailed (NIEWIDKA_MODELE_KATALOG) + ruff czysty; kopie w Desktop/C
+- [x] 16:42 (orkiestrator) odbiór K6-Windows (`ea03bb3`, `docs/WYNIK-K6-windows.md`): exe startuje 2,3 s, TXT 74 ms identyczny po przywróceniu, DOCX 0,4 s, RAM 716 MB, ZIP 274 MB; 12 biegów budowy, wszystkie przyczyny naprawione. ZIP do Desktop/C (wersja wczesna, z wagami w paczce). K7b wystartował (claude-glm 2a6c).
 
