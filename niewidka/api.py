@@ -363,6 +363,10 @@ def create_app(
         (K7c pkt 5: status pakietów bywa nośnikiem sekreta z lustra); limity
         przed buforowaniem treści."""
         strazliwe_gety = ("/api/pakiety", "/api/stan")
+        # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
+        # (Codex 2026-10-29: GET / z obcym Host oddawał token — DNS rebinding)
+        if (request.headers.get("host") or "").split(":")[0] not in hosty:
+            return JSONResponse({"blad": "niedozwolony Host"}, status_code=403)
         if (
             request.method == "POST" and request.url.path.startswith("/api/")
         ) or (request.method == "GET" and request.url.path in strazliwe_gety):

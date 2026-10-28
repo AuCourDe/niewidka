@@ -719,12 +719,14 @@ class MenedzerPakietow:
             except (httpx.HTTPError, OSError):
                 self.postep.blad = f"{pakiet.id}: {etykieta} nie powiodła się (błąd sieci)"
             finally:
-                self.postep.pakiet = None
                 # K7c pkt 9: świeży stan ZANIM zniknie flaga _w_toku — czekaj()
-                # i polling UI mają widzieć stan po operacji, nie przed odświeżeniem
+                # i polling UI mają widzieć stan po operacji, nie przed odświeżeniem.
+                # Koniec (pakiet=None) ogłaszamy NA SAMYM KOŃCU: UI po nim od razu
+                # zaczyna następny pakiet (Codex 2026-10-29: „Pobierz wszystko" → 409)
                 self.odswiez()
-                self._w_toku = False
                 self._zglos_zmiane()
+                self._w_toku = False
+                self.postep.pakiet = None
 
         threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()
         return True

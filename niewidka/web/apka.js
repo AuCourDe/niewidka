@@ -425,12 +425,22 @@ function inicjalizujWejscie() {
 
 /* ---------- formularze ---------- */
 
+// trwające zlecenie blokuje „Ukryj" także przy odświeżaniu pakietów w tle
+// (Codex 2026-10-29: polling postępu odblokowywał przycisk w trakcie ukrywania)
+let trwaZlecenie = false;
+
 function ustawTrwa(pole, trwa) {
+  trwaZlecenie = trwa;
   for (const przycisk of pole.querySelectorAll('button[type="submit"]')) przycisk.disabled = trwa;
 }
 
 async function wyslij(url, dane) {
-  const odpowiedz = await fetch(url, { method: "POST", headers: NAGLOWKI, body: dane });
+  let odpowiedz;
+  try {
+    odpowiedz = await fetch(url, { method: "POST", headers: NAGLOWKI, body: dane });
+  } catch {
+    throw new Error("Brak połączenia z programem. Uruchom go ponownie i spróbuj jeszcze raz.");
+  }
   if (!odpowiedz.ok) {
     let tresc = {};
     try {
@@ -438,9 +448,11 @@ async function wyslij(url, dane) {
     } catch {
       /* odpowiedź błędu bez JSON: użyję samego kodu */
     }
-    const wyjatek = new Error(tresc.blad || String(odpowiedz.status));
+    // FastAPI HTTPException zwraca „detail", nasze odpowiedzi „blad" (Codex 2026-10-29)
+    const opis = tresc.blad || (typeof tresc.detail === "string" ? tresc.detail : "");
+    const wyjatek = new Error(opis || String(odpowiedz.status));
     wyjatek.status = odpowiedz.status;
-    wyjatek.blad = tresc.blad || "";
+    wyjatek.blad = opis;
     wyjatek.odpowiedz = tresc;
     throw wyjatek;
   }
@@ -600,7 +612,7 @@ function odswiezSuwakZPakietow() {
   const opis = document.getElementById("opis-poziomu");
   const pusto = stanPakietow.poziomy_dostepne.length === 0;
   suwak.disabled = pusto;
-  przycisk.disabled = pusto;
+  przycisk.disabled = pusto || trwaZlecenie;
   if (pusto) {
     opis.textContent = "Modele nie są jeszcze pobrane. Pobierz pakiet podstawowy w Ustawieniach.";
   } else {
@@ -696,7 +708,8 @@ function pollujPostep() {
   if (odpytywaniePostepu) clearInterval(odpytywaniePostepu);
   odpytywaniePostepu = setInterval(async () => {
     const stan = await odswiezPakiety();
-    if (!stan || stan.postep.pakiet === null) {
+    if (!stan) return; // chwilowy błąd odczytu: pytamy dalej, nie ogłaszamy końca (Codex 2026-10-29)
+    if (stan.postep.pakiet === null) {
       clearInterval(odpytywaniePostepu);
       odpytywaniePostepu = null;
       zapowiedz("Operacja na pakiecie zakończona");

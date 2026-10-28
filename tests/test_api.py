@@ -740,3 +740,13 @@ def test_bez_katalogu_modeli_detektor_i_menedzer_uzywaja_tej_samej_sciezki(monke
     app = api.create_app(Konfig(), detektor=None)
     assert app.state.konfig.modele_katalog == tmp_path / "modele"
     assert app.state.pakiety.katalog == tmp_path / "modele"
+
+
+@pytest.mark.anyio
+async def test_strona_glowna_nie_wydaje_tokenu_obcemu_hostowi(konfig):
+    # przegląd Codex 2026-10-29: GET / z Host: evil.example zwracał token (DNS rebinding)
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://evil.example") as k:
+        odpowiedz = await k.get("/")
+    assert odpowiedz.status_code == 403
+    assert app.state.token not in odpowiedz.text

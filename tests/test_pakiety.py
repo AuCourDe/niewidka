@@ -795,3 +795,14 @@ def test_oserror_przez_strumien_kontrolowany_i_do_ponowienia(tmp_path, katalog_t
     assert menedzer.postep.pakiet is None
     assert "nie powiodła się" in (menedzer.postep.blad or "")
     assert menedzer.zakonczone()
+
+
+def test_koniec_operacji_widoczny_dopiero_gdy_mozna_zaczac_nastepna():
+    # przegląd Codex 2026-10-29: postep.pakiet=None przed zwolnieniem _w_toku →
+    # UI zaczynało drugi pakiet („Pobierz wszystko") i dostawało 409
+    import inspect
+
+    from niewidka.pakiety import MenedzerPakietow
+
+    zrodlo = inspect.getsource(MenedzerPakietow._uruchom_w_tle)
+    assert zrodlo.index("self._w_toku = False") < zrodlo.index("self.postep.pakiet = None")

@@ -1,3 +1,6 @@
+/* atrybut hidden wygrywa z display:grid/flex komponentów (Codex 2026-10-29) */
+[hidden] { display: none !important; }
+
 /* Niewidka — web lokalny (K5). Papierowa biel, atrament, jedna kolumna.
    Fonty z katalogu fonty/ (OFL) — strona działa w pełni offline. */
 
