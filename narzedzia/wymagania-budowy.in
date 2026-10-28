@@ -1,0 +1,22 @@
+# Zależności budowy/aplikacji Niewidki (K7c pkt 7, audyt: przypięte + hasze).
+# Zasila: .github/workflows/wydanie.yml (runner Windows, Python 3.13)
+#         narzedzia/zbuduj_windows.ps1 (pip install --require-hashes)
+# Regeneracja: uv pip compile --generate-hashes --python-version 3.13 \
+#   --python-platform windows narzedzia/wymagania-budowy.in \
+#   --output-file narzedzia/wymagania-budowy.txt
+# Zmiana wersji = świadoma decyzja bezpieczeństwa (złośliwa wersja trafia do EXE).
+fastapi
+uvicorn
+cryptography
+keyring
+onnxruntime
+python-docx
+python-multipart
+python-stdnum
+tokenizers
+httpx
+pywebview
+pythonnet
+pyinstaller
+pytest
+scipy

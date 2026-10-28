@@ -47,9 +47,9 @@ Write-Host ("  commit: " + (git -C $Repo rev-parse --short HEAD))
 Write-Host "== 2. Srodowisko wirtualne (Python 3.13) i zaleznosci =="
 Invoke-Expression "$Python -m venv $Repo\.venv"
 & $VenvPython -m pip install --upgrade pip
-# zaleznosci runtime = [project].dependencies z pyproject.toml + desktop/budowa
-& $VenvPython -m pip install fastapi uvicorn cryptography keyring onnxruntime python-docx `
-  python-multipart python-stdnum tokenizers httpx pywebview pythonnet pyinstaller pytest scipy
+# zaleznosci WYLACZNIE z lockfile z haszami (K7c pkt 7): te same wersje co
+# workflow wydania; zmiana wersji = swiadoma decyzja w wymagania-budowy.in
+& $VenvPython -m pip install --require-hashes -r "$Repo\narzedzia\wymagania-budowy.txt"
 & $VenvPython -c "import webview, onnxruntime, keyring; print('importy OK')"
 
 if (-not $PominTesty) {
