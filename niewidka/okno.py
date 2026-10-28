@@ -19,6 +19,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 from collections.abc import MutableMapping
 from pathlib import Path
 
@@ -181,7 +182,14 @@ class Serwer:
         self._watek: threading.Thread | None = None
 
     def start(self) -> None:
-        self._watek = threading.Thread(target=self._server.run, name="niewidka-serwer", daemon=True)
+        def _run_z_logiem():
+            try:
+                self._server.run()
+            except Exception:  # noqa: BLE001 — celowo wszystko: log zamiast cichej śmierci wątku
+                # bez konsoli: ślad wątku serwera musi zostać w logu (NIEWIDKA_LOG_PLIK)
+                traceback.print_exc()
+
+        self._watek = threading.Thread(target=_run_z_logiem, name="niewidka-serwer", daemon=True)
         self._watek.start()
 
     def czekaj_na_gotowosc(self, limit_s: int = CZAS_NA_START_S) -> bool:
@@ -255,6 +263,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
     _ukryj_strumienie_bez_konsoli()
     przygotuj_srodowisko()
     ustaw_katalog_roboczy()
+    print(f"start: cwd={os.getcwd()} wagi={os.environ.get('NIEWIDKA_MODELE_KATALOG')}", file=sys.stderr)
     modul_webview = webview
     try:
         if modul_webview is None:
@@ -264,14 +273,19 @@ def uruchom(*, detektor=None, webview=None) -> int:
         konfig = wczytaj_konfig()
         # ładowanie wag tu = kontrola manifestu SHA-256 przy starcie (detektory.py)
         aplikacja = create_app(konfig, detektor=detektor)
+        print("start: wagi i aplikacja OK", file=sys.stderr)
     except Exception as blad:  # noqa: BLE001 — okno bez konsoli: awaria musi być widoczna
+        print(f"awaria startu: {type(blad).__name__}: {blad}", file=sys.stderr)
         _pokaz(modul_webview, strona_bledu(f"{type(blad).__name__}: {blad}"))
         return 1
 
     port = rozwiaz_port()
     serwer = Serwer(aplikacja, konfig.host, port)
     serwer.start()
+    print(f"start: wątek serwera odpalony, port={port}", file=sys.stderr)
     if not serwer.czekaj_na_gotowosc():
+        print("start: serwer NIE wstał", file=sys.stderr)
+        serwer.zatrzymaj()
         serwer.zatrzymaj()
         _pokaz(
             modul_webview,
@@ -289,6 +303,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
         strona, tytul = url, "Niewidka"
     except BrakKlucza:
         strona, tytul = None, "Niewidka: konfiguracja klucza"
+    print(f"start: tworzę okno ({tytul})", file=sys.stderr)
     try:
         if strona is None:
             most.okno = modul_webview.create_window(
@@ -308,6 +323,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
             )
         modul_webview.start()
     except Exception as blad:  # noqa: BLE001 — awaria okna: komunikat systemowy, nie cisza
+        print(f"awaria okna: {type(blad).__name__}: {blad}", file=sys.stderr)
         serwer.zatrzymaj()
         _pokaz(modul_webview, strona_bledu(f"{type(blad).__name__}: {blad}"))
         return 1

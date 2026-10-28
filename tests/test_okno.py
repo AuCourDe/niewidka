@@ -246,6 +246,26 @@ def test_ustaw_katalog_roboczy_celuje_w_katalog_aplikacji(monkeypatch):
     assert cel == [str(okno.katalog_aplikacji())]
 
 
+def test_awaria_watku_serwera_zostaje_w_logu(monkeypatch, tmp_path):
+    """Wyjątek w wątku uvicorna nie może zniknąć po cichu: traceback idzie do stderr."""
+    class PadliwySerwer:
+        started = False
+
+        def run(self):
+            raise RuntimeError("wątek padł")
+
+    serwer = okno.Serwer.__new__(okno.Serwer)
+    serwer._server = PadliwySerwer()
+    serwer._watek = None
+    monkeypatch.setattr(sys, "stderr", open(tmp_path / "log.txt", "w", encoding="utf-8", buffering=1))
+    serwer.start()
+    serwer._watek.join(timeout=5)
+    sys.stderr.close()
+    zawartosc = (tmp_path / "log.txt").read_text(encoding="utf-8")
+    assert "wątek padł" in zawartosc
+    assert "Traceback" in zawartosc
+
+
 def test_teksty_gui_bez_polpauz_i_pauz():
     """Zlecenie 12:55: zero półpauz i pauz w tekstach GUI."""
     for tresc in (okno.STRONA_KONFIGURACJI, okno.strona_bledu("przykładowy komunikat")):
