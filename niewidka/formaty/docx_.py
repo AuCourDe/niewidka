@@ -121,7 +121,8 @@ class AdapterDocx:
         if obce_binarnie:
             # niezweryfikowana część binarna — nie wiemy, co niesie (K4b pkt 2)
             raise ElementNieobslugiwany(obce_binarnie)
-        obrazy = [n for n in nazwy if _media(n)]
+        _przemianuj_media(czesci)  # K4b pkt 5: neutralne nazwy + aktualizacja relacji
+        obrazy = [n for n in czesci if _media(n)]
         if polityka_obrazow == "blokuj" and obrazy:
             raise ElementNieobslugiwany([f"obrazy ({len(obrazy)} szt.)"])
 
@@ -377,6 +378,64 @@ class AdapterDocx:
 
 def _usuwana(nazwa: str) -> bool:
     return nazwa.startswith(USUWANE)
+
+
+# --- neutralizacja nazw media (K4b pkt 5) ---------------------------------------
+
+
+def _przemianuj_media(czesci: dict[str, bytes]) -> None:
+    """Nazwy części word/media/* na neutralne obraz1.ext, obraz2.ext, … — PESEL
+    potrafi siedzieć w nazwie pliku, a katalog ZIP czyta każdy odbiorca dokumentu.
+    Relacje i [Content_Types] dostają zaktualizowane cele."""
+    CT = "http://schemas.openxmlformats.org/package/2006/content-types"
+    REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+    zajete = set(czesci)
+    numer = 0
+    for stara in sorted(n for n in czesci if _media(n)):
+        rozszerzenie = _rozszerzenie(stara) or "bin"
+        numer += 1
+        nowa = f"word/media/obraz{numer}.{rozszerzenie}"
+        while nowa in zajete and nowa != stara:
+            numer += 1
+            nowa = f"word/media/obraz{numer}.{rozszerzenie}"
+        if nowa == stara:
+            continue
+        czesci[nowa] = czesci.pop(stara)
+        zajete.discard(stara)
+        zajete.add(nowa)
+        # relacje: cel względny wobec katalogu części źródłowej (…/_rels/ …)
+        for nazwa_rels, zawartosc in list(czesci.items()):
+            if not nazwa_rels.endswith(".rels"):
+                continue
+            try:
+                korzen = etree.fromstring(zawartosc, _parser())
+            except etree.XMLSyntaxError:
+                continue
+            baza = nazwa_rels.rpartition("/_rels/")[0]
+            zmieniono = False
+            for relacja in korzen.iter(f"{{{REL}}}Relationship"):
+                cel = relacja.get("Target") or ""
+                kandydat = cel.lstrip("/") if cel.startswith("/") else posixpath.normpath(f"{baza}/{cel}")
+                if kandydat == stara:
+                    relacja.set("Target", posixpath.relpath(nowa, baza or "."))
+                    zmieniono = True
+            if zmieniono:
+                czesci[nazwa_rels] = etree.tostring(
+                    korzen, xml_declaration=True, encoding="UTF-8", standalone=True
+                )
+        # [Content_Types]: Override z PartName na starą część
+        xml_ct = czesci.get("[Content_Types].xml")
+        if xml_ct:
+            korzen_ct = etree.fromstring(xml_ct, _parser())
+            zmieniono = False
+            for override in korzen_ct.iter(f"{{{CT}}}Override"):
+                if (override.get("PartName") or "").lstrip("/") == stara:
+                    override.set("PartName", f"/{nowa}")
+                    zmieniono = True
+            if zmieniono:
+                czesci["[Content_Types].xml"] = etree.tostring(
+                    korzen_ct, xml_declaration=True, encoding="UTF-8", standalone=True
+                )
 
 
 def _cel_relacji(rels_xml: bytes, id_relacji: str | None) -> str | None:

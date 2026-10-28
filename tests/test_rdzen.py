@@ -197,8 +197,10 @@ def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
 
     oryginaly = [w.oryginal for w in mapa.wystapienia]
     assert "44051401359" in oryginaly
+    # K4b pkt 5: część ma neutralną nazwę (skrytka.png → obrazN.png), a kontrola
+    # i tak zgłasza ORYGINAL w części media
     assert any(
-        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc == "word/media/skrytka.png"
+        o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc.startswith("word/media/")
         for o in raport.ostrzezenia
     )
     assert raport.status == "zablokowany"

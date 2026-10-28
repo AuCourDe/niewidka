@@ -74,6 +74,14 @@ def _skan_surowy(
     uwagi: list[Ostrzezenie] = []
     for nazwa, zawartosc in czesci:
         widziane_w_czesci: set[tuple[str, str]] = set()
+        # K4b pkt 5: PII potrafi siedzieć w samej NAZWIE części (katalog ZIP czyta
+        # każdy odbiorca); DATA pomijana jak w treści (metadane techniczne)
+        for zakres in detektor.znajdz(nazwa):
+            if zakres.typ is TypEncji.DATA:
+                continue
+            uwagi.append(
+                Ostrzezenie("NAZWA_CZESCI", nazwa[zakres.start : zakres.koniec], -1, nazwa)
+            )
         for oryginal, bajty in znaki_oryginalow.items():
             if bajty in zawartosc:
                 uwagi.append(Ostrzezenie("ORYGINAL", oryginal, -1, nazwa))

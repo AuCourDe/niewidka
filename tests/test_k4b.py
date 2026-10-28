@@ -221,3 +221,62 @@ def test_pkt4_nieprawidlowy_xml_zachowanej_czesci_blokuje():
         u.typ == "XML_NIEPRAWIDLOWY" and u.czesc == "word/theme/proba.xml" for u in uwagi
     ), f"błąd parsowania przeszedł cicho: {uwagi}"
 
+
+# --- pkt 5: skan nazw części ZIP + neutralizacja nazw media ---------------------
+
+
+def _docx_z_media_o_pieselowej_nazwie() -> bytes:
+    """Wzorzec z obrazem przemianowanym na word/media/44051401359.png (rels zgodnie)."""
+    zrodlo = zipfile.ZipFile(io.BytesIO(_wzorzec_docx()))
+    czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
+    zrodlo.close()
+    stara = next(n for n in czesci if n.startswith("word/media/"))
+    nowa = f"word/media/{PESEL}.png"
+    czesci[nowa] = czesci.pop(stara)
+    for nazwa in [n for n in czesci if n.endswith(".rels")]:
+        if stara.rpartition("/")[2] in czesci[nazwa].decode():
+            czesci[nazwa] = czesci[nazwa].replace(
+                stara.rpartition("/")[2].encode(), nowa.rpartition("/")[2].encode()
+            )
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        for nazwa, zawartosc in czesci.items():
+            paczka.writestr(nazwa, zawartosc)
+    return bufor.getvalue()
+
+
+def test_pkt5_pii_w_nazwie_czesci_blokuje():
+    """K4b pkt 5: kontrola skanuje też NAZWY części — PESEL w nazwie = znalezisko."""
+    from niewidka.kontrola import kontroluj
+
+    dane = _docx_przebuduj(
+        _wzorzec_docx(), dodaj={"word/theme/44051401359.xml": b"<?xml version='1.0'?><root/>"}
+    )
+    uwagi = kontroluj(dane, "umowa.docx", RegulyDetektor())
+    assert any(
+        u.typ == "NAZWA_CZESCI" and u.czesc == "word/theme/44051401359.xml" for u in uwagi
+    ), f"nazwa części bez skanu: {uwagi}"
+
+
+def test_pkt5_media_przemianowane_a_relacje_zaktualizowane():
+    """K4b pkt 5: nazwa media z PII znika z wyniku; obraz zostaje pod neutralną
+    nazwą, relacja wskazuje nowy cel, dokument otwiera się adapterem."""
+    from niewidka.formaty import adapter_dla
+
+    wynik, _, _ = ukryj(
+        _docx_z_media_o_pieselowej_nazwie(),
+        "docx",
+        1,
+        detektor=RegulyDetektor(),
+        max_rozpakowane_bajtow=200 * _MB,
+        polityka_obrazow="zostaw",
+    )
+    czesci = _zip(wynik)
+    nazwy = list(czesci)
+    assert not [n for n in nazwy if PESEL in n], f"PII w nazwie części wyniku: {nazwy}"
+    media = [n for n in nazwy if n.startswith("word/media/")]
+    assert media, "obraz zniknął mimo polityki zostaw"
+    rels = czesci["word/_rels/document.xml.rels"].decode()
+    assert media[0].rpartition("/")[2] in rels, "relacja nie wskazuje przemianowanego obrazu"
+    adapter_dla("w.docx").wczytaj(wynik)  # wynik pozostaje poprawnym DOCX
+
