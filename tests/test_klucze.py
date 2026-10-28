@@ -109,8 +109,9 @@ def test_cli_nowy_plik(tmp_path: Path):
         env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])},
     )
     assert wynik.returncode == 0, wynik.stderr
-    tryb = stat.S_IMODE(sciezka.stat().st_mode)
-    assert tryb == 0o600, oct(tryb)
+    if os.name == "posix":  # Windows: chmod daje tylko bit R/O, 0600 sprawdzalne wyłącznie tu
+        tryb = stat.S_IMODE(sciezka.stat().st_mode)
+        assert tryb == 0o600, oct(tryb)
     assert len(base64.b64decode(sciezka.read_bytes())) == 32
 
 
