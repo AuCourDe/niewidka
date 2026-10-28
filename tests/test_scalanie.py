@@ -1,5 +1,7 @@
 """Testy scalania kandydatów (LLD §5 + przegląd Astry pkt 1)."""
 
+import random
+
 from niewidka.model import TypEncji, Zakres
 from niewidka.scalanie import scal
 
@@ -85,3 +87,37 @@ def test_wynik_sortowany_wg_pozycji():
     kandydaci = [_zakres(20, 30), _zakres(0, 5)]
     wynik = scal("x" * 30, kandydaci)
     assert [z.start for z in wynik] == [0, 20]
+
+
+def test_własność_maskowanie_to_unia_wejścia():
+    # Własność (przegląd Astry pkt 1): dla dowolnego zestawu kandydatów maskowane
+    # znaki = suma znaków wejściowych — żadna grupa nakładań nie zostawia dziury,
+    # wynik rozłączny i posortowany. Przypadek graniczny [0,12)+[8,20) → [0,20)
+    # jest zamknięty testem test_nakladajace_sie_maskowane_unia_bez_dziury.
+    los = random.Random(20261028)
+    for _ in range(200):
+        kandydaci = []
+        for _ in range(los.randint(0, 8)):
+            start = los.randint(0, 45)
+            kandydaci.append(
+                Zakres(
+                    start,
+                    start + los.randint(1, 15),
+                    los.choice(list(TypEncji)),
+                    los.random(),
+                    los.choice(("regula", "onnx:bardsai")),
+                    los.random() < 0.3,
+                )
+            )
+        wynik = scal("x" * 70, kandydaci)
+        wejście: set[int] = set()
+        wyjście: set[int] = set()
+        pozycje = []
+        for z in kandydaci:
+            wejście.update(range(z.start, z.koniec))
+        for z in wynik:
+            wyjście.update(range(z.start, z.koniec))
+            pozycje.append((z.start, z.koniec))
+        assert wyjście == wejście  # ani dziury, ani nadmiaru
+        assert pozycje == sorted(pozycje)
+        assert all(k1 <= s2 for (_, k1), (s2, _) in zip(pozycje, pozycje[1:]))
