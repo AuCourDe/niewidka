@@ -46,9 +46,14 @@ def _dozwolona(nazwa: str) -> bool:
 
     Części czyszczone (`_usuwana`) są obsługiwane — wchodzą do wczytania i
     znikają przy zapisie; blokada dotyczy wyłącznie części NIEZNANYCH.
+    Relacje `<część>.rels` dziedziczą los części (Gemini pkt 7): relacje
+    nagłówka/stopki/komentarzy są usuwane razem z częścią, nie blokują.
     """
     if _usuwana(nazwa):
         return True
+    czesc = _czesc_rels(nazwa)
+    if czesc is not None:
+        return _dozwolona(czesc)
     if nazwa in {
         "[Content_Types].xml",
         "_rels/.rels",
@@ -64,6 +69,14 @@ def _dozwolona(nazwa: str) -> bool:
     }:
         return True
     return nazwa.startswith(("word/theme/", "word/media/"))
+
+
+def _czesc_rels(nazwa: str) -> str | None:
+    """`word/_rels/header1.xml.rels` → `word/header1.xml`; nie-relacje → None."""
+    if nazwa == "_rels/.rels" or not nazwa.endswith(".rels") or "/_rels/" not in nazwa:
+        return None
+    katalog, _, plik = nazwa.rpartition("/_rels/")
+    return f"{katalog}/{plik[: -len('.rels')]}"
 
 
 def _parser() -> etree.XMLParser:
@@ -229,6 +242,8 @@ class AdapterDocx:
         czesci["docProps/core.xml"] = _wyczysc_core(czesci["docProps/core.xml"])
         do_usuniecia = [n for n in czesci if n != "word/document.xml" and _usuwana(n)]
         do_usuniecia += [n for n in czesci if n == "word/_rels/document.xml.rels"]
+        # relacje usuwanych części lecą razem z nimi (Gemini pkt 7)
+        do_usuniecia += [n for n in czesci if (czesc := _czesc_rels(n)) is not None and _usuwana(czesc)]
         for nazwa in do_usuniecia:
             czesci.pop(nazwa, None)
         czesci["word/_rels/document.xml.rels"] = _przefiltruj_rels(
