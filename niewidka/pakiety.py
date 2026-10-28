@@ -511,6 +511,10 @@ class MenedzerPakietow:
     obecności plików, stat bez haszowania, wykrywa wgranie wag z zewnątrz).
     """
 
+    @property
+    def katalog(self) -> Path:
+        return self._katalog
+
     def __init__(
         self,
         lista: list[Pakiet],

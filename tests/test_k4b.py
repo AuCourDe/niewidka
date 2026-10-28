@@ -736,3 +736,43 @@ async def test_pkt15_walidacja_bez_pola_input(konfig):
     assert PESEL not in odpowiedz.text
     assert "input" not in odpowiedz.json()
 
+
+
+@pytest.mark.anyio
+async def test_pkt7_mapa_przywraca_sie_po_restarcie_z_rejestrem(klucz_plik, tmp_path):
+    """2026-10-29 (przegląd Codex P1): okno zamknięte = koniec sesji, a mapa wydana
+    wcześniej ma dać się przywrócić po ponownym uruchomieniu. Rejestr skrótów w pliku
+    (bez danych osobowych); mapa spoza rejestru nadal odrzucana."""
+    rejestr = tmp_path / "wydane-mapy.jsonl"
+    konfig = Konfig(klucz_plik=klucz_plik, rejestr_map=rejestr)
+    app1 = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app1) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj", data={"tekst": "PESEL 44051401359.", "poziom": "1"}, headers=_naglowki(app1)
+        )
+    czesci = _zip(odpowiedz.content)
+    identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+    assert "44051401359" not in rejestr.read_text(encoding="utf-8")
+    app2 = create_app(konfig, detektor=RegulyDetektor())  # „restart"
+    async with _klient(app2) as klient:
+        wynik = await klient.post(
+            "/api/przywroc",
+            files={
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": ("m.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
+            },
+            headers=_naglowki(app2),
+        )
+    assert wynik.status_code == 200, wynik.text
+    assert b"44051401359" in wynik.content
+    app3 = create_app(Konfig(klucz_plik=klucz_plik, rejestr_map=tmp_path / "inny.jsonl"), detektor=RegulyDetektor())
+    async with _klient(app3) as klient:
+        obcy = await klient.post(
+            "/api/przywroc",
+            files={
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": ("m.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
+            },
+            headers=_naglowki(app3),
+        )
+    assert obcy.status_code == 422

@@ -160,7 +160,13 @@ async function otworzZip(blob) {
 const WZORZEC_ZNACZNIKA = /\[([A-Z]+)_(\d+)(?:_F\d+)?\]/g;
 const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 
+// surowy tekst wyniku do „Kopiuj": podgląd pokazuje znaczniki jako plakietki
+// („OSOBA 1"), a skopiowany tekst musi mieć prawdziwe [OSOBA_1_F2], inaczej mapa
+// go nie przywróci (przegląd Codex 2026-10-29, P1)
+let tekstPodgladu = "";
+
 function pokazPodglad(tekst) {
+  tekstPodgladu = tekst;
   const miejsce = document.getElementById("podglad-tekstu");
   miejsce.textContent = "";
   let tresc = tekst;
@@ -263,13 +269,17 @@ function pokazWynik(naglowki, czesci) {
   poleStatusu.hidden = false;
   poleStatusu.innerHTML = "";
   const blok = document.createElement("div");
-  blok.className = "komunikat komunikat-ok";
+  // „zaliczona" tylko przy pustej liście ostrzeżeń (przegląd Codex 2026-10-29, P2)
+  const zaliczona = Object.keys(ostrzezenia).length === 0;
+  blok.className = zaliczona ? "komunikat komunikat-ok" : "komunikat komunikat-ostrzezenie";
   const tytul = document.createElement("h3");
-  tytul.textContent = "Kontrola jakości: zaliczona";
+  tytul.textContent = zaliczona ? "Kontrola jakości: zaliczona" : "Kontrola jakości: sprawdź wynik";
   blok.append(tytul);
   const opis = document.createElement("p");
-  opis.textContent = "Ponowne sprawdzenie wyniku nie znalazło danych, które program umie wykrywać. "
-    + "Program nie wykrywa wszystkiego, dlatego przejrzyj wynik przed wysłaniem.";
+  opis.textContent = zaliczona
+    ? "Ponowne sprawdzenie wyniku nie znalazło danych, które program umie wykrywać. "
+      + "Program nie wykrywa wszystkiego, dlatego przejrzyj wynik przed wysłaniem."
+    : "Ponowne sprawdzenie znalazło w wyniku dane przypominające oryginalne. Lista jest niżej.";
   blok.append(opis);
   const uwagi = JSON.parse(naglowki.get("x-niewidka-uwagi") || "[]");
   for (const uwaga of uwagi) {
@@ -487,14 +497,18 @@ function inicjalizujUkrywanie() {
     }
   });
 
-  document.getElementById("kopiuj").addEventListener("click", async () => {
-    const tekst = document.getElementById("podglad-tekstu").textContent;
+  const przyciskKopiuj = document.getElementById("kopiuj");
+  przyciskKopiuj.addEventListener("click", async () => {
+    let komunikat;
     try {
-      await navigator.clipboard.writeText(tekst);
-      zapowiedz("Skopiowano do schowka");
+      await navigator.clipboard.writeText(tekstPodgladu);
+      komunikat = "Skopiowano";
     } catch {
-      zapowiedz("Przeglądarka nie pozwoliła skopiować tekstu. Zaznacz go ręcznie.");
+      komunikat = "Nie udało się skopiować. Pobierz dokument przyciskiem obok.";
     }
+    zapowiedz(komunikat);
+    przyciskKopiuj.textContent = komunikat;
+    setTimeout(() => { przyciskKopiuj.textContent = "Kopiuj"; }, 2500);
   });
 
   document.getElementById("pobierz-wynik").addEventListener("click", () => {

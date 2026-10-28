@@ -88,6 +88,7 @@ def srodowisko(monkeypatch, tmp_path):
     monkeypatch.delenv("NIEWIDKA_PORT", raising=False)
     monkeypatch.delenv("NIEWIDKA_KLUCZ_PLIK", raising=False)
     monkeypatch.delenv("NIEWIDKA_MODELE_KATALOG", raising=False)
+    monkeypatch.setenv("NIEWIDKA_REJESTR_MAP", str(tmp_path / "wydane-mapy.jsonl"))
 
 
 def _port_z_url(url: str) -> int:
@@ -114,6 +115,7 @@ def test_przygotuj_srodowisko_wagi_obok_exe(monkeypatch, tmp_path):
     env: dict[str, str] = {}
     okno.przygotuj_srodowisko(env)
     assert env["NIEWIDKA_MODELE_KATALOG"] == str(tmp_path / "modele")
+    assert env["NIEWIDKA_REJESTR_MAP"] == str(tmp_path / "wydane-mapy.jsonl")
 
 
 def test_przygotuj_srodowisko_jawne_env_wygywa(monkeypatch, tmp_path):
@@ -353,3 +355,13 @@ def test_okno_na_wolnym_porcie_przyjmuje_origin_wlasnej_strony(srodowisko, keyri
     atrapa = AtrapaWebviewZOrigin()
     assert okno.uruchom(detektor=AtrapaDetektora(), webview=atrapa) == 0
     assert atrapa.status_podczas_startu == 200
+
+
+def test_okno_pozwala_pobierac_pliki(srodowisko, keyring_pamieciowy):
+    # przegląd Codex 2026-10-29 (P1): pywebview domyślnie ma ALLOW_DOWNLOADS=False
+    # i WebView2 anulował pobranie wyniku, mapy i przywróconego dokumentu
+    keyring.set_password(USLUGA, "mapa", KLUCZ)
+    atrapa = AtrapaWebview()
+    atrapa.settings = {"ALLOW_DOWNLOADS": False}
+    okno.uruchom(detektor=AtrapaDetektora(), webview=atrapa)
+    assert atrapa.settings["ALLOW_DOWNLOADS"] is True

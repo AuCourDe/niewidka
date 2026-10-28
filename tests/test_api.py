@@ -18,6 +18,7 @@ import httpx
 import pytest
 
 from narzedzia.generator_dokumentow import zapisz_podstawowy
+from niewidka import api
 from niewidka.api import create_app
 from niewidka.detektory import RegulyDetektor
 from niewidka.konfig import Konfig
@@ -730,3 +731,12 @@ async def test_detektor_poziomu3_nie_zostaje_ze_starego_stanu_pakietu(
         stan["rozszerzony"] = "zainstalowany"  # weryfikacja po starcie skończona, bez zwrotu zmiany
         assert (await klient.post("/api/ukryj", data=dane, headers=_naglowki(app))).status_code == 200
     assert wywolania[-1] is True, f"poziom 3 nadal bez pakietu Rozszerzonego: {wywolania}"
+
+
+def test_bez_katalogu_modeli_detektor_i_menedzer_uzywaja_tej_samej_sciezki(monkeypatch, tmp_path):
+    # przegląd Codex 2026-10-29 (P1): menedżer pobierał do katalogu domyślnego,
+    # a detektor miał modele_katalog=None → po instalacji każde ukrycie 500
+    monkeypatch.setattr(api, "katalog_modeli", lambda: tmp_path / "modele")
+    app = api.create_app(Konfig(), detektor=None)
+    assert app.state.konfig.modele_katalog == tmp_path / "modele"
+    assert app.state.pakiety.katalog == tmp_path / "modele"

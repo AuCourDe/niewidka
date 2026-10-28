@@ -17,7 +17,7 @@ import json
 import logging
 import secrets
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -242,6 +242,31 @@ def _licznik_typow(ostrzezenia: list[Ostrzezenie]) -> dict[str, int]:
     return licznik
 
 
+def _wczytaj_rejestr_map(plik: Path | None, szyfrogramy: dict[str, str], identyfikatory: set[str]) -> None:
+    """Mapy wydane przed restartem (2026-10-29): bez tego zamknięcie okna kończyło
+    możliwość przywrócenia. Uszkodzone wiersze pomijane (fail-closed: mapa spoza
+    rejestru i tak nie przejdzie)."""
+    if plik is None or not plik.is_file():
+        return
+    for wiersz in plik.read_text(encoding="utf-8").splitlines():
+        try:
+            wpis = json.loads(wiersz)
+            szyfrogramy[str(wpis["sha256"])] = str(wpis["id"])
+            identyfikatory.add(str(wpis["id"]))
+        except (ValueError, KeyError, TypeError):
+            continue
+
+
+def _dopisz_do_rejestru(plik: Path | None, skrot: str, identyfikator: str) -> None:
+    if plik is None:
+        return
+    try:
+        plik.parent.mkdir(parents=True, exist_ok=True)
+        with plik.open("a", encoding="utf-8") as rejestr:
+            rejestr.write(json.dumps({"sha256": skrot, "id": identyfikator}) + "\n")
+    except OSError as blad:  # brak zapisu = mapa działa tylko w tej sesji, nie awaria
+        logger.warning("rejestr map niezapisany: %s", type(blad).__name__)
+
 def create_app(
     konfig: Konfig | None = None,
     detektor: Any = None,
@@ -252,6 +277,13 @@ def create_app(
     a ukrywanie odpowiada 409 z listą brakujących pakietów (ekran pierwszego
     uruchomienia prowadzi do pobrania); `menedzer_pakietow` wstrzykiwany w testach."""
     konfig = konfig or wczytaj_konfig()
+    if konfig.modele_katalog is None:
+        # jedna ścieżka dla menedżera pakietów i detektora (przegląd Codex 2026-10-29):
+        # inaczej pakiet pobierał się do katalogu domyślnego, a ukrywanie szukało wag gdzie indziej
+        konfig = replace(
+            konfig,
+            modele_katalog=menedzer_pakietow.katalog if menedzer_pakietow else katalog_modeli(),
+        )
     wstrzykniety = detektor
     if wstrzykniety is None:
         try:
@@ -280,9 +312,10 @@ def create_app(
     # K4b pkt 7: skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
     # mapa musi być jednym z nich (stare/przechwycone szyfrogramy nie podlegają odszyfrowaniu)
     app.state.szyfrogramy: dict[str, str] = {}
+    _wczytaj_rejestr_map(konfig.rejestr_map, app.state.szyfrogramy, app.state.identyfikatory)
     if menedzer_pakietow is None:
         menedzer_pakietow = MenedzerPakietow(
-            wczytaj_pakiety(), katalog_modeli(), zrodlo()
+            wczytaj_pakiety(), konfig.modele_katalog, zrodlo()
         )
     # K7c pkt 1: zmiana pakietów (pobranie/usunięcie/instalacja) unieważnia cache
     # detektorów — inaczej zainstalowany pakiet Rozszerzony nie wchodzi do detekcji
@@ -541,7 +574,9 @@ def create_app(
         if raport.status == "zablokowany":
             raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
         app.state.identyfikatory.add(mapa.identyfikator)
-        app.state.szyfrogramy[hashlib.sha256(mapa_paczka).hexdigest()] = mapa.identyfikator
+        skrot = hashlib.sha256(mapa_paczka).hexdigest()
+        app.state.szyfrogramy[skrot] = mapa.identyfikator
+        _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
 
         # K4b pkt 7: pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
         # tylko krótki skrót (nazwa pliku nie musi być niepodrabialna)
@@ -577,7 +612,7 @@ def create_app(
             # K4b pkt 7: najpierw rejestr wydanych szyfrogramów, dopiero potem
             # odszyfrowanie — stara mapa z trafionym identyfikatorem nie przechodzi
             if hashlib.sha256(dane_mapy).hexdigest() not in app.state.szyfrogramy:
-                raise BladMapy("mapa nie została wydana przez tę sesję")
+                raise BladMapy("mapa nie została wydana przez ten program")
             mapa_ob = odszyfruj(dane_mapy, klucz)
             del klucz
             if mapa_ob.identyfikator not in app.state.identyfikatory:

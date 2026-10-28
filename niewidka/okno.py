@@ -135,6 +135,8 @@ def przygotuj_srodowisko(env: MutableMapping[str, str] | None = None) -> None:
     (setdefault), konfig TOML też może wskazać inne miejsce."""
     env = os.environ if env is None else env
     env.setdefault("NIEWIDKA_MODELE_KATALOG", str(katalog_aplikacji() / "modele"))
+    # mapa ma się przywracać po zamknięciu i ponownym otwarciu okna (2026-10-29)
+    env.setdefault("NIEWIDKA_REJESTR_MAP", str(katalog_aplikacji() / "wydane-mapy.jsonl"))
 
 
 def port_wolny() -> int:
@@ -272,6 +274,10 @@ def uruchom(*, detektor=None, webview=None) -> int:
             import webview
 
             modul_webview = webview
+        # WebView2 bez tego anuluje pobranie wyniku, mapy i przywróconego dokumentu
+        # (pywebview: ALLOW_DOWNLOADS domyślnie False; przegląd Codex 2026-10-29)
+        if isinstance(getattr(modul_webview, "settings", None), dict):
+            modul_webview.settings["ALLOW_DOWNLOADS"] = True
         # port PRZED create_app: kontrola Origin musi znać port, na którym stoi
         # okno (wolny port ≠ konfig.port → każdy POST z okna 403)
         konfig = replace(wczytaj_konfig(), port=rozwiaz_port())

@@ -42,6 +42,9 @@ class Konfig:
     zlecenia: int = 8  # K4b pkt 12: maks. żądań w toku (odrzucane przed parsowaniem body)
     timeout_s: int = 120
     wykrywaj_date: bool = True
+    # rejestr wydanych map w pliku (skróty SHA-256 + identyfikatory, bez danych):
+    # mapa przywraca się po restarcie programu; None = tylko w obrębie sesji (K4b pkt 7)
+    rejestr_map: Path | None = None
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -123,4 +126,5 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         zlecenia=_jako_int(env, "NIEWIDKA_ZLECENIA", int(limity.get("zlecenia", 8))),
         timeout_s=_jako_int(env, "NIEWIDKA_TIMEOUT_S", int(limity.get("timeout_s", 120))),
         wykrywaj_date=_jako_bool(env.get("NIEWIDKA_WYKRYWAJ_DATE", detekcja.get("wykrywaj_date", True))),
+        rejestr_map=_jako_sciezka(env, "NIEWIDKA_REJESTR_MAP"),
     )
