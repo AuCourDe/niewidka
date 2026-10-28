@@ -81,3 +81,27 @@ invalidacja cache po instalacji — login znika bez żadnej ręcznej flagi.
   pełna izolacja wymagałaby prywatnego poddrzewa na wspólnym FS.
 - `pip` w workflow podnoszony przed `--require-hashes` (instalator sam w sobie nie jest
   w lockfile — konwencja; do przemyślenia przy kolejnym audycie).
+
+## Odbiór orkiestratora i test EXE na Windows (2026-10-28 wieczorem)
+
+- U orkiestratora: 527 passed / 1 xfailed, ruff czysty.
+- Luka znaleziona przy odbiorze: cache detektorów kluczowany samym poziomem; detektor
+  poziomu 3 zbudowany przed końcem weryfikacji SHA po starcie (albo startowy przy
+  `NIEWIDKA_POZIOM=3`) zostawał bez LFM2.5. Klucz `(poziom, pakiet Rozszerzony)`,
+  test RED→GREEN (`5dc21e8`), 528 passed / 1 xfailed.
+- Budowa na Windows: lockfile z pkt 7 instaluje się (`--require-hashes`). Pierwszy bieg
+  padł na 5 testach dowiązań (WinError 1314, brak uprawnień do symlinków); katalog dostaje
+  junction, plik = skip (`22d26aa`). Testy w budowie: 482 passed / 32 skipped. ZIP 53 MB.
+- EXE, czysty katalog modeli, lustro `http.server` na Windows (`test_k7c.py` w katalogu budowy):
+
+| bieg | start | Podstawowy | Rozszerzony | poziom 3 z Rozszerzonym |
+|---|---|---|---|---|
+| 1 | 1,1 s | **zawieszenie**: GET /api/pakiety bez odpowiedzi 120 s, pobrane 35 MB | — | — |
+| 2 | 1,1 s | 2,5 s | 2,6 s | LOGIN 1, SWIFT 1, OSOBA 1, PESEL 1 (2,8 s) |
+| 3 | 1,3 s | 2,9 s | 3,1 s | jak wyżej (3,6 s) |
+| 4 | 1,3 s | 2,7 s | 3,0 s | jak wyżej (3,8 s) |
+
+  Zawsze: GET bez tokenu 403, ukryj bez pakietów 409, poziom 3 bez Rozszerzonego
+  zostawia login (OSOBA 1, PESEL 1). Bieg 1 to pierwsze uruchomienie świeżo zbudowanego
+  EXE; nie powtórzył się w 3 kolejnych biegach ani z kodu źródłowego (Windows i Linux).
+  Hipoteza (niepotwierdzona): skanowanie Defendera przy pierwszym starcie. Do obserwacji.
