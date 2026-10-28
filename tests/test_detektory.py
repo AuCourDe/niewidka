@@ -485,6 +485,9 @@ class TestWczytajLfm25:
         assert wynik[0].zrodlo == "onnx:lfm25"
 
     @pytest.mark.model
+    @pytest.mark.xfail(reason="LFM2.5 degraduje na powtarzalnych długich tekstach "
+                             "(pomiar K2b: docs/WYNIK-K2b.md); kompozyt poziomu 2 nie "
+                             "wychodzi, mechanizm okien pokryty atrapami", strict=False)
     def test_zywy_model_dlugi_tekst_okna(self, model_lfm25):
         tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokenów
         wynik = model_lfm25.znajdz(tekst)
@@ -530,7 +533,8 @@ class TestRozciagnijDoSlow:
         assert rozciagnij_do_slow([(0, 3)], "Jan, Kowalski i in.") == [(0, 3)]
 
     def test_nie_przekracza_tekstu(self):
-        assert rozciagnij_do_slow([(0, 4)], "Jan ") == [(0, 4)]
+        # po trimie whitespace (K2b) końcowa spacja nie wchodzi w zakres
+        assert rozciagnij_do_slow([(0, 4)], "Jan ") == [(0, 3)]
 
     def test_diacritiki_i_cyfry(self):
         assert rozciagnij_do_slow([(0, 2)], "Żółć3.") == [(0, 5)]
