@@ -39,6 +39,7 @@ class Konfig:
     kontrola_blokada: bool = True
     obrazy: str = "usun"
     kolejka: int = 4
+    zlecenia: int = 8  # K4b pkt 12: maks. żądań w toku (odrzucane przed parsowaniem body)
     timeout_s: int = 120
     wykrywaj_date: bool = True
 
@@ -111,6 +112,7 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         kontrola_blokada=_jako_bool(env.get("NIEWIDKA_KONTROLA_BLOKADA", kontrola.get("blokada", True))),
         obrazy=obrazy,
         kolejka=_jako_int(env, "NIEWIDKA_KOLEJKA", int(limity.get("kolejka", 4))),
+        zlecenia=_jako_int(env, "NIEWIDKA_ZLECENIA", int(limity.get("zlecenia", 8))),
         timeout_s=_jako_int(env, "NIEWIDKA_TIMEOUT_S", int(limity.get("timeout_s", 120))),
         wykrywaj_date=_jako_bool(env.get("NIEWIDKA_WYKRYWAJ_DATE", detekcja.get("wykrywaj_date", True))),
     )

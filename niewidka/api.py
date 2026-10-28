@@ -67,6 +67,40 @@ class BladKontroli(Exception):
         super().__init__("kontrola zapisu zablokowała wynik")
 
 
+class LicznikZlecen:
+    """K4b pkt 12: ogranicza liczbę żądań W TOKU (POST /api/ukryj i /api/przywroc)
+    zanim cokolwiek przeczyta treść — nadmiar dostaje 503 natychmiast, więc
+    uploady nie potrafią zająć pamięci, stojąc poza kolejką inferencji."""
+
+    def __init__(self, app, limit: int):
+        self.app = app
+        self.limit = limit
+        self.w_toku = 0
+
+    async def __call__(self, scope, receive, send):
+        sciezka = scope.get("path", "")
+        if (
+            scope["type"] != "http"
+            or scope.get("method") != "POST"
+            or not sciezka.startswith(("/api/ukryj", "/api/przywroc"))
+        ):
+            await self.app(scope, receive, send)
+            return
+        # inkrement bez await między sprawdzeniem a zapisem — atomowe w pętli zdarzeń
+        if self.w_toku >= self.limit:
+            await JSONResponse(
+                {"blad": "za dużo równoczesnych żądań; spróbuj ponownie za chwilę"},
+                status_code=503,
+                headers={"retry-after": "2"},
+            )(scope, receive, send)
+            return
+        self.w_toku += 1
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            self.w_toku -= 1
+
+
 class LimitBajtow:
     """K4b pkt 9: liczy bajty treści żądania PRZED parserem formularza — także
     przy transferze chunked, bez nagłówka Content-Length. Po przekroczeniu limitu
@@ -199,8 +233,10 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
     MultiPartParser.spool_max_size = konfig.max_rozmiar_mb * _MB
 
     app = FastAPI(title="Niewidka", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
-    # K4b pkt 9: licznik bajtów NAJGŁĘBIEJ z dodanych middleware (doda się jako pierwszy)
+    # kolejność wg głębokości: LicznikZlecen (najbardziej zewnętrzny, dodany ostatni)
+    # → LimitBajtow → middleware http; nadmiarowe żądanie dostaje 503 bez czytania treści
     app.add_middleware(LimitBajtow, limit_bajtow=konfig.max_rozmiar_mb * _MB)
+    app.add_middleware(LicznikZlecen, limit=konfig.zlecenia)
     app.state.konfig = konfig
     app.state.token = secrets.token_urlsafe(32)
     app.state.detektor = wstrzykniety
@@ -438,6 +474,7 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
                 "rozpakowane_mb": konfig.max_rozpakowane_mb,
                 "tekst_mb": konfig.max_tekst_mb,
                 "kolejka": konfig.kolejka,
+                "zlecenia": konfig.zlecenia,
                 "timeout_s": konfig.timeout_s,
             },
             "kolejka": app.state.kolejka.stan(),

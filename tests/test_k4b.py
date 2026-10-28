@@ -586,3 +586,50 @@ async def test_pkt11_timeout_zostawia_slot_zajety_do_konca_pracy(klucz_plik):
         )
         assert trzecie.status_code == 200, "po realnym końcu pracy slot wolny"
 
+
+# --- pkt 12: limit równoczesnych żądań przed parsowaniem body --------------------
+
+
+@pytest.mark.anyio
+async def test_pkt12_nadmiarowe_zlecenie_503_zanim_czyta_tresc(klucz_plik):
+    """K4b pkt 12: żądanie ponad limit równoczesnych dostaje 503 ZANIM jakikolwiek
+    bajt jego treści dotrze do aplikacji (stare: parser wisiał na treści bez końca)."""
+    from dataclasses import replace as podmien_konfig
+
+    konfig = podmien_konfig(Konfig(klucz_plik=klucz_plik), zlecenia=1, timeout_s=15)
+    brama = threading.Event()
+
+    class Wolny:
+        nazwa = "wolny"
+        typy = frozenset({TypEncji.INNE})
+
+        def znajdz(self, tekst):
+            brama.wait(10)
+            return []
+
+    app = create_app(konfig, detektor=Wolny())
+    stan_tresci = {"odczytana": False}
+
+    async def cialo_drugiego():
+        yield b"--x\r\n"  # pierwszy kawałek — ale dopiero, gdy aplikacja go czyta
+        stan_tresci["odczytana"] = True
+        await asyncio.Event().wait()  # reszta treści nigdy nie przyjdzie
+
+    async with _klient(app) as klient:
+        pierwsze = asyncio.create_task(
+            klient.post("/api/ukryj", data={"tekst": "spokojny tekst."}, headers=_naglowki(app))
+        )
+        await asyncio.sleep(0.3)  # pierwsze weszło do handlera (czeka na bramę)
+        drugie = asyncio.create_task(
+            klient.post(
+                "/api/ukryj",
+                headers=_naglowki(app, **{"content-type": "multipart/form-data; boundary=x"}),
+                content=cialo_drugiego(),
+            )
+        )
+        odpowiedz_drugiego = await asyncio.wait_for(drugie, 5)
+        assert odpowiedz_drugiego.status_code == 503
+        assert not stan_tresci["odczytana"], "treść nadmiarowego żądania została przeczytana"
+        brama.set()  # pierwsze może się skończyć
+        assert (await pierwsze).status_code == 200
+
