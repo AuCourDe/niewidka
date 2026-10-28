@@ -103,6 +103,14 @@ ostrzeżenia (bez procentowego wskaźnika), pobranie wyniku i mapy, przełączni
 **Ukończono, gdy:** pełny przepływ ręczny na 3 żywych dokumentach przez przeglądarkę działa
 (ukryj → pobierz → przywróć); zrzuty ekranu; **ocena percepcyjna właściciela** (dowód: zrzuty + decyzja właściciela).
 
+Status (2026-10-28, `docs/WYNIK-K5.md`): zrealizowany technicznie — `niewidka/web/` (3 pliki,
+bez frameworka/CDN, font Lato OFL w repo), serwowane przez `api.py` z tokenem wstrzykniętym
+w HTML; pełny E2E przez przeglądarkę (wklej → ukryj → zaślepki → przywróć) na żywym serwerze;
+zrzuty 1440/390 w `docs/zrzuty/` i w `Desktop/C/` (ocena percepcyjna właściciela — **czeka na
+decyzję**); kolejność skilli zachowana; recenzja końcowa impeccable: **ship**; 314 passed /
+1 xfailed, ruff czysty. Po decyzji właściciela: teksty GUI idą przez Argona (zlecenie 12:55),
+logo czapki i „jak to działa" — sesja równoległa.
+
 ## K6 — v1: pozostałe formaty, serwer organizacji, desktop, Android
 Zakres: adaptery odt, xlsx (liczby/formuły/cache), pptx, pdf (redakcja, blokada mieszanych,
 jednokierunkowy); tryb „Na serwerze organizacji" — uwierzytelnianie, HTTPS, klucz per

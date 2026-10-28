@@ -86,12 +86,13 @@
   - [ ] Codex/astra #1: adwersarialny przegląd bezpieczeństwa rdzenia po K4+K3b (formaty, kontrola, mapa, klucze, api) — tylko odczyt
   - [ ] Codex/astra #2: przegląd końcowy przed publikacją repo (po K5/K6)
 - [~] 12:40 (właściciel) ZADANIE K5 — interfejs web w `niewidka/web/` (index.html + apka.js + styl.css, bez frameworka, bez CDN, offline), serwowany przez api.py (StaticFiles na /, token sesji wstrzyknięty w HTML, nie w URL)
-  - [ ] Kolejność skilli obowiązkowa przed kodem: moje-human-frontend -> impeccable (shape->audit/critique->polish) -> frontend-design -> web-design-guidelines (audyt plik:linia do docs/WYNIK-K5.md)
-  - [ ] UI: wklej tekst ALBO plik (TXT/DOCX), suwak „Jakość wykrywania danych” 1-3 (Szybko/Dokładniej/Najdokładniej), „Ukryj dane”; wynik: podgląd z wyróżnionymi znacznikami + Kopiuj, pobranie wyniku i mapy .nwidka (jasne „zachowaj mapę”)
-  - [ ] Ocena jakości: R95 jako „szacowane ryzyko pominięcia” per typ, ostrzeżenia wyraźnie, status zablokowany = czerwony komunikat „wyniku NIE wolno wysyłać”
-  - [ ] Zakładka „Przywróć dane”: wynik + mapa -> plik/tekst przywrócony, rozbieżności po ludzku; jawny tryb „Na tym urządzeniu” (dane nie opuszczają komputera); błędy 413/415/422/503 po polsku
-  - [ ] tests/test_web.py (TestClient: strona się serwuje, token tylko w treści, brak zewnętrznych zasobów) + E2E Playwright (wklej->ukryj->znaczniki->przywróć); zrzuty 1440 i 390 do docs/zrzuty/k5-*.png
-  - [ ] pytest całości (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff zielone -> docs/WYNIK-K5.md; commit po zielonym kroku (Co-Authored-By: GLM via claude-glm), pull --rebase, push; bez Dockera, bez codex; NIE zmieniać niewidka/formaty/ ani kontrola.py
+  - [x] Kolejność skilli wykonana: moje-human-frontend (0a/0b/0c, seed 3570690072) -> impeccable (shape: surface brief + direction contract; craft-floor; detect; recenzja: fix->ship) -> frontend-design (kalibracja klisz) -> web-design-guidelines (audyt Vercel, naprawy w commit `4ec3c74`, tabela w docs/WYNIK-K5.md)
+  - [x] UI zbudowane: wklej/drag&drop/plik (TXT, DOCX), suwak 1-3 z aria-valuetext, „Ukryj dane"; zaślepki znaczników w podglądzie + Kopiuj; pobrania wyniku i mapy z notką „Zachowaj mapę" (commit `166945d`)
+  - [x] Ocena jakości: zamienione po ludzku, R95 „co najwyżej ok. 1 na N" (poziomy bez kalibracji: jeden wiersz zastępczy), ostrzeżenia wyraźnie, zablokowany = czerwony STOP „nie wolno wysyłać" (commit `145160a`)
+  - [x] Zakładka „Przywróć dane": rozbieżności po ludzku; tryb „Na tym urządzeniu" w nagłówku; komunikaty 403/413/415/422/503/500 po polsku
+  - [x] tests/test_web.py 7 zielonych (token tylko w meta, brak zasobów zewnętrznych, fonty lokalne) + E2E żywy (wklej->ukryj->zaślepki->przywróć); zrzuty 1440/390 w docs/zrzuty/k5-*.png + kopia w Desktop/C/Niewidka - k5-*.png
+  - [x] pytest 314 passed/1 xfailed + ruff czysty -> docs/WYNIK-K5.md; recenzja końcowa impeccable: ship; formaty/ i kontrola.py nietknięte; push (166945d, 4ec3c74, 145160a)
+  - [ ] Ocena percepcyjna właściciela (kamień K5 w KAMIENIE.md) — zrzuty w Desktop/C, decyzja tak/nie
 - [x] 12:25 (właściciel) zwece K2d przejęte od opencode 9f61 (brak śladu w repo) — „zbuduj i zmierz dwa warianty poziomu 2”: A) bardsai z obniżonym progiem pewności dla OSOBA (2-3 wartości) + drugi przebieg okien przesuniętych o pół kroku; B) A + słownik polskich imion GUS/dane.gov.pl (licencja otwarta, źródło w docs; plik w niewidka/dane/, max kilka tysięcy najczęstszych) — imię z listy + następne słowo z wielkiej litery = OSOBA, każda forma fleksyjna przez temat imienia.
   - [x] detektory.py: próg pewności OSOBA w OnnxDetektor + przebieg półkrokowy okien + wykrywacz słownikowy; testy odmian w tests/test_detektory.py (83 testów unit zielonych)
   - [x] narzedzia/pomiar.py: tryby --detektor poziom2-a / poziom2-b (+ --prog-osoba)
@@ -107,4 +108,11 @@
   - [ ] Lista zdań/słów GUI (plik:miejsce) -> Argon (www) -> poprawki; zero półpauz i pauz w tekstach
   - [ ] Sekcja „Jak to działa” (prosta + techniczna + lista danych + zastrzeżenia) — treść od Argona
   - [ ] Codex/astra: łącznie do 4 wywołań (#1 K4 mapa/klucze/api teraz)
+- [~] 13:13 (właściciel) „wepnij zmierzone poziomy do produktu”: suwak 1 = jak dziś (reguły+bardsai), 2 = wariant A (próg OSOBA 0.2 z konfiguracji/env NIEWIDKA_PROG_OSOBA + okna półkrokowe), 3 = wariant B (+słownik imion); pomiar.py i rdzen.py używają TEJ SAMEJ funkcji budującej poziom (REUŻYJ z detektory.py, usunąć duplikację); /api/stan podaje dostępne poziomy; R95 poziomów 2 i 3 przeliczyć kalibracją do niewidka/dane/r95.json per poziom; interfejs pokazuje R95 wybranego poziomu; test: zbuduj_detektor(2/3) różni się od 1 + zdanie osoba-011 (marker modelowy); KAMIENIE/README krótko; pytest całości + ruff; NIE zmieniać niewidka/web/ ani niewidka/formaty/; commit (Co-Authored-By: GLM via claude-glm), git add konkretnych ścieżek, pull --rebase, push; bez Dockera, bez codex
+  - [ ] konfig.py: prog_osoba (env NIEWIDKA_PROG_OSOBA, TOML detekcja.prog_osoba, domyślnie 0.2)
+  - [ ] detektory.zbuduj_poziom(1/2/3) = jedyna funkcja składająca poziom; rdzen i pomiar jej używają
+  - [ ] api.py: /api/ukryj używa detektora wybranego poziomu (leniwy cache per poziom), /api/stan podaje poziomy + R95 per poziom
+  - [ ] kalibracja: R95 poziomów 1/2/3 → niewidka/dane/r95.json (struktura per poziom); jakosc.py czyta per poziom
+  - [ ] testy TDD: różnica poziomu 1 vs 2 na osoba-011 (marker modelowy), konfig, stan, kalibracja, routing pomiaru
+  - [ ] pełny pytest (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff (własne pliki); KAMIENIE/README; commit+push
 
