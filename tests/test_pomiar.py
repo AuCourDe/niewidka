@@ -136,6 +136,16 @@ def test_zbuduj_detektor_lfm25_wariant_fp32(wagi_lfm25):
     assert d.nazwa == "onnx:lfm25"
 
 
+@pytest.mark.model
+@pytest.mark.parametrize("wariant", ["q4-bl32", "q4-bl128"])
+def test_zbuduj_detektor_lfm25_wariant_q4(katalog_modeli, wariant):
+    """K7a: kwantyzacja int4 (narzedzia/kwantyzuj_q4.py); skok, gdy jej nie ma."""
+    if not (katalog_modeli / "lfm25" / wariant / "model.onnx").is_file():
+        pytest.skip(f"wariant {wariant} niekwantyzowany (narzedzia/kwantyzuj_q4.py)")
+    d = zbuduj_detektor("lfm25", katalog_modeli, wariant=wariant)
+    assert d.nazwa == "onnx:lfm25"
+
+
 # --- K2d: warianty A (próg + półkrok) i B (+ słownik imion) ---
 
 def test_zbuduj_detektor_poziom2_a_bez_katalogu_blad():

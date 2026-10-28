@@ -98,6 +98,13 @@ class TestSpecModelu:
             "tokenizer_config.json",
         }
 
+    def test_bardsai_fp32_podkatalog(self):
+        """K7a: nieskwantyzowany ONNX z repo — wejście kwantyzacji int4."""
+        spec = spec_modelu("bardsai-fp32")
+        assert spec.repo == "bardsai/eu-pii-anonimization-multilang"
+        assert spec.podkatalog == "bardsai-fp32"
+        assert spec.pliki["model.onnx"] == "onnx/model.onnx"
+
     def test_lfm25_repo_i_pelny_zestaw_zrodlowy(self):
         spec = spec_modelu("lfm25")
         assert spec.repo == "LiquidAI/LFM2.5-Encoder-350M-PII-Detector"

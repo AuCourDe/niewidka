@@ -42,6 +42,21 @@ _BARDSAI = ModelSpec(
     },
 )
 
+# bardsai fp32 (K7a): nieskwantyzowany ONNX z repo — wejście kwantyzacji int4
+# (narzedzia/kwantyzuj_q4.py); model_quantized.onnx ma już wagi całkowite, więc
+# nie jest sensownym źródłem dla Q4.
+_BARDSAI_FP32 = ModelSpec(
+    repo="bardsai/eu-pii-anonimization-multilang",
+    rewizja="main",
+    pliki={
+        "model.onnx": "onnx/model.onnx",
+        "tokenizer.json": "tokenizer.json",
+        "config.json": "config.json",
+        "tokenizer_config.json": "tokenizer_config.json",
+    },
+    podkatalog="bardsai-fp32",
+)
+
 # LFM2.5 (poziom 2, K2b): brak ONNX w repo — pobieramy PEŁNE źródła (wagi + kod
 # custom przeglądany przed użyciem, zob. docs/WYNIK-K2b.md), eksport ONNX robi
 # narzedzia/eksport_lfm25.py do podkatalogów fp32/ i int8/.
@@ -63,7 +78,11 @@ _LFM25 = ModelSpec(
     podkatalog="lfm25",
 )
 
-MODELE: dict[str, ModelSpec] = {"bardsai": _BARDSAI, "lfm25": _LFM25}
+MODELE: dict[str, ModelSpec] = {
+    "bardsai": _BARDSAI,
+    "bardsai-fp32": _BARDSAI_FP32,
+    "lfm25": _LFM25,
+}
 
 # Nazwy w katalogu docelowym (kompatybilność: główne pobranie poziomu 1).
 REPO = _BARDSAI.repo

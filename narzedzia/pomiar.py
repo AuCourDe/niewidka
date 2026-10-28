@@ -307,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--wariant",
-        choices=("int8", "fp32"),
+        choices=("int8", "fp32", "q4-bl32", "q4-bl128"),  # K7a: kwantyzacja int4
         default="int8",
     )
     parser.add_argument(

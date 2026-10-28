@@ -28,6 +28,7 @@ dev = [
 # ~200 MB zamiast ~3 GB z bibliotekami nvidia).
 eksport = [
     "onnx>=1.20",
+    "onnx-ir>=1.0",
     "torch>=2.9",
     "transformers>=5.11",
 ]
