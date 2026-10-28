@@ -24,6 +24,11 @@ $ErrorActionPreference = "Stop"
 # wlaczylby drzewo robocze WSL w sciezki przeszukiwania modulow
 Set-Location $KatalogBudowy
 
+# dzialajaca Niewidka trzyma DLL-e w dist: PyInstaller --clean dostanie Odmowe dostepu
+if (Get-Process Niewidka -ErrorAction SilentlyContinue) {
+  throw "Niewidka jest uruchomiona: zamknij ja przed budowa (blokuje dist\Niewidka)"
+}
+
 $Repo = Join-Path $KatalogBudowy "repo"
 $VenvPython = Join-Path $Repo ".venv\Scripts\python.exe"
 
@@ -103,6 +108,7 @@ Set-Content -Path $StartPy -Encoding ascii -Value "import sys`r`nfrom niewidka.o
   --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.protocols.http.h11_impl `
   --hidden-import uvicorn.protocols.websockets.auto --hidden-import uvicorn.lifespan.on `
   $StartPy
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller nie powiodl sie" }
 
 Write-Host "== 7. Wagi bardsai + manifest SHA-256 =="
 $Modele = Join-Path (Join-Path $KatalogBudowy "dist") "Niewidka\modele"
