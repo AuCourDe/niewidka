@@ -23,6 +23,7 @@ from niewidka.jakosc import r95_z_kalibracji
 from niewidka.kontrola import Ostrzezenie, kontroluj
 from niewidka.mapa import (
     WARIANT_DOMYSLNY,
+    WZORZEC_ZNACZNIKA,
     BladMapy,
     Mapa,
     Rozbieznosc,
@@ -60,11 +61,29 @@ class _BezDaty:
         return [z for z in self._wewnetrzny.znajdz(tekst) if z.typ is not TypEncji.DATA]
 
 
+class ZnacznikiWTresci(BladMapy):
+    """Wejście zawiera już znacznik Niewidki: nadany znacznik mógłby się z nim
+    zderzyć i przywrócenie po cichu wstawiłoby dane w obce miejsce (Codex 2026-10-29)."""
+
+
 MAKS_PRZEBIEGOW = 5  # zmierzone 2026-10-28: pismo właściciela potrzebuje do 4 (model niedeterministyczny)
 TYPY_ENCJI = {typ.value for typ in TypEncji}
 # do osoby z kontroli doliczamy do 2 kolejnych wyrazów z wielkiej litery w tej samej
-# linii: model raz łapie „Jan Marek", raz „Nowicki" (zmierzone 2026-10-28)
-_DALSZE_CZLONY = re.compile(r"(?:[ \t]+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:-[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?){1,2}")
+# linii: model raz łapie „Jan Marek", raz „Nowicki" (zmierzone 2026-10-28). Zawsze
+# po pełnych słowach (przegląd Codex 2026-10-29: „ Mc" zostawiało „Donald" jawne).
+_ODSTEP = "[ \t\u00a0\u202f]+"
+_SLOWO_NAZWISKA = re.compile(rf"{_ODSTEP}([^\W\d_][\w'’\-]*)")
+_W_SLOWIE = re.compile(r"[\w'’\-]*")
+
+
+def _koniec_osoby(tekst: str, koniec: int) -> int:
+    koniec = _W_SLOWIE.match(tekst, koniec).end()  # fragment urwany w środku słowa
+    for _ in range(2):
+        slowo = _SLOWO_NAZWISKA.match(tekst, koniec)
+        if not slowo or not slowo.group(1)[0].isupper():
+            break
+        koniec = slowo.end()
+    return koniec
 
 
 class _ZDopelnieniem:
@@ -88,8 +107,8 @@ class _ZDopelnieniem:
             start = tekst.find(fragment)
             while start != -1:
                 koniec = start + len(fragment)
-                if typ is TypEncji.OSOBA and (dalej := _DALSZE_CZLONY.match(tekst, koniec)):
-                    koniec = dalej.end()
+                if typ is TypEncji.OSOBA:
+                    koniec = _koniec_osoby(tekst, koniec)
                 dodatkowe.append(Zakres(start, koniec, typ, 1.0, "kontrola"))
                 start = tekst.find(fragment, start + 1)
         bazowe = self._wewnetrzny.znajdz(tekst)
@@ -163,7 +182,19 @@ def ukryj(
     # 2026-10-28: znalezisko kontroli w treści = dane pominięte w poprzednim
     # przejściu; ukrywamy je i sprawdzamy ponownie. Blokada zostaje, gdy kolejne
     # przejście nie ma już czego dołożyć (np. wyciek w części, której adapter nie czyta).
+    dok_wejscia = adapter_formatu(format).wczytaj(
+        dane, polityka_obrazow=polityka_obrazow, max_rozpakowane=max_rozpakowane_bajtow
+    )
+    if any(WZORZEC_ZNACZNIKA.search(segment.tekst) for segment in dok_wejscia.segmenty):
+        raise ZnacznikiWTresci(
+            "dokument zawiera już znaczniki Niewidki (np. [OSOBA_1]); ukryj oryginał, "
+            "a nie wynik wcześniejszego ukrywania"
+        )
     fragmenty: dict[str, TypEncji] = {}
+    # suma oryginałów ze WSZYSTKICH przejść: scalenie w późniejszym przejściu daje
+    # dłuższy oryginał, a krótszy z wcześniejszego dalej musi być szukany w wyniku
+    # (przegląd Codex 2026-10-29: inaczej wyciek w styles.xml znikał z ostrzeżeń)
+    oryginaly: set[str] = set()
     for _ in range(MAKS_PRZEBIEGOW):
         detektor_przebiegu = _ZDopelnieniem(detektor, fragmenty) if fragmenty else detektor
         adapter = adapter_formatu(format)
@@ -212,7 +243,7 @@ def ukryj(
         # id w treści wiąże mapę z dokumentem
         wynik = adapter.zapisz(dok, dopisek(mapa.identyfikator))
         # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
-        oryginaly = {wyst.oryginal for wyst in wystapienia} | {
+        oryginaly |= {wyst.oryginal for wyst in wystapienia} | {
             forma for wpis in wpisy.values() for forma in wpis.formy.values()
         }
         ostrzezenia = kontroluj(

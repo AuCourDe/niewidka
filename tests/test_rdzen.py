@@ -232,6 +232,35 @@ def test_kontrola_nie_pokazuje_modelowi_losowego_identyfikatora_mapy():
     assert not any(zakodowany in t or "ZANONIMIZOWANY" in t for t in detektor.teksty)
 
 
+@pytest.mark.parametrize(
+    "podpis,nazwisko",
+    [("Jan Marek McDonald", "Donald"), ("Jan Marek NOWICKI", "NOWICKI"), ("Jan Marek Müller", "Müller"),
+     ("Jan Marek O’Neill", "Neill"), ("Jan Marek Nowak-Jeziorańska", "Jeziorańska")],
+)
+def test_kontrola_dopelnienie_osoby_po_pelnych_slowach(podpis, nazwisko):
+    """Przegląd Codex 2026-10-29: „Jan Marek" + „ Mc" zostawiało „Donald" jawne."""
+
+    class TylkoImiona(DetektorZaleznyOdKontekstu):
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            if "Jan Nowak." in tekst:
+                return DetektorOsob(("Jan Nowak",)).znajdz(tekst)
+            return DetektorOsob(("Jan Marek",)).znajdz(tekst)
+
+    tekst = f"Podpisał Jan Nowak.\n{podpis}\nKierownik".encode()
+    wynik, _, raport = ukryj(tekst, "txt", 1, detektor=TylkoImiona())
+    assert raport.status == "ukonczony"
+    assert nazwisko.encode() not in wynik and b"Kierownik" in wynik
+
+
+def test_znaczniki_w_tresci_wejscia_odrzucone():
+    """Przegląd Codex 2026-10-29: „[PESEL_1]" w wejściu kolidował z nadanym znacznikiem
+    i przywrócenie po cichu wstawiało PESEL w miejsce tekstu."""
+    from niewidka.rdzen import ZnacznikiWTresci
+
+    with pytest.raises(ZnacznikiWTresci):
+        ukryj(b"Przyklad [PESEL_1]. PESEL 44051401359.", "txt", 1, detektor=RegulyDetektor())
+
+
 def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
     """K3b: PESEL schowany w części, której adapter nie parsuje i nie czyści
     (media), omija wykrywanie i zamianę — kontrola z oryginałami mapy go zgłasza.

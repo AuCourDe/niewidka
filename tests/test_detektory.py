@@ -976,7 +976,9 @@ class TestSwiftWNaglowku:
         assert d.znajdz("URZĄD MIASTA STOŁECZNEGO WARSZAWY\nul. Zielna 17") == []
 
     @pytest.mark.parametrize(
-        "tekst", ["SWIFT banku: EBOSPLPW.", "kod SWIFT EBOSPLPW", "BIC EBOSPLPW", "Przelew na EBOSPLPW teraz"]
+        "tekst",
+        ["SWIFT banku: EBOSPLPW.", "kod SWIFT EBOSPLPW", "BIC EBOSPLPW", "Przelew na EBOSPLPW teraz",
+         "SWIFT EBOSPLPW BANK", "BIC: EBOSPLPW PKO BP"],
     )
     def test_prawdziwy_swift_zostaje(self, tekst):
         from niewidka.detektory import BezSwiftWNaglowku

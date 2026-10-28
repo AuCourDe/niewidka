@@ -551,6 +551,9 @@ _SASIAD_ZA = re.compile(r"[ \t]+([^\W\d_]{3,})")
 
 
 def _sasiad_wielkimi(tekst: str, start: int, koniec: int) -> bool:
+    poczatek_linii = tekst.rfind("\n", 0, start) + 1
+    if re.search(r"\b(?:SWIFT|BIC)\b", tekst[poczatek_linii:start]):
+        return False  # jawna etykieta przed kodem (Codex 2026-10-29: „SWIFT EBOSPLPW BANK")
     przed = _SASIAD_PRZED.search(tekst, max(0, start - 40), start)
     za = _SASIAD_ZA.match(tekst, koniec)
     return any(

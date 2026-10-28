@@ -332,3 +332,9 @@ def test_adres_miejscowosc_nie_przechodzi_do_nastepnej_linii():
     tekst = "ul. Różana 8/24\n02-562 Warszawa\n\nDotyczy: wezwania"
     assert _znalezione(tekst, TypEncji.ADRES) == ["ul. Różana 8/24\n02-562 Warszawa"]
     assert _znalezione("00-108 Warszawa\nTel. 22 555", TypEncji.ADRES) == ["00-108 Warszawa"]
+
+
+def test_adres_miejscowosc_ze_spacja_nierozdzielajaca():
+    # przegląd Codex 2026-10-29: NBSP w „Nowy Dwór Mazowiecki" zostawiał „Dwór Mazowiecki"
+    tekst = "ul. Długa 5, 05-100 Nowy\u00a0Dwór\u00a0Mazowiecki"
+    assert _znalezione(tekst, TypEncji.ADRES) == [tekst]
