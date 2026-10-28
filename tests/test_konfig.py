@@ -57,7 +57,7 @@ blokada = false
         encoding="utf-8",
     )
     k = wczytaj_konfig(plik, env={})
-    assert k.host == "0.0.0.0"
+    assert k.host == "127.0.0.1"  # K4b pkt 14: tylko loopback
     assert k.port == 9000
     assert k.poziom == 2
     assert k.modele_katalog == Path("/wagi")
