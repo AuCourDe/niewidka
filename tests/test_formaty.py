@@ -550,3 +550,35 @@ class TestPulapkiK3b:
         assert "smartTagPr" not in xml, "atrybuty smart taga wycieka"
         assert "GivenName" not in xml
         assert 'w:val="Jan"' not in xml
+
+
+# --- poprawność wyników (K3b krok 3): plik otwiera się, XML poprawny, w:tc ma w:p
+
+
+class TestPoprawnoscWyniku:
+    def _sprawdz(self, wynik: bytes) -> None:
+        from docx import Document as Otworz
+
+        Otworz(io.BytesIO(wynik))  # otwarcie bez "unreadable content"
+        drzewo = etree.fromstring(
+            zipfile.ZipFile(io.BytesIO(wynik)).read("word/document.xml")
+        )
+        for tc in drzewo.iter(f"{W_NS}tc"):
+            assert tc.find(f"{W_NS}p") is not None, "komórka tabeli bez akapitu"
+
+    def test_wynik_pelnych_pulapek(self, tmp_path):
+        sciezka = zapisz_pulapki(tmp_path / "p.docx")
+        self._sprawdz(_zakryj(sciezka.read_bytes()))
+
+    def test_wynik_podstawowego_wzorca(self, wzorzec):
+        adapter = AdapterDocx()
+        self._sprawdz(adapter.zapisz(adapter.wczytaj(wzorzec.read_bytes())))
+
+    def test_wynik_po_przywroceniu(self, tmp_path):
+        from niewidka.detektory import RegulyDetektor
+        from niewidka.rdzen import przywroc, ukryj
+
+        sciezka = zapisz_pulapki(tmp_path / "p.docx")
+        wynik, mapa, _ = ukryj(sciezka.read_bytes(), "docx", 1, detektor=RegulyDetektor())
+        przywrocony, _ = przywroc(wynik, "docx", mapa)
+        self._sprawdz(przywrocony)
