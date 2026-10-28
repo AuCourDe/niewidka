@@ -402,10 +402,12 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
         mapa = odszyfruj(_zip(odpowiedz.content)[f"{identyfikator}.nwidka"], KLUCZ)
         return [wyst.oryginal for wyst in mapa.wystapienia]
 
-    assert oryginaly(r1) == ["Piotrowi"]
     assert oryginaly(r2) == ["Piotrowi Wiśniewskiemu"]
-    # kontrola słusznie blokuje poziom 1 — zostawił „Wiśniewskiemu"; poziom 2 czysty
-    assert r1.headers["x-niewidka-status"] == "zablokowany"
+    # kontrola słusznie BLOKUJE poziom 1 (zostawił „Wiśniewskiemu") — K4b pkt 1:
+    # 422 z typami, bez dokumentu i bez mapy; poziom 2 czysty
+    assert r1.status_code == 422
+    assert r1.json()["typy"] == {"OSOBA": 1}
+    assert not r1.content.startswith(b"PK")
     assert r2.headers["x-niewidka-status"] == "ukonczony"
     r95_poziom2 = json.loads(r2.headers["x-niewidka-r95"])
     assert isinstance(r95_poziom2.get("OSOBA"), float)

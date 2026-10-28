@@ -4,6 +4,7 @@ Bezpieczeństwo: token sesji (generowany przy starcie), walidacja Host/Origin,
 limity PRZED buforowaniem (Content-Length) i po dekompresji, pliki tylko w RAM,
 Cache-Control: no-store, logi wyłącznie z UUID błędu (Gemini pkt 15), inferencja
 w puli wątków z Semaphore(1) i timeoutem (Gemini pkt 5), pełna kolejka → 503.
+Wynik zablokowany przez kontrolę → 422 z listą typów, bez dokumentu (K4b pkt 1).
 Błędy wg LLD §15: 413/415/422/500/503; detektor fail-closed.
 """
 
@@ -51,6 +52,14 @@ class KolejkaPelna(Exception):
     """Wszystkie sloty zajęte i kolejka pełna (LLD §15 → 503 + Retry-After)."""
 
 
+class BladKontroli(Exception):
+    """Kontrola zapisu zablokowała wynik (K4b pkt 1 → 422 BEZ dokumentu)."""
+
+    def __init__(self, typy: dict[str, int]):
+        self.typy = typy
+        super().__init__("kontrola zapisu zablokowała wynik")
+
+
 @dataclass
 class Kolejka:
     """Jedna inferencja naraz (Semaphore w puli wątków), `kolejka` oczekujących."""
@@ -96,6 +105,14 @@ def _ostrzezenia_lista(ostrzezenia: list[Ostrzezenie]) -> list[dict]:
         {"typ": o.typ, "fragment": o.fragment, "segment": o.segment, "czesc": o.czesc}
         for o in ostrzezenia
     ]
+
+
+def _licznik_typow(ostrzezenia: list[Ostrzezenie]) -> dict[str, int]:
+    """Typy znalezisk z licznikami — nagłówki i błędy nigdy nie niosą fragmentów (K4b pkt 8)."""
+    licznik: dict[str, int] = {}
+    for ostrzezenie in ostrzezenia:
+        licznik[ostrzezenie.typ] = licznik.get(ostrzezenie.typ, 0) + 1
+    return licznik
 
 
 def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
@@ -202,6 +219,19 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             headers={"retry-after": str(konfig.timeout_s)},
         )
 
+    @app.exception_handler(BladKontroli)
+    async def _blad_kontroli(request: Request, blad: BladKontroli):
+        # K4b pkt 1: zablokowany dokument NIE wraca — żadnych bajtów dokumentu,
+        # żadnych fragmentów; tylko typy znalezisk z licznikami.
+        return JSONResponse(
+            {
+                "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany",
+                "status": "zablokowany",
+                "typy": blad.typy,
+            },
+            status_code=422,
+        )
+
     def _format_z_nazwy(nazwa: str) -> str:
         rozszerzenie = Path(nazwa).suffix.lstrip(".").lower()
         if not rozszerzenie:
@@ -240,6 +270,8 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
             return wynik, mapa, raport, zaszyfruj(mapa, klucz)
 
         wynik, mapa, raport, mapa_paczka = await app.state.kolejka.wykonaj(praca)
+        if raport.status == "zablokowany":
+            raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
         app.state.identyfikatory.add(mapa.identyfikator)
 
         paczka = io.BytesIO()

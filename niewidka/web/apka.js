@@ -169,9 +169,29 @@ function komunikatOdpowiedzi(statusId, status, blad) {
   komunikat(statusId, "komunikat-blad", "Nie udało się", tresc);
 }
 
+function pokazBlokade(statusId, typy) {
+  /* K4b pkt 1: zablokowany wynik przychodzi jako 422 bez dokumentu. Nie ma
+     czego pobierać ani kopiować, więc pokazuję tylko STOP z typami znalezisk. */
+  const pole = document.getElementById(statusId);
+  pole.innerHTML = "";
+  const blok = document.createElement("div");
+  blok.className = "komunikat komunikat-blad";
+  const tytul = document.createElement("h3");
+  tytul.textContent = "STOP — tego dokumentu nie wolno wysyłać";
+  blok.append(tytul);
+  const opis = document.createElement("p");
+  const typyTekst = Object.entries(typy || {})
+    .map(([typ, ile]) => etykieta(typ, ile))
+    .join(", ");
+  opis.textContent = typyTekst
+    ? `Ponowne sprawdzenie znalazło dane przypominające oryginalne (${typyTekst}). Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.`
+    : "Ponowne sprawdzenie znalazło dane przypominające oryginalne. Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.";
+  blok.append(opis);
+  pole.append(blok);
+}
+
 function pokazWynik(naglowki, czesci) {
   const identyfikator = naglowki.get("x-niewidka-identyfikator");
-  const status = naglowki.get("x-niewidka-status");
   const statystyki = JSON.parse(naglowki.get("x-niewidka-statystyki") || "{}");
   const r95 = JSON.parse(naglowki.get("x-niewidka-r95") || "{}");
   const ostrzezenia = JSON.parse(naglowki.get("x-niewidka-ostrzezenia") || "[]");
@@ -183,21 +203,16 @@ function pokazWynik(naglowki, czesci) {
     mapa: { nazwa: nazwaMapy, blob: new Blob([czesci[nazwaMapy]], { type: "application/octet-stream" }) },
   };
 
-  const zablokowany = status === "zablokowany";
   const poleStatusu = document.getElementById("komunikat-status");
   poleStatusu.hidden = false;
   poleStatusu.innerHTML = "";
   const blok = document.createElement("div");
-  blok.className = zablokowany ? "komunikat komunikat-blad" : "komunikat komunikat-ok";
+  blok.className = "komunikat komunikat-ok";
   const tytul = document.createElement("h3");
-  tytul.textContent = zablokowany
-    ? "STOP — tego dokumentu nie wolno wysyłać"
-    : "Kontrola jakości: zaliczona";
+  tytul.textContent = "Kontrola jakości: zaliczona";
   blok.append(tytul);
   const opis = document.createElement("p");
-  opis.textContent = zablokowany
-    ? "Ponowne sprawdzenie wyniku znalazło dane przypominające oryginalne. Znajdź je w podglądzie poniżej, zanim dokument opuści ten komputer."
-    : "Ponowne sprawdzenie wyniku nie znalazło żadnych danych osobowych.";
+  opis.textContent = "Ponowne sprawdzenie wyniku nie znalazło żadnych danych osobowych.";
   blok.append(opis);
   poleStatusu.append(blok);
 
@@ -256,8 +271,7 @@ function pokazWynik(naglowki, czesci) {
   if (wygladaNaTekst) pokazPodglad(trescTekstowa);
 
   document.getElementById("blok-pobrania").hidden = false;
-  zapowiedz(zablokowany ? "Wynik zablokowany przez kontrolę jakości" : "Dane ukryte, wynik gotowy");
-  return zablokowany;
+  zapowiedz("Dane ukryte, wynik gotowy");
 }
 
 /* ---------- zakładki ---------- */
@@ -342,15 +356,16 @@ function ustawTrwa(pole, trwa) {
 async function wyslij(url, dane) {
   const odpowiedz = await fetch(url, { method: "POST", headers: NAGLOWKI, body: dane });
   if (!odpowiedz.ok) {
-    let blad = "";
+    let tresc = {};
     try {
-      blad = (await odpowiedz.json()).blad || "";
+      tresc = await odpowiedz.json();
     } catch {
       /* odpowiedź błędu bez JSON — użyję samego kodu */
     }
-    const wyjatek = new Error(blad || String(odpowiedz.status));
+    const wyjatek = new Error(tresc.blad || String(odpowiedz.status));
     wyjatek.status = odpowiedz.status;
-    wyjatek.blad = blad;
+    wyjatek.blad = tresc.blad || "";
+    wyjatek.odpowiedz = tresc;
     throw wyjatek;
   }
   return odpowiedz;
@@ -392,7 +407,12 @@ function inicjalizujUkrywanie() {
       pokazWynik(odpowiedz.headers, czesci);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
-      komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message);
+      if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany") {
+        document.getElementById("wynik").hidden = true;
+        pokazBlokade("status-ukryj", blad.odpowiedz.typy);
+      } else {
+        komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message);
+      }
     } finally {
       ustawTrwa(formularz, false);
     }
