@@ -40,7 +40,7 @@
   - [x] API GET/POST /api/pakiety (202 w tle/200/422, token+Host/Origin), 409 brak_pakietu z nazwami wyświetlanymi, brak wag = łagodny start, /api/stan poziomy_dostepne (20 testów; commit 4b71db8)
   - [x] UI: ekran pierwszego uruchomienia + zakładka Ustawienia z paskiem postępu; suwak wyłączony bez pakietu; 409 prowadzi do Ustawień; kolejka dla pobrania wszystkiego; audyt Vercel; teksty bez półpauz (commit 9080bd2)
   - [x] budowa bez wag (ps1) + workflow wydanie.yml + README Pobierz/Zbuduj/pakiety (commit 8666e81)
-  - [~] test na Windows: klon spullowany (8666e81), lustro HTTP :39949, budowa w toku; potem exe: ekran pierwszego uruchomienia, pobranie Podstawowego z lustra, ukryj TXT/DOCX, zrzuty k7-*.png, WYNIK-K7.md
+  - [x] test na Windows: 5 biegu budowy; naprawy z zywego biegu: /api/stan bez detektora (None.nazwa, 500), prog e-mail 0.1 s (Windows 0.055), odpyt ekranu 2,5 s; exe: start 2,4 s / RAM 584 MB / ZIP 53,2 MB; ekran pierwszego uruchomienia (zrzut), 409 bez pakietu, pobranie 182 MB w 3 s z lustra na C: (NIEWIDKA_MODELE_ZRODLO), ekran znika sam; TXT 1280 ms (z IP), DOCX 689 ms, przywrocenie identyczne; zrzuty k7-*.png + kopie w Desktop/C; KAMIENIE K7b; WYNIK-K7.md; procesy ubite (exe 0, lustra i dev zabite)
   - [x] pytest całości 489 passed/1 xfailed (z wagami) + ruff czysty
 
 ## 2026-10-28

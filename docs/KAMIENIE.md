@@ -147,6 +147,27 @@ pracuje jako klient serwera organizacji (dowód: `pytest tests/test_formaty.py` 
 
 ---
 
+## K7b — pakiety modeli po instalacji, wydanie EXE (2026-10-28)
+
+**Zrobione.** Paczka BEZ wag (ZIP 53,2 MB vs 274 MB z wagami w K6); modele pobierane
+po instalacji: ekran pierwszego uruchomienia (Pobierz podstawowy zalecane / Pobierz
+wszystko / Później) i Ustawienia z przełącznikami per pakiet (pasek postępu, usuwanie
+z potwierdzeniem). Dwa pakiety (decyzja orkiestratora po `WYNIK-K7-q4.md`): Podstawowy
+(bardsai Q4 bl32, wymagany, 191 MB) i Rozszerzony (LFM2.5 Q4 bl32, 227 MB, poziom 3:
+dodatkowo IP, kody SWIFT i loginy bez nachodzenia; warunek identyczności OSOBA i typów
+regułowych spełniony pomiarem na obu korpusach). Nowe typy i reguły poziomu 1: IP v4/v6
+i karta z sumą Luhna (znaczniki IP, KARTA, SWIFT, LOGIN). API `/api/pakiety` (token,
+Host/Origin), 409 z brak_pakietu, łagodny start bez wag. Budowa bez wag (`-Rpo` dla CI),
+`.github/workflows/wydanie.yml` (tag v* → draft release + SHA256SUMS; pliki Q4 do
+wydania wgrywa się z wagami K7a; dry-run workflow_dispatch), README „Pobierz gotowy
+program" i „Zbuduj ze źródeł". Exe przetestowany na Windows (klon, `git pull` bez sieci):
+start 2,4 s, pobranie 182 MB w 3 s z lokalnego lustra (`NIEWIDKA_MODELE_ZRODLO`),
+TXT 1280 ms z wykrytym IP, DOCX 689 ms, przywrócenie identyczne, zrzuty k7-*.png.
+Naprawy z żywego biegu i środowiskowe notatki: `docs/WYNIK-K7.md`. Do zrobienia:
+pierwsze wydanie po przeglądzie właściciela (tag v*, pliki Q4 do wydania), Inno Setup
+na runnerze, Linux/Mac/Android.
+
+
 MVP = K0–K5 (wklejony tekst + TXT + DOCX przez web lokalny). v1 = K6 (pozostałe formaty,
 serwer organizacji, desktop + Android jako klient).
 Poza zakresem do odwołania: OCR, makra, Android offline, własne treningi (§6 `HLD.md`).

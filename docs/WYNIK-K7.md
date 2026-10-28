@@ -64,4 +64,48 @@ NIEWIDKA_MODELE_KATALOG=~/models/niewidka-pakiety-k7b \
 # (analogicznie --plik probki_nowe_typy.jsonl)
 ```
 
-Stan wdrożenia i test na Windows: sekcje niżej (uzupełniane w toku K7b).
+## Wdrożenie i test na Windows (exe zbudowany z klonu, bez wag)
+
+Budowa: `narzedzia/zbuduj_windows.ps1` (bez wag; parametr `-Rpo` dla CI) na klonie
+`C:\Users\uzytkownik\niewidka-build\repo` (origin = `//wsl.localhost/...`, `git pull` bez
+sieci). Biegi budowy: 1 (pierwszy, 64 s PyInstaller), 4 i 5 po naprawach z żywego
+biegu; testy w budowie 448 passed / 27 skipped (bez wag) na Windows.
+
+| pomiar | wynik |
+|---|---|
+| paczka ZIP (bez wag) | **53,2 MB** (K6 z wagami: 274 MB) |
+| start exe do /api/stan 200 (bez wag) | **2,4 s**, RAM 584 MB |
+| ekran pierwszego uruchomienia | „Przygotowanie do pracy", 3 opcje (zrzut `docs/zrzuty/k7-pierwsze-uruchomienie.png`) |
+| ukryj bez pakietu | **HTTP 409** z `brak_pakietu` (jasny błąd, nie 500) |
+| pobranie pakietu Podstawowy z lokalnego lustra | **182 MB w 3 s** (lustro: `python -m http.server` na Windows, `NIEWIDKA_MODELE_ZRODLO=http://127.0.0.1:39950`) |
+| po pobraniu | stan zainstalowany, poziomy_dostepne [1/2/3]; ekran pierwszego uruchomienia znika sam (odpyt 2,5 s) — zrzut `k7-aplikacja-po-pobraniu.png` |
+| ukryj TXT (exe, poziom 2) | 1280 ms, 200 OK; statystyki: OSOBA 1, ADRES 1, PESEL 1, DOKUMENT 1, TELEFON 1, EMAIL 1, **IP 1** |
+| ukryj DOCX (exe, poziom 2) | 689 ms, 200 OK; OSOBA 3, PESEL 2, TELEFON 2, EMAIL 1, NIP 1 |
+| przywrócenie TXT | 38 ms, treść identyczna z oryginałem (PESEL wraca, bez znaczników) |
+| Ustawienia | wiersze pakietów ze stanem, rozmiarem i Pobierz/Usuń (zrzut `k7-ustawienia.png`); wynik ukrywania z zaślepkami IP i KARTA: `k7-desktop-wynik.png` |
+| procesy po teście | ubite (exe 0, lustra i serwer dev zabite) |
+
+Naprawione z żywego biegu (każde RED→GREEN):
+
+| objaw | przyczyna | naprawa |
+|---|---|---|
+| /api/stan 500 przy łagodnym starcie | `None.nazwa` na `app.state.detektor = None` | `modele = []` gdy brak detektora (commit `6c0946d`) |
+| budowa padła na testach Windows | próg testu e-mail liniowego 0.05 s, Windows 0.055 s na brzegu | próg 0.1 s z komentarzem (cel: obrona regresji kwadratowej 7,15 s) (`ad39383`) |
+| ekran pierwszego uruchomienia zalegał po instalacji spoza UI | strona odświeża stan tylko przy własnych akcjach | odpyt co 2,5 s tylko gdy ekran widoczny (`09c010f`) |
+
+Środowiskowe notatki dla kolejnych testów: `~/models` to dowiązanie, którego
+`\\wsl.localhost` nie prowadzi (jak w K6) — lustro pakietów trzeba kopiować z
+`/mnt/projekty/models/...`, a pliki-lustra muszą być fizyczne (symlinki 9P nie
+serwuje); transfer 174 MB przez forwarding Windows→WSL jest wolny, lustro lepiej
+trzymać na Windows.
+
+## Wydanie (GitHub Actions) — przygotowane, NIE uruchamiane
+
+`.github/workflows/wydanie.yml`: tag `v*` → windows-latest → testy → PyInstaller
+(skryptem budowy, `-Rpo` = checkout CI) → ZIP + SHA256SUMS → **draft release**.
+Dry-run bez publikacji: `workflow_dispatch` (artefakty w Actions, wydanie nie
+powstaje). Pliki Q4 obu pakietów wgrywa się do wydania z maszyny z wagami
+(`gh release upload`, nazwy = pole `zrodlo` z `pakiety.json`) — runner ich nie ma,
+a paczka EXE z definicji jest bez wag. Wydanie publiczne dopiero po przeglądzie
+właściciela (decyzja 2c, repo prywatne).
+
