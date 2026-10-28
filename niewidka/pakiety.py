@@ -447,6 +447,9 @@ class MenedzerPakietow:
     Operacje rdzenia (`pobierz`, `usun`, `instaluj_z_katalogu`) wołane z wątku;
     postęp publikowany w `PostepPobierania` dla GET /api/pakiety. `poziomy_dostepne`
     pilnuje pakietu wymaganego: bez niego żaden poziom suwaka nie działa.
+    K7c pkt 9 (audyt): stan pakietów jest ZAPAMIĘTANY — weryfikacja SHA działa
+    przy starcie i po każdej zmianie, w wątku tła; GET zwraca cache (fingerprint
+    obecności plików, stat bez haszowania, wykrywa wgranie wag z zewnątrz).
     """
 
     def __init__(
@@ -466,6 +469,71 @@ class MenedzerPakietow:
         self._przerwano = threading.Event()
         self.postep = PostepPobierania()
         self._on_zmiana = on_zmiana
+        self._stan_cache: list[dict] = []
+        self._poziomy_cache: list[int] = []
+        self._brakujacy_cache: list[str] = []
+        self._odcisk = ""
+        self._odswiezanie = threading.Lock()
+        self._odswiezanie_w_toku = False
+        self.odswiez_w_tle()  # K7c pkt 9: weryfikacja raz przy starcie, w tle
+
+    def _obecne(self) -> str:
+        """Fingerprint obecności plików (stat, bez SHA) do wykrywania zmian z zewnątrz."""
+        return repr(
+            [
+                (plik.nazwa, (self._katalog / plik.nazwa).is_file())
+                for p in self._pakiety.values()
+                for plik in p.pliki
+            ]
+        )
+
+    def _przelicz(self) -> None:
+        """Pełna weryfikacja (SHA wszystkich plików) do cache; wątek tła/operacji."""
+        with self._odswiezanie:
+            self._stan_cache = [
+                {
+                    "id": p.id,
+                    "nazwa": p.nazwa,
+                    "opis": p.opis,
+                    "wymagany": p.wymagany,
+                    "poziomy": p.poziomy,
+                    "wymaga": p.wymaga,
+                    "rozmiar_bajtow": p.rozmiar,
+                    "stan": stan(p, self._katalog),
+                }
+                for p in self._pakiety.values()
+            ]
+            self._poziomy_cache = next(
+                (w["poziomy"] for w in self._stan_cache if w["wymagany"] and w["stan"] == "zainstalowany"),
+                [],
+            )
+            self._brakujacy_cache = [
+                w["id"] for w in self._stan_cache if w["wymagany"] and w["stan"] != "zainstalowany"
+            ]
+            self._odcisk = self._obecne()
+
+    def odswiez(self) -> None:
+        """Synchronne przeliczenie cache (wątek operacji po jej zakończeniu)."""
+        self._przelicz()
+
+    def odswiez_w_tle(self) -> None:
+        """Przeliczenie cache w wątku tła (start, zmiana na dysku)."""
+        if self._odswiezanie_w_toku:
+            return
+        self._odswiezanie_w_toku = True
+
+        def praca():
+            try:
+                stary_odcisk = self._odcisk
+                self._przelicz()
+                # zmiana wgrana z zewnątrz (nie start): detektory zbudowane
+                # wcześniej ze starego stanu do wyrzucenia
+                if stary_odcisk and self._odcisk != stary_odcisk:
+                    self._zglos_zmiane()
+            finally:
+                self._odswiezanie_w_toku = False
+
+        threading.Thread(target=praca, name="niewidka-pakiety-stan", daemon=True).start()
 
     def ustaw_zwrot_zmiany(self, on_zmiana: callable) -> None:  # type: ignore[valid-type]
         """K7c: zwrot wywoływany po każdej zakończonej operacji (API podpina
@@ -477,36 +545,49 @@ class MenedzerPakietow:
             self._on_zmiana()
 
     def stan_pakietu(self, identyfikator: str) -> str | None:
-        """Zweryfikowany stan pakietu (SHA-256); None = pakiet poza katalogiem."""
-        pakiet = self._pakiety.get(identyfikator)
-        return stan(pakiet, self._katalog) if pakiet else None
+        """Stan pakietu z cache; None = pakiet poza katalogiem."""
+        wpis = next((w for w in self.lista() if w["id"] == identyfikator), None)
+        return wpis["stan"] if wpis else None
 
     def lista(self) -> list[dict]:
-        return [
-            {
-                "id": p.id,
-                "nazwa": p.nazwa,
-                "opis": p.opis,
-                "wymagany": p.wymagany,
-                "poziomy": p.poziomy,
-                "wymaga": p.wymaga,
-                "rozmiar_bajtow": p.rozmiar,
-                "stan": stan(p, self._katalog),
-            }
-            for p in self._pakiety.values()
-        ]
+        """Zapamiętany stan (K7c pkt 9); zmiana obecności plików odpala odświeżenie
+        w tle, bez haszowania na żądanie żądania."""
+        if self._obecne() != self._odcisk:
+            self.odswiez_w_tle()
+        if not self._stan_cache:  # pierwsze przeliczenie jeszcze trwa
+            return [
+                {
+                    "id": p.id,
+                    "nazwa": p.nazwa,
+                    "opis": p.opis,
+                    "wymagany": p.wymagany,
+                    "poziomy": p.poziomy,
+                    "wymaga": p.wymaga,
+                    "rozmiar_bajtow": p.rozmiar,
+                    "stan": "brak"
+                    if all(
+                        not (self._katalog / plik.nazwa).is_file() for plik in p.pliki
+                    )
+                    else "sprawdzanie",
+                }
+                for p in self._pakiety.values()
+            ]
+        return [dict(w) for w in self._stan_cache]
 
     def poziomy_dostepne(self) -> list[int]:
-        for p in self._pakiety.values():
-            if p.wymagany and stan(p, self._katalog) == "zainstalowany":
-                return p.poziomy
-        return []
+        """Z cache; puste, dopóki pierwsze przeliczenie nie się skończy (ostrożnie)."""
+        return list(self._poziomy_cache)
 
     def brakujacy_wymagany(self) -> list[str]:
+        if self._stan_cache:
+            return list(self._brakujacy_cache)
+        # pierwsze przeliczenie trwa: brak choć jednego pliku (stat) na pewno
+        # znaczy brakujący — ostrożnie, bo 409 prowadzi do Ustawień
         return [
             p.id
             for p in self._pakiety.values()
-            if p.wymagany and stan(p, self._katalog) != "zainstalowany"
+            if p.wymagany
+            and any(not (self._katalog / plik.nazwa).is_file() for plik in p.pliki)
         ]
 
     def zakonczone(self) -> bool:
@@ -577,6 +658,7 @@ class MenedzerPakietow:
             finally:
                 self.postep.pakiet = None
                 self._w_toku = False
+                self.odswiez()  # K7c pkt 9: świeży stan po operacji (w tym wątku)
                 self._zglos_zmiane()
 
         threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()
@@ -584,6 +666,7 @@ class MenedzerPakietow:
 
     def usun(self, identyfikator: str) -> None:
         usun(self._pakiety[identyfikator], self._katalog)
+        self.odswiez()
         self._zglos_zmiane()
 
     def _przyjmij_postep(self, pobrane: int, razem: int) -> None:
@@ -591,7 +674,7 @@ class MenedzerPakietow:
         self.postep.razem = razem
 
     def czekaj(self, limit_s: float = 60) -> None:
-        """Tylko dla testów: czeka na koniec operacji w tle."""
+        """Tylko dla testów: czeka na koniec operacji i odświeżenia stanu."""
         koniec = time.monotonic() + limit_s
-        while self._w_toku and time.monotonic() < koniec:
+        while (self._w_toku or self._odswiezanie_w_toku) and time.monotonic() < koniec:
             time.sleep(0.01)

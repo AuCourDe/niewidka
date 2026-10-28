@@ -614,3 +614,38 @@ def test_menedzer_anuluj_pobieranie(katalog_testowy, tmp_path):
     menedzer.czekaj()
     assert "przerwan" in (menedzer.postep.blad or "")
     assert menedzer.postep.pakiet is None  # można ponowić (pkt 11)
+
+
+# --- K7c pkt 9: zapamiętany stan, weryfikacja w tle ---------------------------
+
+def test_menedzer_lista_z_cache_bez_haszowania(menedzer, monkeypatch):
+    """Audyt #9: GET /api/pakiety haszował ~600 MB przy KAŻDYM żądaniu (0,43 s);
+    polling UI potrafił zagłodzić całe API. Stan ma być zapamiętany: liczony
+    przy starcie i po zmianie, nie na żądanie."""
+    menedzer.czekaj()  # pierwsze przeliczenie w tle po starcie
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()  # po operacji stan świeży
+    def boom(pakiet, katalog):
+        raise AssertionError("stan() wywołany na żądanie (musi pochodzić z cache)")
+    monkeypatch.setattr(pakiety, "stan", boom)
+    wpisy = menedzer.lista()
+    assert wpisy[0]["stan"] == "zainstalowany"
+    assert menedzer.poziomy_dostepne() == [1, 2, 3]
+    assert menedzer.brakujacy_wymagany() == []
+    assert menedzer.stan_pakietu("podstawowy") == "zainstalowany"
+
+
+def test_menedzer_zmiana_z_zewnatrz_odswiezana_w_tle(menedzer, katalog_testowy, tmp_path, monkeypatch):
+    """IT wgrywa wagi do katalogu z zewnątrz: fingerprint obecności (stat, bez SHA)
+    wykrywa zmianę, lista() zwraca zapamiętany stan, a hasze liczy wątek tła."""
+    menedzer.czekaj()
+    assert menedzer.lista()[0]["stan"] == "brak"
+    for plik in menedzer._pakiety["podstawowy"].pliki:
+        cel = tmp_path / "m" / plik.nazwa
+        cel.parent.mkdir(parents=True, exist_ok=True)
+        cel.write_bytes(katalog_testowy["tresci"][plik.zrodlo])
+    # lista() zwraca zapamiętany stan i odpala odświeżenie w tle (tu przechwycone)
+    odpalone = []
+    monkeypatch.setattr(menedzer, "odswiez_w_tle", lambda: odpalone.append(1))
+    assert menedzer.lista()[0]["stan"] == "brak"
+    assert odpalone == [1], "zmiana obecności plików ma odpalać odświeżenie w tle"
