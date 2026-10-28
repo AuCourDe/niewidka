@@ -69,10 +69,16 @@ def podziel_segment(
         if poczatek in znaczniki:
             _, _, tekst = znaczniki[poczatek]
             fragmenty.append((tekst, run_na_pozycji(poczatek)))
+        elif _wewnatrz_zamiany(poczatek, posortowane):
+            continue  # Gemini pkt 1: punkt podziału w środku zamiany — bez oryginału
         else:
             idx = run_na_pozycji(poczatek)
             fragmenty.append((segment.tekst[poczatek:koniec], idx))
     return fragmenty
+
+
+def _wewnatrz_zamiany(pozycja: int, zamiany: list[tuple[int, int, str]]) -> bool:
+    return any(start < pozycja < koniec for start, koniec, _ in zamiany)
 
 
 def nazwa_wyniku(oryginalna: str, identyfikator: str) -> str:

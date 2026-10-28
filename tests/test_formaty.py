@@ -62,6 +62,17 @@ class TestPodzielSegment:
         fragmenty = podziel_segment(segment, [(0, 2, "[X]")])
         assert fragmenty == [("[X]", 0), (" ", 0), ("CD", 1)]
 
+    def test_zamiana_przez_granice_runu_nie_przepisuje_koncowki(self):
+        """Gemini pkt 1: encja rozbita na dwa runy, granica runu WEWNĄTRZ zamiany —
+        część za granicą nie może wrócić jako jawny tekst."""
+        segment = Segment(
+            tekst="Jan Kowalski",
+            runs=[RunInfo("Jan ", element="a"), RunInfo("Kowalski", element="b")],
+            starts=[0, 4],
+        )
+        fragmenty = podziel_segment(segment, [(0, 12, "[OSOBA_1_F1]")])
+        assert fragmenty == [("[OSOBA_1_F1]", 0)]
+
     def test_bez_zamian_zwraca_wejscie(self):
         segment = self.jeden_run()
         assert podziel_segment(segment, []) == [("Klient Jan Kowalski, PESEL 44051401359, obecny.", 0)]
