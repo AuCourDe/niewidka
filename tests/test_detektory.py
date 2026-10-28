@@ -682,6 +682,13 @@ class TestSlownikImion:
         assert d.znajdz("Jan podpisał.") == []  # następne słowo z małej litery
         assert [(z.start, z.koniec) for z in d.znajdz("biegł Jan Kowalski.")] == [(6, 18)]
 
+    def test_imie_z_malej_litery_to_nie_imie(self, tmp_path):
+        # pismo właściciela 2026-10-28: „marki Skoda" → OSOBA (rdzeń jak „Marek")
+        # „marki" ma rdzeń „mark" jak imię „Marko" ze słownika GUS
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path, "Marko\t90\n"))
+        assert d.znajdz("pojazd marki Skoda Octavia") == []
+        assert [(z.start, z.koniec) for z in d.znajdz("pojazd Marko Nowak")] == [(7, 18)]
+
     def test_osoba_nieobecna_w_slowniku(self, tmp_path):
         d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
         assert d.znajdz("Marek Kowalski podpisał.") == []
@@ -943,3 +950,35 @@ def test_wczytaj_bardsai_symlink_zamiast_pliku_odpada(tmp_path):
     dowiazanie(katalog / "model.onnx", obcy)
     with pytest.raises(BladDetektora):
         wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+class TestSwiftWNaglowku:
+    """Pismo właściciela 2026-10-28: LFM2.5 brał „WARSZAWY" z nagłówka
+    „URZĄD MIASTA STOŁECZNEGO WARSZAWY" za kod SWIFT."""
+
+    class Atrapa:
+        nazwa = "atrapa-lfm"
+        typy = frozenset({TypEncji.SWIFT})
+
+        def __init__(self, slowo: str):
+            self.slowo = slowo
+
+        def znajdz(self, tekst: str):
+            from niewidka.model import Zakres
+
+            i = tekst.find(self.slowo)
+            return [Zakres(i, i + len(self.slowo), TypEncji.SWIFT, 0.9, self.nazwa)] if i >= 0 else []
+
+    def test_slowo_w_naglowku_wielkimi_literami_to_nie_swift(self):
+        from niewidka.detektory import BezSwiftWNaglowku
+
+        d = BezSwiftWNaglowku(self.Atrapa("WARSZAWY"))
+        assert d.znajdz("URZĄD MIASTA STOŁECZNEGO WARSZAWY\nul. Zielna 17") == []
+
+    @pytest.mark.parametrize(
+        "tekst", ["SWIFT banku: EBOSPLPW.", "kod SWIFT EBOSPLPW", "BIC EBOSPLPW", "Przelew na EBOSPLPW teraz"]
+    )
+    def test_prawdziwy_swift_zostaje(self, tekst):
+        from niewidka.detektory import BezSwiftWNaglowku
+
+        assert len(BezSwiftWNaglowku(self.Atrapa("EBOSPLPW")).znajdz(tekst)) == 1

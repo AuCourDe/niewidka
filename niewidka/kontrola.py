@@ -15,6 +15,7 @@ sama przeoczyłaby to, co on (notka pod przeglądem DOCX, Gemini).
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from dataclasses import dataclass
 from itertools import chain
@@ -26,7 +27,9 @@ from niewidka.detektory import Detektor, RegulyDetektor
 from niewidka.formaty import adapter_dla
 from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
+from niewidka.znaczniki import DOPISEK
 
+WZORZEC_DOPISKU = re.compile(re.escape(DOPISEK) + r" Identyfikator mapy: [a-p]+\.")
 
 @dataclass(frozen=True)
 class Ostrzezenie:
@@ -57,6 +60,12 @@ def kontroluj(
         # samym tekście znacznika, także na jego fragmencie (znalezione E2E K5b).
         tekst_bez_znacznikow = WZORZEC_ZNACZNIKA.sub(
             lambda m: " " * (m.end() - m.start()), segment.tekst
+        )
+        # Dopisek z LOSOWYM identyfikatorem mapy też wyjmujemy (2026-10-28): zmieniał
+        # kontekst modelu przy każdym biegu i ten sam dokument raz przechodził z jawnym
+        # nazwiskiem, raz nie. Wzorzec ścisły (stała treść + litery a-p), danych nie ukryje.
+        tekst_bez_znacznikow = WZORZEC_DOPISKU.sub(
+            lambda m: " " * (m.end() - m.start()), tekst_bez_znacznikow
         )
         for zakres in detektor.znajdz(tekst_bez_znacznikow):
             uwagi.append(

@@ -518,10 +518,43 @@ def zbuduj_poziom(
     return DetektorUzupełniający(
         "poziom3+rozszerzony",
         podstawa=[poziom3],
-        uzup=wczytaj_lfm25(katalog, wariant="q4-bl32", provider=provider, rozszerzony=True),
+        uzup=BezSwiftWNaglowku(
+            wczytaj_lfm25(katalog, wariant="q4-bl32", provider=provider, rozszerzony=True)
+        ),
         typy_uzup=frozenset(
             {TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}
         ),
+    )
+
+
+class BezSwiftWNaglowku:
+    """Odrzuca SWIFT z LFM2.5, którego bezpośredni sąsiad (tylko spacja między nimi)
+    to inne słowo z samych wielkich liter: nagłówek („STOŁECZNEGO WARSZAWY",
+    pismo właściciela 2026-10-28), nie kod banku. Etykiety SWIFT/BIC nie liczą się.
+    """
+
+    def __init__(self, wewnetrzny):
+        self._wewnetrzny = wewnetrzny
+        self.nazwa = wewnetrzny.nazwa
+        self.typy = wewnetrzny.typy
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        return [
+            z
+            for z in self._wewnetrzny.znajdz(tekst)
+            if z.typ is not TypEncji.SWIFT or not _sasiad_wielkimi(tekst, z.start, z.koniec)
+        ]
+
+
+_SASIAD_PRZED = re.compile(r"([^\W\d_]{3,})[ \t]+$")
+_SASIAD_ZA = re.compile(r"[ \t]+([^\W\d_]{3,})")
+
+
+def _sasiad_wielkimi(tekst: str, start: int, koniec: int) -> bool:
+    przed = _SASIAD_PRZED.search(tekst, max(0, start - 40), start)
+    za = _SASIAD_ZA.match(tekst, koniec)
+    return any(
+        m and m.group(1).isupper() and m.group(1) not in ("SWIFT", "BIC") for m in (przed, za)
     )
 
 
@@ -551,8 +584,8 @@ class SlownikImionDetektor:
             s2, e2 = _zadość_liter(tekst, s2, e2)
             if s1 >= e1 or s2 >= e2:
                 continue  # sam_interpunkcja
-            if not tekst[s2].isupper():
-                continue  # wymagane: następne słowo z wielkiej litery
+            if not tekst[s1].isupper() or not tekst[s2].isupper():
+                continue  # oba słowa z wielkiej litery („marki Skoda" to nie Marek, 2026-10-28)
             if not tekst[e1 : s2].isspace():
                 continue  # pomiędzy słowami tylko biały znak
             if rdzen_nazwiska(tekst[s1:e1]) in self._stemy:

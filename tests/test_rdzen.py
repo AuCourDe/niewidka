@@ -21,7 +21,7 @@ from niewidka.rdzen import (
     ukryj,
     zbuduj_detektor,
 )
-from niewidka.znaczniki import DOPISEK
+from niewidka.znaczniki import DOPISEK, zakoduj_identyfikator
 
 TEKST = b"Jan Kowalski, PESEL 44051401359. Telefon +48 601 234 567, e-mail jan@example.com."
 KLUCZ = bytes(range(32))
@@ -170,6 +170,66 @@ def test_kontrola_nowe_znajdziska_blokuja_status():
     assert raport.status == "zablokowany"
     _, _, raport2 = ukryj(TEKST, "txt", 1, detektor=DetektorZawsze(), kontrola_blokada=False)
     assert raport2.ostrzezenia and raport2.status == "ukonczony"
+
+
+class DetektorZaleznyOdKontekstu:
+    """Jak bardsai na piśmie właściciela (2026-10-28): „Anna Kwiatkowska" widać
+    dopiero, gdy „Jan Nowak" jest już zamaskowany (inny kontekst/okno modelu)."""
+
+    nazwa = "atrapa-kontekst"
+    typy = frozenset({TypEncji.OSOBA})
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        frazy = ("Jan Nowak",) if "Jan Nowak" in tekst else ("Anna Kwiatkowska",)
+        return DetektorOsob(frazy).znajdz(tekst)
+
+
+def test_kontrola_ukrywa_to_co_znalazla_zamiast_blokowac_caly_wynik():
+    tekst = "Pismo podpisał Jan Nowak. Informacji udziela Anna Kwiatkowska.".encode()
+    wynik, mapa, raport = ukryj(tekst, "txt", 1, detektor=DetektorZaleznyOdKontekstu())
+    assert raport.status == "ukonczony", raport.ostrzezenia
+    assert b"Jan Nowak" not in wynik and b"Anna Kwiatkowska" not in wynik
+    assert raport.statystyki == {"OSOBA": 2}
+    assert {w.formy[next(iter(w.formy))] for w in mapa.wpisy} == {"Jan Nowak", "Anna Kwiatkowska"}
+    przywrocony, rozbieznosci = przywroc(wynik, "txt", mapa)
+    assert przywrocony == tekst and not rozbieznosci
+
+
+def test_kontrola_osoba_obejmuje_nazwisko_za_imionami():
+    """Kontrola zgłasza „Jan Marek", a nazwisko „Nowicki" zostałoby jawne."""
+
+    class TylkoImiona(DetektorZaleznyOdKontekstu):
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            if "Jan Nowak" in tekst:
+                return DetektorOsob(("Jan Nowak",)).znajdz(tekst)
+            return DetektorOsob(("Jan Marek",)).znajdz(tekst)
+
+    tekst = "Podpisał Jan Nowak.\nZ poważaniem\nJan Marek Nowicki\nKierownik".encode()
+    wynik, _, raport = ukryj(tekst, "txt", 1, detektor=TylkoImiona())
+    assert raport.status == "ukonczony"
+    assert b"Nowicki" not in wynik and b"Kierownik" in wynik
+
+
+def test_kontrola_nie_pokazuje_modelowi_losowego_identyfikatora_mapy():
+    """2026-10-28: losowy identyfikator w dopisku zmieniał kontekst modelu przy
+    każdym biegu, więc ten sam dokument raz przechodził z jawnym nazwiskiem, raz nie."""
+
+    class Zapisujacy:
+        nazwa = "atrapa-zapis"
+        typy = frozenset({TypEncji.OSOBA})
+
+        def __init__(self):
+            self.teksty: list[str] = []
+
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            self.teksty.append(tekst)
+            return []
+
+    detektor = Zapisujacy()
+    _, mapa, _ = ukryj(TEKST, "txt", 1, detektor=detektor)
+    zakodowany = zakoduj_identyfikator(mapa.identyfikator)
+    assert len(detektor.teksty) >= 2  # wykrywanie + kontrola
+    assert not any(zakodowany in t or "ZANONIMIZOWANY" in t for t in detektor.teksty)
 
 
 def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):

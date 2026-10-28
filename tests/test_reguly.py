@@ -325,3 +325,10 @@ def test_iban_wygrywa_z_karta():
     typy = [z.typ for z in wynik]
     assert TypEncji.IBAN in typy
     assert TypEncji.KARTA not in typy
+
+
+def test_adres_miejscowosc_nie_przechodzi_do_nastepnej_linii():
+    # pismo właściciela 2026-10-28: „Warszawa\n\nDotyczy:" znikało w [ADRES_2]
+    tekst = "ul. Różana 8/24\n02-562 Warszawa\n\nDotyczy: wezwania"
+    assert _znalezione(tekst, TypEncji.ADRES) == ["ul. Różana 8/24\n02-562 Warszawa"]
+    assert _znalezione("00-108 Warszawa\nTel. 22 555", TypEncji.ADRES) == ["00-108 Warszawa"]

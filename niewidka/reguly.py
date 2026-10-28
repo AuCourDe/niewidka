@@ -95,8 +95,9 @@ _MIESIĄCE = (
 )
 
 # Miejscowość: słowa z wielkiej litery, także wieloczłonowe („Zielona Góra”,
-# „Bielsko-Biała”) — ogon adresu za kodem pocztowym (K2e).
-_MIEJSCOWOSC = r"[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:\s+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*)*"
+# „Bielsko-Biała”) — ogon adresu za kodem pocztowym (K2e). Tylko w jednej linii:
+# z \s+ zjadał następny wiersz pisma („Warszawa\n\nDotyczy”, 2026-10-28).
+_MIEJSCOWOSC = r"[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:[ \t]+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*)*"
 # Kod pocztowy NN-NNN; lookarouny odcinają kody zanurzone w dłuższych ciągach
 # (data ISO „1982-05-13”, telefon „123-456-789”).
 _KOD = r"(?<![\d-])\d{2}-\d{3}(?![\d-])"

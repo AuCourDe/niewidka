@@ -9,6 +9,7 @@ zapisu działa ZAWSZE (Astra pkt 8); nowe znaleziska blokują status „ukończo
 
 from __future__ import annotations
 
+import re
 import secrets
 import zipfile
 from dataclasses import dataclass, field
@@ -30,8 +31,9 @@ from niewidka.mapa import (
     przygotuj_zamiany,
     rozbieznosci_wpisow,
 )
-from niewidka.model import Encja, TypEncji
+from niewidka.model import Encja, TypEncji, Zakres
 from niewidka.osoby import pogrupuj
+from niewidka.scalanie import scal
 from niewidka.znaczniki import dopisek, nadaj_oznaczenia, zakoduj_identyfikator, znacznik_encji
 
 
@@ -56,6 +58,42 @@ class _BezDaty:
 
     def znajdz(self, tekst: str):
         return [z for z in self._wewnetrzny.znajdz(tekst) if z.typ is not TypEncji.DATA]
+
+
+MAKS_PRZEBIEGOW = 5  # zmierzone 2026-10-28: pismo właściciela potrzebuje do 4 (model niedeterministyczny)
+TYPY_ENCJI = {typ.value for typ in TypEncji}
+# do osoby z kontroli doliczamy do 2 kolejnych wyrazów z wielkiej litery w tej samej
+# linii: model raz łapie „Jan Marek", raz „Nowicki" (zmierzone 2026-10-28)
+_DALSZE_CZLONY = re.compile(r"(?:[ \t]+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:-[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)?){1,2}")
+
+
+class _ZDopelnieniem:
+    """Detektor + fragmenty, które kontrola znalazła w wyniku (2026-10-28).
+
+    Model widzi inny kontekst po zamaskowaniu części danych i potrafi dopiero
+    wtedy rozpoznać osobę pominiętą w pierwszym przejściu („Anna Kwiatkowska"
+    w piśmie właściciela). Zamiast blokować cały wynik, ukrywamy także te
+    fragmenty, wszędzie gdzie występują w oryginale.
+    """
+
+    def __init__(self, wewnetrzny, fragmenty: dict[str, TypEncji]):
+        self._wewnetrzny = wewnetrzny
+        self._fragmenty = fragmenty
+        self.nazwa = wewnetrzny.nazwa
+        self.typy = frozenset(wewnetrzny.typy) | frozenset(fragmenty.values())
+
+    def znajdz(self, tekst: str):
+        dodatkowe = []
+        for fragment, typ in self._fragmenty.items():
+            start = tekst.find(fragment)
+            while start != -1:
+                koniec = start + len(fragment)
+                if typ is TypEncji.OSOBA and (dalej := _DALSZE_CZLONY.match(tekst, koniec)):
+                    koniec = dalej.end()
+                dodatkowe.append(Zakres(start, koniec, typ, 1.0, "kontrola"))
+                start = tekst.find(fragment, start + 1)
+        bazowe = self._wewnetrzny.znajdz(tekst)
+        return scal(tekst, bazowe + dodatkowe) if dodatkowe else bazowe
 
 
 def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
@@ -122,54 +160,76 @@ def ukryj(
             raise ValueError("ukryj wymaga detektora albo konfiguracji do jego zbudowania")
         detektor = zbuduj_detektor(poziom, konfig)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
-    adapter = adapter_formatu(format)
-    dok = adapter.wczytaj(
-        dane, polityka_obrazow=polityka_obrazow, max_rozpakowane=max_rozpakowane_bajtow
-    )
-
-    segmenty_encji = [
-        [Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec]) for z in detektor.znajdz(segment.tekst)]
-        for segment in dok.segmenty
-    ]
-    wszystkie = [encja for encje in segmenty_encji for encja in encje]
-    pogrupuj(wszystkie)
-    nadaj_oznaczenia(wszystkie)
-
-    statystyki: dict[str, int] = {}
-    wystapienia: list[Wystapienie] = []
-    wpisy: dict[str, Wpis] = {}
-    for segment, encje in zip(dok.segmenty, segmenty_encji):
-        if not encje:
-            continue
-        posortowane = sorted(encje, key=lambda e: e.zakres.start)
-        adapter.wstaw_znaczniki(
-            segment, [(e.zakres.start, e.zakres.koniec, znacznik_encji(e)) for e in posortowane]
+    # 2026-10-28: znalezisko kontroli w treści = dane pominięte w poprzednim
+    # przejściu; ukrywamy je i sprawdzamy ponownie. Blokada zostaje, gdy kolejne
+    # przejście nie ma już czego dołożyć (np. wyciek w części, której adapter nie czyta).
+    fragmenty: dict[str, TypEncji] = {}
+    for _ in range(MAKS_PRZEBIEGOW):
+        detektor_przebiegu = _ZDopelnieniem(detektor, fragmenty) if fragmenty else detektor
+        adapter = adapter_formatu(format)
+        dok = adapter.wczytaj(
+            dane, polityka_obrazow=polityka_obrazow, max_rozpakowane=max_rozpakowane_bajtow
         )
-        for encja in posortowane:
-            typ = encja.zakres.typ.value
-            statystyki[typ] = statystyki.get(typ, 0) + 1
-            wariant = encja.wariant or WARIANT_DOMYSLNY
-            wystapienia.append(Wystapienie(len(wystapienia), encja.oznaczenie, wariant, encja.tekst))
-            wpis = wpisy.setdefault(encja.oznaczenie, Wpis(typ, encja.oznaczenie, {}))
-            wpis.formy.setdefault(wariant, encja.tekst)
 
-    mapa = Mapa(
-        # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
-        # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
-        identyfikator=secrets.token_hex(16),
-        utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
-        poziom=poziom,
-        wpisy=list(wpisy.values()),
-        wystapienia=wystapienia,
-    )
-    wynik = adapter.zapisz(dok, dopisek(mapa.identyfikator))  # id w treści wiąże mapę z dokumentem
-    # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
-    oryginaly = {wyst.oryginal for wyst in wystapienia} | {
-        forma for wpis in wpisy.values() for forma in wpis.formy.values()
-    }
-    ostrzezenia = kontroluj(
-        wynik, f"wynik.{format}", detektor, oryginaly=sorted(oryginaly), max_rozpakowane=max_rozpakowane_bajtow
-    )
+        segmenty_encji = [
+            [
+                Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec])
+                for z in detektor_przebiegu.znajdz(segment.tekst)
+            ]
+            for segment in dok.segmenty
+        ]
+        wszystkie = [encja for encje in segmenty_encji for encja in encje]
+        pogrupuj(wszystkie)
+        nadaj_oznaczenia(wszystkie)
+
+        statystyki: dict[str, int] = {}
+        wystapienia: list[Wystapienie] = []
+        wpisy: dict[str, Wpis] = {}
+        for segment, encje in zip(dok.segmenty, segmenty_encji):
+            if not encje:
+                continue
+            posortowane = sorted(encje, key=lambda e: e.zakres.start)
+            adapter.wstaw_znaczniki(
+                segment, [(e.zakres.start, e.zakres.koniec, znacznik_encji(e)) for e in posortowane]
+            )
+            for encja in posortowane:
+                typ = encja.zakres.typ.value
+                statystyki[typ] = statystyki.get(typ, 0) + 1
+                wariant = encja.wariant or WARIANT_DOMYSLNY
+                wystapienia.append(Wystapienie(len(wystapienia), encja.oznaczenie, wariant, encja.tekst))
+                wpis = wpisy.setdefault(encja.oznaczenie, Wpis(typ, encja.oznaczenie, {}))
+                wpis.formy.setdefault(wariant, encja.tekst)
+
+        mapa = Mapa(
+            # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
+            # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
+            identyfikator=secrets.token_hex(16),
+            utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
+            poziom=poziom,
+            wpisy=list(wpisy.values()),
+            wystapienia=wystapienia,
+        )
+        # id w treści wiąże mapę z dokumentem
+        wynik = adapter.zapisz(dok, dopisek(mapa.identyfikator))
+        # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
+        oryginaly = {wyst.oryginal for wyst in wystapienia} | {
+            forma for wpis in wpisy.values() for forma in wpis.formy.values()
+        }
+        ostrzezenia = kontroluj(
+            wynik,
+            f"wynik.{format}",
+            detektor,
+            oryginaly=sorted(oryginaly),
+            max_rozpakowane=max_rozpakowane_bajtow,
+        )
+        nowe = {
+            o.fragment.strip(): TypEncji(o.typ)
+            for o in ostrzezenia
+            if o.typ in TYPY_ENCJI and o.fragment.strip() and o.fragment.strip() not in fragmenty
+        }
+        if not nowe:
+            break
+        fragmenty.update(nowe)
     uwagi: list[str] = []
     obrazy = (dok.zasoby or {}).get("obrazy", {})
     if obrazy.get("usuniete"):
