@@ -74,3 +74,6 @@
   - [ ] tests/test_api.py: round-trip TXT/DOCX (+po przestawieniu zdań), mapa bez klucza, zły klucz/bajt 422, niezgodny identyfikator 422, kolejka 503, za duży 413, zły format 415, brak tokenu/zły Origin 403, caplog bez treści i klucza
   - [ ] żywy serwer (uvicorn, wolny port po `ss -tlnp`) + curl ukryj/przywróć TXT i DOCX → docs/WYNIK-K4.md
   - [ ] pełny pytest (NIEWIDKA_MODELE_KATALOG=~/models/niewidka) + ruff → WYNIK-K4.md; statusy K4 w docs/KAMIENIE.md i todo.md
+- [~] 11:55 (właściciel) „Codex z modelem Astra - możesz go wywołać dwa razy do zbadania kodu albo doradztwa”
+  - [ ] Codex/astra #1: adwersarialny przegląd bezpieczeństwa rdzenia po K4+K3b (formaty, kontrola, mapa, klucze, api) — tylko odczyt
+  - [ ] Codex/astra #2: przegląd końcowy przed publikacją repo (po K5/K6)
