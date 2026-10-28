@@ -739,3 +739,58 @@ def test_przekierowanie_do_publicznego_https_dopuszczone(katalog_testowy, tmp_pa
     katalog = tmp_path / "m"
     pakiety.pobierz(pakiet, katalog, "https://github.com/x/", klient=klient)
     assert pakiety.stan(pakiet, katalog) == "zainstalowany"
+
+
+# --- K7c pkt 11: błąd pobierania nie blokuje ponowienia -----------------------
+
+def test_blad_404_potem_poprawne_ponowienie(tmp_path, katalog_testowy):
+    """Audyt #11: po jednym błędzie lustra UI do końca życia wyłączał przyciski
+    (postep.pakiet został ustawiony). Stan operacji ma się czyścić także przy błędzie."""
+    serwer_dziala = {"ok": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if not serwer_dziala["ok"]:
+            return httpx.Response(404)
+        nazwa = str(request.url).rsplit("/", 1)[-1]
+        return httpx.Response(200, content=katalog_testowy["tresci"].get(nazwa, b""))
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://x/",
+        klient=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    assert menedzer.postep.pakiet is None, "stan operacji ma być wyczyszczony w finally"
+    assert "404" in (menedzer.postep.blad or ""), "błąd przechowywany osobno od stanu"
+    assert menedzer.zakonczone()
+    # lustro naprawione: ponowienie działa bez restartu
+    serwer_dziala["ok"] = True
+    assert menedzer.pobierz("podstawowy") is True, "ponowienie po błędzie ma być możliwe"
+    menedzer.czekaj()
+    wpisy = {w["id"]: w for w in menedzer.lista()}
+    assert wpisy["podstawowy"]["stan"] == "zainstalowany"
+
+
+def test_oserror_przez_strumien_kontrolowany_i_do_ponowienia(tmp_path, katalog_testowy):
+    """OSError w trakcie (dysk pełny, urządzenie znikło) nie może zostawić stanu
+    operacji ustawionego ani wyjść bez kontrolowanego komunikatu."""
+    def strumien():
+        yield b"pierwsze bajty"
+        raise OSError("symulowany brak miejsca na dysku")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=strumien())
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://x/",
+        klient=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    assert menedzer.postep.pakiet is None
+    assert "nie powiodła się" in (menedzer.postep.blad or "")
+    assert menedzer.zakonczone()

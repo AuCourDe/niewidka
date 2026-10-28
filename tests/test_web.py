@@ -175,3 +175,14 @@ async def test_gety_pakietow_i_stanu_wysylaja_token(klient):
     apka = (await klient.get("/apka.js")).text
     assert 'fetch("/api/pakiety", { headers: NAGLOWKI })' in apka
     assert 'fetch("/api/stan", { headers: NAGLOWKI })' in apka
+
+
+@pytest.mark.anyio
+async def test_ui_ponawia_pobieranie_po_bledzie(klient):
+    """K7c pkt 11 (audyt): po błędzie pobierania przyciski mają wracać (sterują
+    nimi stan postep.pakiet z API) i komunikat błędu ma być widoczny."""
+    apka = (await klient.get("/apka.js")).text
+    assert "przycisk.disabled = stanPakietow.postep.pakiet !== null" in apka, (
+        "przyciski pobierania mają zależeć od aktualnego stanu operacji (po błędzie: włączone)"
+    )
+    assert "Nie udało się pobrać pakietu" in apka, "błąd pobierania ma być pokazany użytkownikowi"
