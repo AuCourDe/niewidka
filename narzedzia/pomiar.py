@@ -17,7 +17,12 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from niewidka.detektory import DetektorKompozyt, RegulyDetektor, wczytaj_bardsai
+from niewidka.detektory import (
+    DetektorKompozyt,
+    RegulyDetektor,
+    wczytaj_bardsai,
+    wczytaj_lfm25,
+)
 from niewidka.model import Zakres
 
 
@@ -53,16 +58,23 @@ class DetektorPusty:
         return []
 
 
-def zbuduj_detektor(nazwa: str, katalog_modeli: Path | None):
-    """Detektor pomiaru wg nazwy CLI; poziom1 = reguły + bardsai (KRYTERIA §4)."""
+def zbuduj_detektor(nazwa: str, katalog_modeli: Path | None, wariant: str = "int8"):
+    """Detektor pomiaru wg nazwy CLI; poziomy wg KRYTERIA §4 (poziom2 = +LFM2.5, K2b)."""
     if nazwa == "pusty":
         return DetektorPusty()
     if nazwa == "reguly":
         return RegulyDetektor()
-    if nazwa == "poziom1":
+    if nazwa in ("poziom1", "poziom2", "lfm25"):
         if katalog_modeli is None:
-            raise ValueError("poziom1 wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele")
-        return DetektorKompozyt("poziom1", [RegulyDetektor(), wczytaj_bardsai(katalog_modeli)])
+            raise ValueError(
+                f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
+            )
+        if nazwa == "lfm25":
+            return wczytaj_lfm25(katalog_modeli, wariant=wariant)
+        czesci = [RegulyDetektor(), wczytaj_bardsai(katalog_modeli)]
+        if nazwa == "poziom2":
+            czesci.append(wczytaj_lfm25(katalog_modeli, wariant=wariant))
+        return DetektorKompozyt(nazwa, czesci)
     raise SystemExit(f"nieznany detektor: {nazwa}")
 
 
@@ -184,7 +196,10 @@ def wypisz_czasy(czasy: list[float]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pomiar detektora na korpusie Niewidki")
     parser.add_argument("--korpus", type=Path, default=Path("tests/korpus"))
-    parser.add_argument("--detektor", choices=("pusty", "reguly", "poziom1"), default="reguly")
+    parser.add_argument(
+        "--detektor", choices=("pusty", "reguly", "poziom1", "poziom2", "lfm25"), default="reguly"
+    )
+    parser.add_argument("--wariant", choices=("int8", "fp32"), default="int8")
     parser.add_argument(
         "--modele",
         type=Path,
@@ -194,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         help="katalog wag (domyślnie z NIEWIDKA_MODELE_KATALOG)",
     )
     argumenty = parser.parse_args(argv)
-    detektor = zbuduj_detektor(argumenty.detektor, argumenty.modele)
+    detektor = zbuduj_detektor(argumenty.detektor, argumenty.modele, wariant=argumenty.wariant)
     probki = wczytaj_probki(argumenty.korpus)
     print(f"Detektor: {argumenty.detektor}, próbki: {len(probki)}")
     wyniki, czasy = zmierz_z_czasem(probki, detektor)

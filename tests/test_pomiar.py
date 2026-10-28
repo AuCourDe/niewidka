@@ -114,3 +114,23 @@ def test_zmierz_z_czasem_zwraca_czasy():
     assert len(czasy) == 2
     assert all(c >= 0 for c in czasy)
     assert wyniki["PESEL"].fn == 1
+
+
+# --- K2b: poziom 2 (reguły + bardsai + LFM2.5) ---
+
+def test_zbuduj_detektor_poziom2_bez_katalogu_blad():
+    with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
+        zbuduj_detektor("poziom2", None)
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_poziom2(wagi_lfm25):
+    d = zbuduj_detektor("poziom2", wagi_lfm25)
+    assert d.nazwa == "poziom2"
+    assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai", "onnx:lfm25"]
+
+
+@pytest.mark.model
+def test_zbuduj_detektor_lfm25_wariant_fp32(wagi_lfm25):
+    d = zbuduj_detektor("lfm25", wagi_lfm25, wariant="fp32")
+    assert d.nazwa == "onnx:lfm25"

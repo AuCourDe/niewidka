@@ -31,7 +31,7 @@ def r95_gorna(k: int, n: int) -> float:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Kalibracja R95 do dane/r95.json")
     parser.add_argument("--korpus", type=Path, default=Path("tests/korpus"))
-    parser.add_argument("--detektor", choices=("reguly", "poziom1"), default="poziom1")
+    parser.add_argument("--detektor", choices=("reguly", "poziom1", "poziom2"), default="poziom1")
     parser.add_argument(
         "--modele",
         type=Path,
