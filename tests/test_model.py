@@ -5,7 +5,23 @@ from niewidka.model import Dokument, Encja, RunInfo, Segment, TypEncji, Zakres
 
 def test_typ_encji_ma_wszystkie_typy():
     wartosci = {t.value for t in TypEncji}
-    assert {"OSOBA", "PESEL", "NIP", "REGON", "ADRES", "TELEFON", "EMAIL", "IBAN", "DOKUMENT", "DATA", "INNE"} == wartosci
+    assert {
+        "OSOBA",
+        "PESEL",
+        "NIP",
+        "REGON",
+        "ADRES",
+        "TELEFON",
+        "EMAIL",
+        "IBAN",
+        "DOKUMENT",
+        "DATA",
+        "IP",
+        "KARTA",
+        "SWIFT",
+        "LOGIN",
+        "INNE",
+    } == wartosci
 
 
 def test_zakres_domyślnie_bez_sumy_kontrolnej():

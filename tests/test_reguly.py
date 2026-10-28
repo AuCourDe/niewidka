@@ -42,7 +42,10 @@ def test_pesel_poprawny_nie_jest_podejrzany():
 
 
 def test_pesel_w_dluzszej_liczbie_nie_znaleziony():
-    assert _zakresy("Id transakcji 1234405140135977 end.") == []
+    # PESEL-kształt zanurzony w dłuższym ciągu nie jest PESEL-em; ciąg 16 cyfr
+    # z poprawną sumą Luhna (K7b) jest natomiast legalną kartą płatniczą
+    wynik = _zakresy("Id transakcji 1234405140135977 end.")
+    assert TypEncji.PESEL not in [z[2] for z in wynik]
 
 
 # --- cykl B: NIP, REGON, IBAN, DOWÓD ---------------------------------------
@@ -227,3 +230,98 @@ def test_zwykle_liczby_z_lacznikiem_nie_sa_adresem():
 def test_adres_kod_nie_pochlania_dalej_bez_miejscowosci():
     # Kod bez wielkiej litery za nim (tu: bez miejscowości) — bez ogona.
     assert _znalezione("Paczka z kodem 12-345 w dzienniku.", TypEncji.ADRES) == []
+
+
+# --- cykl G (K7b): adres IP v4/v6 --------------------------------------------
+
+def test_ip_v4_poprawny_znaleziony():
+    # offsety = próbka nowe-ip-1 z tests/korpus/probki_nowe_typy.jsonl
+    tekst = "Zapis logu: połączenie z adresu 192.168.14.201."
+    wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.IP]
+    assert [(z.start, z.koniec) for z in wynik] == [(32, 46)]
+    assert wynik[0].podejrzana is False
+    assert wynik[0].pewnosc > 0.5
+
+
+def test_ip_v4_oktet_za_duzy_podejrzany():
+    # 256 to nie oktet: maskowane jako podejrzane (bezpieczna strona), nie pewne
+    wynik = znajdz("Serwer 256.1.2.3 nie odpowiada.")
+    ip = [z for z in wynik if z.typ is TypEncji.IP]
+    assert [(z.start, z.koniec) for z in ip] == [(7, 16)]
+    assert ip[0].podejrzana is True
+
+
+def test_ip_v4_zanurzone_w_dluzszym_ciagu_nie_znalezione():
+    assert [z for z in znajdz("Id 1192.168.14.201 x") if z.typ is TypEncji.IP] == []
+
+
+def test_ip_v6_skrócony_i_pelny():
+    wynik = znajdz("Bramka: 2001:db8::1 skonfigurowana.")
+    assert [(z.start, z.koniec, z.typ) for z in wynik] == [(8, 19, TypEncji.IP)]
+    pelny = znajdz("Adres 2001:0db8:0000:0000:0000:0000:0000:0001 jest pełny.")
+    assert any(z.typ is TypEncji.IP for z in pelny)
+    loopback = znajdz("Host to ::1 w konfiguracji.")
+    assert [(z.start, z.koniec, z.typ) for z in loopback] == [(8, 11, TypEncji.IP)]
+
+
+def test_czas_i_wersja_nie_sa_ip():
+    assert [z for z in znajdz("Wpis z godziny 12:45:30 potwierdzam.") if z.typ is TypEncji.IP] == []
+    assert [z for z in znajdz("Biblioteka w wersji 1.2.3.") if z.typ is TypEncji.IP] == []
+    # pięć członów z kropkami to nie IP v4
+    assert [z for z in znajdz("Ciąg 1.2.3.4.5 w opisie.") if z.typ is TypEncji.IP] == []
+
+
+# --- cykl H (K7b): karta płatnicza z sumą Luhna ------------------------------
+
+def test_karta_poprawna_luhn_z_spacjami():
+    tekst = "Karta płatnicza ma numer 4556 7788 9901 2232."
+    wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.KARTA]
+    assert [(z.start, z.koniec) for z in wynik] == [(25, 44)]
+    assert wynik[0].pewnosc == 1.0
+    assert wynik[0].suma_kontrolna is True
+    assert wynik[0].podejrzana is False
+
+
+def test_karta_ciagla_poprawna():
+    wynik = [z for z in znajdz("Płatność: 5417042188563314 zapisana.") if z.typ is TypEncji.KARTA]
+    assert [(z.start, z.koniec) for z in wynik] == [(10, 26)]
+
+
+def test_karta_bledna_suma_podejrzana():
+    # 2234 = próbka z korpusu (fikcyjna, suma Luhna błędna): maskowana z flagą
+    wynik = [z for z in znajdz("Karta 4556 7788 9901 2234 wygasła.") if z.typ is TypEncji.KARTA]
+    assert wynik[0].podejrzana is True
+    assert wynik[0].suma_kontrolna is False
+    assert wynik[0].pewnosc == 0.5
+
+
+def test_karta_13_cyfr_poprawna():
+    wynik = [z for z in znajdz("Zapis 4556778899010 w systemie.") if z.typ is TypEncji.KARTA]
+    assert [(z.start, z.koniec) for z in wynik] == [(6, 19)]
+
+
+def test_pesel_nip_regon_nie_sa_karta():
+    assert [z for z in znajdz("PESEL 44051401359.") if z.typ is TypEncji.KARTA] == []
+    assert [z for z in znajdz("NIP 1234563218.") if z.typ is TypEncji.KARTA] == []
+    assert [z for z in znajdz("REGON 491234567.") if z.typ is TypEncji.KARTA] == []
+
+
+def test_regon14_wygrywa_z_karta():
+    # REGON-14 (poprawna suma kontrolna) kształtem mieści się w oknie karty:
+    # po scalaniu etykietą jest REGON (suma kontrolna > okno Luhna bez sumy)
+    from niewidka.detektory import RegulyDetektor
+
+    wynik = RegulyDetektor().znajdz("REGON 49000001000003 w rejestrze.")
+    assert [z.typ for z in wynik] == [TypEncji.REGON]
+
+
+def test_iban_wygrywa_z_karta():
+    # IBAN ze spacjami co 4 znaki zawiera 16-cyfrowe okno: po scalaniu całą
+    # encję etykietuje IBAN z poprawną sumą kontrolną, nigdy KARTA
+    from niewidka.detektory import RegulyDetektor
+
+    iban = "PL61 1090 1014 0000 0712 1981 2874"
+    wynik = RegulyDetektor().znajdz(f"Przelew na {iban} wykonany.")
+    typy = [z.typ for z in wynik]
+    assert TypEncji.IBAN in typy
+    assert TypEncji.KARTA not in typy

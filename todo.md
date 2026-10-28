@@ -31,6 +31,18 @@
   - [x] Propozycje: Astra TOP3 Niewidka/Skrytopis/Pseudonim; Gemini agy2 TOP3 Niewidka/Kryptonim/Płachta; Argon-www Kryptonim (zajęte: portfel krypto)
   - [~] Wybrana **Niewidka** (`docs/KONSULTACJE.md`); zmienione README/CLAUDE.md/todo. ZOSTAJE: przeniesienie katalogu `niewidka` -> `niewidka` po zakończeniu sesji (zmiana w trakcie psuje hooki/cwd); repo GitHub `niewidka` – utworzenie publicznego repo wymaga zgody właściciela
 
+## 2026-10-28 (kontynuacja K7b, sesja glm 16:43)
+- [~] 16:43 (właściciel) ZADANIE K7b — pakiety modeli (TDD, reużyj istniejące moduły): (a) paczka BEZ wag, modele po instalacji; (b) pierwsze uruchomienie pyta o pobranie; (c) Ustawienia: przełączniki per pakiet; (d) Rozszerzony = LFM2.5 Q4; (e) build ze źródeł + gotowy EXE z GitHuba.
+  - [ ] decyzja orkiestratora: DWA pakiety — Podstawowy (bardsai Q4 bl32, wymagany, poziomy 1-3) + Rozszerzony (LFM2.5 Q4 bl32, poziom 3, tylko IP/KARTA/SWIFT/LOGIN bez nachodzenia; INT8 odpada)
+  - [ ] reguły poziomu 1: IP v4/v6 + karta płatnicza Luhn (TDD, probki_nowe_typy.jsonl); nowe typy znaczników IP, KARTA, SWIFT, LOGIN
+  - [ ] niewidka/dane/pakiety.json (URL przypięte, SHA-256, NIEWIDKA_MODELE_ZRODLO, lustro IT) + niewidka/pakiety.py (httpx strumieniowo, wznawianie, hash przed użyciem, atomowo, usuń, stan, offline dla IT; katalog %LOCALAPPDATA%\Niewidka\modele / XDG, env nadpisuje)
+  - [ ] pomiar przed podpięciem LFM2.5: poziom 3 z Rozszerzonym na obu korpusach; typy regułowe i OSOBA identyczne jak bez niego -> docs/WYNIK-K7.md
+  - [ ] API GET/POST /api/pakiety (stan, pobierz, usuń, postęp; token, Host/Origin); rdzeń: poziom bez pakietu = jasny błąd; suwak wyłącza poziomy bez pakietu
+  - [ ] UI: ekran pierwszego uruchomienia (Podstawowy / wszystko / Później) + Ustawienia z paskiem postępu; teksty bez półpauz; domyślny poziom 2
+  - [ ] budowa: zbuduj_windows.* bez wag; .github/workflows/wydanie.yml (tag v* -> windows-latest, PyInstaller + ZIP, testy, Releases + Q4 + SHA256SUMS; bez tworzenia tagu, dry-run workflow_dispatch opisany); README „Pobierz”/„Zbuduj ze źródeł”
+  - [ ] test na Windows (C:\Users\uzytkownik\niewidka-build\repo, klon //wsl.localhost, git pull bez sieci): zbuduj, uruchom, pierwsze uruchomienie, pobierz Podstawowy z lokalnego lustra (http.server), ukryj TXT i DOCX, zrzuty docs/zrzuty/k7-*.png; WYNIK-K7.md
+  - [ ] pytest całości + ruff; commity po zielonych krokach (Co-Authored-By: GLM via claude-glm), add konkretnych ścieżek, pull --rebase, push; bez Dockera, bez codex; procesy po teście ubite
+
 ## 2026-10-28
 - [x] (właściciel) „zrealizuj kamienie K0 i K1 dokładnie wg PLAN.md/LLD.md”: K0 = korpus ≥40 próbek JSONL (polskie, fikcyjne, poprawne i błędne sumy kontrolne) + `KRYTERIA.md` (osobny commit PRZED pierwszym pomiarem) + `narzedzia/pomiar.py` (recall/precision per typ); K1 TDD = `model.py`, `reguly.py` (python-stdnum), `scalanie.py`, `osoby.py` (grupowanie odmian nazwisk), `znaczniki.py`; bez modeli ONNX (to K2). Venv `.venv`, pyproject, pytest lokalnie, ruff czysty, bez Dockera. Commity po każdym zielonym kroku (Co-Authored-By: GLM via claude-glm), bez pusha. Wynik: `docs/WYNIK-K1.md` (per typ vs progi, bez przesuwania progów) + statusy w todo.md.
   - [x] K0: `KRYTERIA.md` z progami recall/precision (osobny commit `2d173a6` PRZED pierwszym pomiarem)

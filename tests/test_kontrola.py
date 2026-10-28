@@ -107,6 +107,19 @@ def _settings_z_pesel() -> bytes:
 PESEL = "44051401359"
 
 
+def _fonttable_z_karta(numer: str) -> bytes:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f'<w:font w:name="Lato"><w:panose1 w:val="{numer}"/></w:font></w:fonts>'
+    ).encode()
+
+
+def _fonttable_z_panose() -> bytes:
+    """Typowa wartość panose z żywego DOCX (K7b): 16 cyfr, Luhn błędny."""
+    return _fonttable_z_karta("0502020204030204")
+
+
 class TestSkanSurowy:
     """Kontrola skanuje SUROWO każdą część archiwum, także tę, której adapter
     nie parsuje (Gemini: notka pod przeglądem — kontrola przez ten sam adapter
@@ -121,6 +134,30 @@ class TestSkanSurowy:
         peselowe = [u for u in uwagi if u.typ == "PESEL"]
         assert peselowe, f"kontrola nie widzi PESEL w settings.xml: {uwagi}"
         assert any(u.czesc == "word/settings.xml" for u in peselowe)
+
+    def test_podejrzana_karta_w_metadanych_nie_blokuje(self):
+        """Panose w fontTable.xml (16 cyfr, błędny Luhn) to typografia, nie wyciek:
+        karta z błędną sumą pomijana w skanie surowym jak DATA (żywy bieg K7b:
+        wzorcowy DOCX padał zablokowany przez word/fontTable.xml)."""
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(dane, podmien={"word/fontTable.xml": _fonttable_z_panose()})
+
+        uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa())
+
+        assert not [u for u in uwagi if u.typ == "KARTA"], uwagi
+
+    def test_pewna_karta_w_skane_surowym_nadal_ostrzega(self):
+        """16 cyfr z POPRAWNYM Luhnem w części XML to realny kandydat karty:
+        ostrzeżenie zostaje, niezależnie od części."""
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        brudny = _docx_przebuduj(
+            dane, podmien={"word/fontTable.xml": _fonttable_z_karta("4556778899012232")}
+        )
+
+        uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa())
+
+        karty = [u for u in uwagi if u.typ == "KARTA"]
+        assert karty and karty[0].fragment == "4556778899012232"
 
     def test_oryginal_z_mapy_w_archiwum_ostrzezenie_krytyczne(self):
         dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()

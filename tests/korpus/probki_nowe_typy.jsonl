@@ -38,3 +38,6 @@
 {"id": "nowe-wyznanie-1", "opis": "Wyznanie pacjenta", "tekst": "Pacjentka zadeklarowała wyznanie ewangelickie.", "encje": [{"typ": "special.religion", "start": 33, "koniec": 45, "tekst": "ewangelickie"}]}
 {"id": "nowe-wyznanie-2", "opis": "Wyznanie w ankiecie", "tekst": "W ankiecie pracowniczej wpisano wyznanie starokatolickie.", "encje": [{"typ": "special.religion", "start": 41, "koniec": 56, "tekst": "starokatolickie"}]}
 {"id": "nowe-wyznanie-3", "opis": "Pole wyznanie", "tekst": "Formularz zawiera pole wyznanie: mahometańskie.", "encje": [{"typ": "special.religion", "start": 33, "koniec": 46, "tekst": "mahometańskie"}]}
+{"id": "nowe-karta-ok-1", "opis": "numer karty na potwierdzeniu", "tekst": "Sklep zaksięgował płatność kartą 455677889901224.", "encje": [{"typ": "financial.credit_card", "start": 33, "koniec": 48, "tekst": "455677889901224"}]}
+{"id": "nowe-karta-ok-2", "opis": "numer karty w potwierdzeniu przelewu", "tekst": "Przelew z karty 541704218856337 został przyjęty.", "encje": [{"typ": "financial.credit_card", "start": 16, "koniec": 31, "tekst": "541704218856337"}]}
+{"id": "nowe-karta-ok-3", "opis": "numer karty w rejestrze", "tekst": "W rejestrze transakcji widnieje karta 489511225597802.", "encje": [{"typ": "financial.credit_card", "start": 38, "koniec": 53, "tekst": "489511225597802"}]}

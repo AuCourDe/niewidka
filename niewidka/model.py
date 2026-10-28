@@ -18,6 +18,12 @@ class TypEncji(enum.StrEnum):
     IBAN = "IBAN"
     DOKUMENT = "DOKUMENT"
     DATA = "DATA"
+    # K7b: nowe typy (reguły: IP i karta z sumą Luhna; pakiet Rozszerzony LFM2.5
+    # dodaje SWIFT i LOGIN tam, gdzie reguły milczą).
+    IP = "IP"
+    KARTA = "KARTA"
+    SWIFT = "SWIFT"
+    LOGIN = "LOGIN"
     INNE = "INNE"
 
 

@@ -68,6 +68,26 @@ def _dowod_ok(zapis: str) -> bool:
     return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == int(nr[3])
 
 
+# K7b: tania detekcja poziomu 1 dla typów, których wcześniej reguły nie obejmowały.
+
+def _ip_v4_ok(zapis: str) -> bool:
+    return all(int(oktet) <= 255 for oktet in zapis.split("."))
+
+
+def _luhn_ok(zapis: str) -> bool:
+    cyfry = [int(z) for z in _znormalizuj(zapis) if z.isdigit()]
+    if not 13 <= len(cyfry) <= 19:
+        return False
+    suma = 0
+    for i, cyfra in enumerate(reversed(cyfry)):
+        if i % 2:
+            cyfra *= 2
+            suma += cyfra - 9 if cyfra > 9 else cyfra
+        else:
+            suma += cyfra
+    return suma % 10 == 0
+
+
 # Miesiące w dopełniaczu (zapis słowny dat).
 _MIESIĄCE = (
     "stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia"
@@ -180,6 +200,40 @@ REGULY: tuple[Regula, ...] = (
         ),
         walidator=None,
         suma_kontrolna=False,
+    ),
+    # K7b: IP v4. Koniec = nie za cyfrą i nie za kropką z cyfrą („1.2.3.4.5" i
+    # „.1.2.3.4" nie łapią się); zły oktet (256+) zostaje podejrzanym.
+    Regula(
+        typ=TypEncji.IP,
+        wzorzec=re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)"),
+        walidator=_ip_v4_ok,
+        suma_kontrolna=False,
+    ),
+    # K7b: IP v6 — formy pełna (8 grup) i ze skrótem „::". SIMPLIFICATION: bez
+    # pełnej gramatyki RFC 4291 (strefy %, formy mieszane); czas „12:45:30" nie
+    # przechodzi (brak „::" i mniej niż 8 grup). Rozbudować, gdy pomiar pokaże FN.
+    Regula(
+        typ=TypEncji.IP,
+        wzorzec=re.compile(
+            r"(?<![0-9A-Fa-f:])"
+            r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}"
+            r"|(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?"
+            r"|[0-9A-Fa-f]{0,4}::[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*"
+            r"(?![0-9A-Fa-f:])"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    # K7b: karta płatnicza 13-19 cyfr w grupach po 4 (separatory opcjonalne) z
+    # sumą Luhna; błędna suma = podejrzana (literówka w prawdziwej karcie nie
+    # może zniknąć cicho, jak PESEL). Okno od 13 cyfr nie wchodzi w NIP (10),
+    # PESEL (11) i REGON-9; IBAN/REGON-14 z poprawną sumą kontrolną wygrywają
+    # etykietę w scalaniu.
+    Regula(
+        typ=TypEncji.KARTA,
+        wzorzec=re.compile(r"(?<!\d)(?:\d{4}[ -]?){3}\d{1,7}(?!\d)"),
+        walidator=_luhn_ok,
+        suma_kontrolna=True,
     ),
 )
 

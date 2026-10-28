@@ -26,6 +26,10 @@ const ETYKIETY = {
   DOKUMENT: ["numer dokumentu", "numery dokumentów"],
   DOWOD: ["numer dowodu osobistego", "numery dowodów osobistych"],
   DATA: ["data", "daty"],
+  IP: ["adres IP", "adresy IP"],
+  KARTA: ["numer karty płatniczej", "numery kart płatniczych"],
+  SWIFT: ["kod SWIFT", "kody SWIFT"],
+  LOGIN: ["login", "loginy"],
   INNE: ["inne dane", "inne dane"],
 };
 
@@ -47,6 +51,10 @@ const TYPY_WYKRYWANE = [
   ["TELEFON", "na przykład +48 600 700 800 lub (22) 123 45 67."],
   ["ADRES", "adres zamieszkania, na przykład ul. Polna 14 m. 5, 00-001 Warszawa."],
   ["DATA", "na przykład data urodzenia, 12 kwietnia 1985 r. albo 12.04.1985."],
+  ["KARTA", "numer karty płatniczej, na przykład 4556 7788 9901 2232."],
+  ["IP", "adres IP urządzenia, na przykład 192.168.14.201 albo 2001:db8::1."],
+  ["SWIFT", "kod banku SWIFT albo BIC, na przykład EBOSPLPW. Wykrywany przy rozszerzonym pakiecie modeli."],
+  ["LOGIN", "login do serwisu internetowego, na przykład stefan_wodorost. Wykrywany przy rozszerzonym pakiecie modeli."],
 ];
 
 function budujListeTypow() {

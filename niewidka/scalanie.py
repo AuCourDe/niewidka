@@ -23,6 +23,7 @@ def _priorytet(kandydat: Zakres, wewnętrzny: bool) -> tuple:
 def scal(tekst_segmentu: str, kandydaci: list[Zakres]) -> list[Zakres]:
     """Zwraca encje po scaleniu grup nakładań, sortowane wg pozycji."""
     del tekst_segmentu  # argument z kontraktu LLD; unia znaków nie jest tu potrzebna
+    kandydaci = _bez_fragmentow_pewnych(kandydaci)
     wyniki: list[Zakres] = []
     grupa: list[Zakres] = []
     koniec_grupy = -1
@@ -38,6 +39,27 @@ def scal(tekst_segmentu: str, kandydaci: list[Zakres]) -> list[Zakres]:
     if grupa:
         wyniki.append(_zwyciezca(grupa))
     return sorted(wyniki, key=lambda z: z.start)
+
+
+def _bez_fragmentow_pewnych(kandydaci: list[Zakres]) -> list[Zakres]:
+    """Kandydat w pełni zawarty w innym kandydacie z sumą kontrolną odpada (K7b).
+
+    Numer z poprawną sumą kontrolną jest autorytatywny: jego fragment nie jest
+    osobną daną (okno Luhna wewnątrz IBAN-u to nie karta). Zakres-fragment to
+    podzbiór zakresu nosiciela, więc maskowana unia się nie zmienia.
+    """
+    pewne = [z for z in kandydaci if z.suma_kontrolna]
+    return [
+        z
+        for z in kandydaci
+        if not any(
+            p is not z
+            and (p.start, p.koniec) != (z.start, z.koniec)
+            and p.start <= z.start
+            and z.koniec <= p.koniec
+            for p in pewne
+        )
+    ]
 
 
 def _zwyciezca(grupa: list[Zakres]) -> Zakres:

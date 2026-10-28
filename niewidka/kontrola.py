@@ -91,7 +91,7 @@ def _skan_surowy(
         # K4b pkt 5: PII potrafi siedzieć w samej NAZWIE części (katalog ZIP czyta
         # każdy odbiorca); DATA pomijana jak w treści (metadane techniczne)
         for zakres in detektor.znajdz(nazwa):
-            if zakres.typ is TypEncji.DATA:
+            if _techniczny(zakres):
                 continue
             uwagi.append(
                 Ostrzezenie("NAZWA_CZESCI", nazwa[zakres.start : zakres.koniec], -1, nazwa)
@@ -117,7 +117,7 @@ def _skan_surowy(
             if not wartosc:
                 continue
             for zakres in detektor.znajdz(wartosc):
-                if zakres.typ is TypEncji.DATA:
+                if _techniczny(zakres):
                     continue
                 fragment = wartosc[zakres.start : zakres.koniec]
                 klucz = (zakres.typ.value, fragment)
@@ -126,6 +126,13 @@ def _skan_surowy(
                 widziane_w_czesci.add(klucz)
                 uwagi.append(Ostrzezenie(zakres.typ.value, fragment, -1, nazwa))
     return uwagi
+
+
+def _techniczny(zakres) -> bool:
+    """Typy krzyczące na metadane techniczne w skanie surowym (precedens DATA).
+    K7b: karta z BŁĘDNYM Luhnem (panose fontów w fontTable.xml) — ciąg typografii,
+    nie wyciek; karta z poprawną sumą zostaje ostrzeżeniem."""
+    return zakres.typ is TypEncji.DATA or (zakres.typ is TypEncji.KARTA and zakres.podejrzana)
 
 
 def _czesci(dane: bytes, max_rozpakowane: int | None = None) -> list[tuple[str, bytes]]:

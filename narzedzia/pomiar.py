@@ -65,6 +65,15 @@ class DetektorPusty:
 
 PLIK_NOWE_TYPOW = "probki_nowe_typy.jsonl"
 
+# K7b: klasy LFM2.5 z korpusu nowych typów, które rdzeń (reguły albo pakiet
+# Rozszerzony LFM2.5) zwraca jako typy Niewidki; reszta zostaje surową nazwą.
+TYPY_KORPUSU_NA_RDZEN = {
+    "contact.ip_address": "IP",
+    "financial.credit_card": "KARTA",
+    "financial.swift_bic": "SWIFT",
+    "online.username": "LOGIN",
+}
+
 
 class Lfm25SoloDetektor:
     """LFM2.5 z PELNĄ mapą klas (pomiar K2e — nie produkt).
@@ -193,7 +202,9 @@ def zmierz_z_czasem(probki: list[Probka], detektor) -> tuple[dict[str, WynikTypu
     return wyniki, czasy
 
 
-def wczytaj_probki(katalog: Path, pliki: set[str] | None = None) -> list[Probka]:
+def wczytaj_probki(
+    katalog: Path, pliki: set[str] | None = None, typy_rdz: bool = False
+) -> list[Probka]:
     probki = []
     for plik in sorted(katalog.glob("*.jsonl")):
         if pliki is not None and plik.name not in pliki:
@@ -204,7 +215,7 @@ def wczytaj_probki(katalog: Path, pliki: set[str] | None = None) -> list[Probka]
             surowa = json.loads(linia)
             encje = [
                 Oczekiwana(
-                    typ=e["typ"],
+                    typ=TYPY_KORPUSU_NA_RDZEN.get(e["typ"], e["typ"]) if typy_rdz else e["typ"],
                     start=e["start"],
                     koniec=e["koniec"],
                     tekst=e["tekst"],
@@ -306,6 +317,12 @@ def main(argv: list[str] | None = None) -> int:
         help="ograniczenie pomiaru do wskazanych plików korpusu (nazwa, powtarzalne)",
     )
     parser.add_argument(
+        "--typy-rdz",
+        action="store_true",
+        help="typy korpusu nowych (contact.ip_address itd.) liczone jako typy rdzenia "
+        "(IP, KARTA, SWIFT, LOGIN) — dla detektorów rdzenia; lfm25-solo zostaje surowy (K2e)",
+    )
+    parser.add_argument(
         "--wariant",
         choices=("int8", "fp32", "q4-bl32", "q4-bl128"),  # K7a: kwantyzacja int4
         default="int8",
@@ -329,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
     detektor = zbuduj_detektor(
         argumenty.detektor, argumenty.modele, wariant=argumenty.wariant, próg_osoba=argumenty.prog_osoba
     )
-    probki = wczytaj_probki(argumenty.korpus, set(argumenty.plik) if argumenty.plik else None)
+    probki = wczytaj_probki(
+        argumenty.korpus, set(argumenty.plik) if argumenty.plik else None, typy_rdz=argumenty.typy_rdz
+    )
     print(
         f"Detektor: {argumenty.detektor}, próbki: {len(probki)}"
         + (f", próg OSOBA: {argumenty.prog_osoba}" if argumenty.detektor in ("poziom2-a", "poziom2-b") else "")
