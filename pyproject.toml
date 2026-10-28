@@ -4,11 +4,16 @@ version = "0.1.0"
 description = "Lokalne ukrywanie danych osobowych (pseudonimizacja) w polskich tekstach i dokumentach"
 requires-python = ">=3.11"
 dependencies = [
+    "cryptography>=50.0.2",
+    "fastapi>=0.162.0",
     "httpx>=0.28.1",
+    "keyring>=25.7.0",
     "onnxruntime>=1.31.1",
     "python-docx>=1.1",
+    "python-multipart>=0.0.32",
     "python-stdnum>=1.20",
     "tokenizers>=0.23.3",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]

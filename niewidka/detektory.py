@@ -288,6 +288,24 @@ def wczytaj_poziom2(
     )
 
 
+def wczytaj_poziom2_uzupelniajacy(
+    katalog: Path,
+    provider: str = "CPUExecutionProvider",
+    wariant_b: bool = False,
+    wariant_lfm25: str = "fp32",
+) -> DetektorUzupełniający:
+    """Wariant uzupełniający K2c: LFM2.5 dodaje OSOBA tylko tam, gdzie nie nachodzi
+    na zakresy z reguł ani bardsai. Bardsai/reguły mają pierwszeństwo.
+    """
+    nazwa = "poziom2-uzup-b" if wariant_b else "poziom2-uzup"
+    return DetektorUzupełniający(
+        nazwa,
+        podstawa=[RegulyDetektor(), wczytaj_bardsai(katalog, provider=provider)],
+        uzup=wczytaj_lfm25(katalog, wariant=wariant_lfm25, provider=provider),
+        wariant_b=wariant_b,
+    )
+
+
 class DetektorKompozyt:
     """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie (LLD §4)."""
 
@@ -299,6 +317,55 @@ class DetektorKompozyt:
     def znajdz(self, tekst: str) -> list[Zakres]:
         kandydaci = [z for czesc in self.czesci for z in czesc.znajdz(tekst)]
         return scal(tekst, kandydaci)
+
+
+class DetektorUzupełniający:
+    """Poziom 2 wariant uzupełniający (K2c): reguły + bardsai jako podstawa,
+    LFM2.5 dodaje OSOBA WYŁĄCZNIE tam, gdzie nie nachodzi na żaden zakres
+    z reguł ani bardsai (bardsai/reguły mają pierwszeństwo granic).
+    """
+
+    def __init__(
+        self,
+        nazwa: str,
+        podstawa: list[Detektor],
+        uzup: Detektor,
+        wariant_b: bool = False,
+    ):
+        self.nazwa = nazwa
+        self.podstawa = podstawa
+        self.uzup = uzup
+        self.wariant_b = wariant_b
+        self.typy: frozenset[TypEncji] = frozenset().union(
+            *(c.typy for c in podstawa), *(uzup.typy)
+        )
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        kandydaci_podstawa = [z for czesc in self.podstawa for z in czesc.znajdz(tekst)]
+        kandydaci_uzup = self.uzup.znajdz(tekst)
+        # Dodaj tylko te zakresy LFM2.5, które nie nachodzą na żaden zakres z podstawy
+        dodatkowe: list[Zakres] = []
+        for z in kandydaci_uzup:
+            if z.typ != TypEncji.OSOBA:
+                continue
+            # sprawdź czy nachodzi na cokolwiek z podstawy
+            nachodzi = False
+            for p in kandydaci_podstawa:
+                # nachodzenie - standardowe nakładanie się przedziałów
+                if not (z.koniec <= p.start or p.koniec <= z.start):  # mają część wspólną
+                    nachodzi = True
+                    break
+            if nachodzi:
+                continue
+            if self.wariant_b:
+                # przyjmowany tylko, gdy zaczyna się wielką literą i ma ≥ 2 znaki
+                if z.koniec - z.start < 2:
+                    continue
+                if z.start >= len(tekst) or not tekst[z.start].isupper():
+                    continue
+            dodatkowe.append(z)
+        wszystkie = list(kandydaci_podstawa) + dodatkowe
+        return scal(tekst, wszystkie)
 
 
 def okna_tokenow(n: int, okno: int, krok: int) -> list[tuple[int, int]]:

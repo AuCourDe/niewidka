@@ -19,9 +19,11 @@ from pathlib import Path
 
 from niewidka.detektory import (
     DetektorKompozyt,
+    DetektorUzupełniający,
     RegulyDetektor,
     wczytaj_bardsai,
     wczytaj_lfm25,
+    wczytaj_poziom2_uzupelniajacy,
 )
 from niewidka.model import Zakres
 
@@ -75,6 +77,16 @@ def zbuduj_detektor(nazwa: str, katalog_modeli: Path | None, wariant: str = "int
         if nazwa == "poziom2":
             czesci.append(wczytaj_lfm25(katalog_modeli, wariant=wariant))
         return DetektorKompozyt(nazwa, czesci)
+    if nazwa in ("poziom2-uzup", "poziom2-uzup-b"):
+        if katalog_modeli is None:
+            raise ValueError(
+                f"{nazwa} wymaga katalogu wag: NIEWIDKA_MODELE_KATALOG albo --modele"
+            )
+        return wczytaj_poziom2_uzupelniajacy(
+            katalog_modeli,
+            wariant_b=(nazwa == "poziom2-uzup-b"),
+            wariant_lfm25="fp32",
+        )
     raise SystemExit(f"nieznany detektor: {nazwa}")
 
 
@@ -197,7 +209,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pomiar detektora na korpusie Niewidki")
     parser.add_argument("--korpus", type=Path, default=Path("tests/korpus"))
     parser.add_argument(
-        "--detektor", choices=("pusty", "reguly", "poziom1", "poziom2", "lfm25"), default="reguly"
+        "--detektor",
+        choices=(
+            "pusty",
+            "reguly",
+            "poziom1",
+            "poziom2",
+            "lfm25",
+            "poziom2-uzup",
+            "poziom2-uzup-b",
+        ),
+        default="reguly",
     )
     parser.add_argument("--wariant", choices=("int8", "fp32"), default="int8")
     parser.add_argument(
