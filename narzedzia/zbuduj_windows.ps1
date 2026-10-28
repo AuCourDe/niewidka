@@ -52,7 +52,14 @@ if (-not $PominTesty) {
 }
 
 Write-Host "== 4. Ikona =="
-& $VenvPython (Join-Path $Repo "narzedzia\ikona.py") --wyjscie (Join-Path $KatalogBudowy "ikona.ico")
+# wlasciwa ikona (znak czapki) jest w repo (niewidka\web\ikona.ico); generator
+# narzedzia\ikona.py to tylko zastepczy wzor, gdyby pliku w repo zabraklo
+$IkonaRepo = Join-Path $Repo "niewidka\web\ikona.ico"
+if (Test-Path $IkonaRepo) {
+  Copy-Item $IkonaRepo (Join-Path $KatalogBudowy "ikona.ico") -Force
+} else {
+  & $VenvPython (Join-Path $Repo "narzedzia\ikona.py") --wyjscie (Join-Path $KatalogBudowy "ikona.ico")
+}
 
 Write-Host "== 5. Plik wersji =="
 $Dopasowanie = Select-String -Path (Join-Path $Repo "pyproject.toml") -Pattern '^version = "([^"]+)"'

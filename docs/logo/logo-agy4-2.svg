@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="200" viewBox="0 0 640 200">
+  <rect width="100%" height="100%" fill="#f8f7f4"/>
+  <defs>
+    <!-- Sygnet contour gradient: solid navy at bottom-left base, fading to transparent at top-right apex/fold -->
+    <linearGradient id="v2-stroke-fade" x1="15%" y1="85%" x2="85%" y2="15%">
+      <stop offset="0%" stop-color="#2c4560" stop-opacity="1.0"/>
+      <stop offset="45%" stop-color="#2c4560" stop-opacity="0.88"/>
+      <stop offset="72%" stop-color="#2c4560" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#2c4560" stop-opacity="0.0"/>
+    </linearGradient>
+
+    <!-- Subtle veil fill for cap interior -->
+    <linearGradient id="v2-veil" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2c4560" stop-opacity="0.08"/>
+      <stop offset="60%" stop-color="#2c4560" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#2c4560" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Centered Composition: Sygnet + Typography -->
+  <g transform="translate(85, 20)">
+    <!-- SYGNET: Cap outline fading with gradient -->
+    <g id="sygnet-cap" transform="translate(0, 0)">
+      <!-- Base brim band -->
+      <path d="M 16 126
+               C 46 118, 102 118, 132 126
+               C 136 128, 136 137, 132 140
+               C 102 148, 46 148, 16 140
+               C 12 137, 12 128, 16 126 Z"
+            fill="url(#v2-veil)" stroke="url(#v2-stroke-fade)" stroke-width="8" stroke-linejoin="round"/>
+
+      <!-- Crown & Folded Flap -->
+      <path d="M 24 122
+               C 27 75, 48 34, 75 18
+               C 86 11, 101 14, 114 28
+               L 132 58
+               C 136 64, 130 70, 124 67
+               L 104 56
+               L 125 122"
+            fill="url(#v2-veil)" stroke="url(#v2-stroke-fade)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- Fold Crease Line -->
+      <path d="M 79 16 L 104 56"
+            fill="none" stroke="url(#v2-stroke-fade)" stroke-width="5.5" stroke-dasharray="7 6" stroke-linecap="round"/>
+    </g>
+
+    <!-- WORDMARK & SUBTITLE -->
+    <g id="typography" transform="translate(175, 96)">
+      <!-- Primary wordmark: Niewidka in Lato Bold -->
+      <text x="0" y="0" font-family="'Lato', 'Segoe UI', -apple-system, sans-serif" font-size="68" font-weight="700" fill="#2c4560" letter-spacing="0.5">
+        Niewidka
+      </text>
+
+      <!-- Subtitle: Calm, official descriptor -->
+      <text x="3" y="32" font-family="'Lato', 'Segoe UI', -apple-system, sans-serif" font-size="12.5" font-weight="500" fill="#2c4560" fill-opacity="0.65" letter-spacing="3.8">
+        LOKALNA OCHRONA DANYCH
+      </text>
+    </g>
+  </g>
+</svg>
