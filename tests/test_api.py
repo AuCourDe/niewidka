@@ -399,7 +399,7 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
             "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
         )
     assert r1.status_code == 200 and r3.status_code == 200
-    assert app.state.detektory.keys() == {1, 3}  # leniwy cache per poziom
+    assert {p for p, _ in app.state.detektory} == {1, 3}  # leniwy cache per poziom
     assert "OSOBA" not in json.loads(r1.headers["x-niewidka-statystyki"])
     assert json.loads(r3.headers["x-niewidka-statystyki"])["OSOBA"] == 1
     identyfikator = r3.headers["x-niewidka-identyfikator"]
@@ -698,3 +698,35 @@ async def test_get_pakiety_i_stan_wymagaja_tokenu_hosta_origin(konfig, tmp_path)
         ).status_code == 403
         assert (await klient.get("/api/pakiety", headers=_naglowki(app))).status_code == 200
         assert (await klient.get("/api/stan", headers=_naglowki(app))).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_detektor_poziomu3_nie_zostaje_ze_starego_stanu_pakietu(
+    konfig, tmp_path, monkeypatch
+):
+    """Odbiór K7c: cache detektorów był kluczowany samym poziomem. Detektor poziomu 3
+    zbudowany zanim pierwsza weryfikacja SHA po starcie skończy się (stan „brak”)
+    albo przy NIEWIDKA_POZIOM=3 zostawał bez LFM2.5, choć pakiet był zainstalowany,
+    bo start nie zgłasza zmiany. Stan pakietu MUSI być częścią klucza cache."""
+    from niewidka import api
+
+    wywolania: list[bool] = []
+
+    def falszywy(poziom, konfig, pakiet_rozszerzony=False):
+        wywolania.append(pakiet_rozszerzony)
+        return RegulyDetektor()
+
+    monkeypatch.setattr(api, "zbuduj_detektor", falszywy)
+    menedzer = _menedzer_testowy(tmp_path)
+    stan = {"rozszerzony": "brak"}
+    monkeypatch.setattr(menedzer, "stan_pakietu", lambda ident: stan.get(ident))
+    app = create_app(
+        Konfig(klucz_plik=konfig.klucz_plik, modele_katalog=tmp_path, poziom=3),
+        menedzer_pakietow=menedzer,
+    )
+    async with _klient(app) as klient:
+        dane = {"tekst": "Kontakt: stefan_wodorost.", "poziom": "3"}
+        assert (await klient.post("/api/ukryj", data=dane, headers=_naglowki(app))).status_code == 200
+        stan["rozszerzony"] = "zainstalowany"  # weryfikacja po starcie skończona, bez zwrotu zmiany
+        assert (await klient.post("/api/ukryj", data=dane, headers=_naglowki(app))).status_code == 200
+    assert wywolania[-1] is True, f"poziom 3 nadal bez pakietu Rozszerzonego: {wywolania}"

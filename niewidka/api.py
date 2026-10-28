@@ -270,9 +270,10 @@ def create_app(
     app.state.konfig = konfig
     app.state.token = secrets.token_urlsafe(32)
     app.state.detektor = wstrzykniety
-    # per poziom: wstrzyknięty detektor obsługuje wszystkie; produkcyjnie cache leniwy
-    app.state.detektory: dict[int, Any] = (
-        {} if detektor is not None else {konfig.poziom: wstrzykniety}
+    # klucz (poziom, pakiet Rozszerzony zainstalowany): wstrzyknięty detektor obsługuje
+    # wszystkie; produkcyjnie cache leniwy. Startowy zbudowano bez pakietu Rozszerzonego.
+    app.state.detektory: dict[tuple[int, bool], Any] = (
+        {} if detektor is not None else {(konfig.poziom, False): wstrzykniety}
     )
     app.state.kolejka = Kolejka(maks=konfig.kolejka, timeout_s=konfig.timeout_s)
     app.state.identyfikatory: set[str] = set()
@@ -296,9 +297,11 @@ def create_app(
         poziom 3 dostaje zweryfikowany stan pakietu Rozszerzonego z menedżera."""
         if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
             return detektor
-        zbudowany = app.state.detektory.get(poziom)
+        # stan pakietu w kluczu: detektor ze stanu sprzed weryfikacji po starcie
+        # (bez zwrotu zmiany) nie zostaje w cache dla poziomu 3 (odbiór K7c)
+        rozszerzony = poziom == 3 and app.state.pakiety.stan_pakietu("rozszerzony") == "zainstalowany"
+        zbudowany = app.state.detektory.get((poziom, rozszerzony))
         if zbudowany is None:
-            rozszerzony = app.state.pakiety.stan_pakietu("rozszerzony") == "zainstalowany"
             try:
                 zbudowany = zbuduj_detektor(poziom, konfig, pakiet_rozszerzony=rozszerzony)
             except Exception as blad:
@@ -311,7 +314,7 @@ def create_app(
                     ]
                     raise BrakWymaganegoPakietu(brakujace, nazwy) from blad
                 raise
-            app.state.detektory[poziom] = zbudowany
+            app.state.detektory[(poziom, rozszerzony)] = zbudowany
         return zbudowany
     originy = {
         f"http://{konfig.host}:{konfig.port}",
