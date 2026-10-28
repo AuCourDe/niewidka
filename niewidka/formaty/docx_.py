@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import io
+import posixpath
 import zipfile
 from typing import Any
 
@@ -95,9 +96,35 @@ class AdapterDocx:
         return dok
 
     def _wyczysc_drzewo(self, drzewo: etree._Element, rels_xml: bytes, zasoby: dict) -> None:
-        """Usuń elementy śledzonych zmian/komentarzy/przypisów, rozpakuj mailto."""
+        """Czyszczenie treści dokument.xml przed odczytem segmentów (K3+K3b)."""
+        # śledzone zmiany: usunięte w:del znika (usunięty tekst ≠ treść),
+        # w:ins rozpakowane = akceptacja zmiany (treść wchodzi do segmentów)
         for del_element in list(drzewo.iter(_q("del"))):
-            del_element.getparent().remove(del_element)  # usunięty tekst ≠ treść
+            del_element.getparent().remove(del_element)
+        for ins_element in list(drzewo.iter(_q("ins"))):
+            rodzic = ins_element.getparent()
+            for dziecko in list(ins_element):
+                ins_element.addprevious(dziecko)
+            rodzic.remove(ins_element)
+        # tożsamość z rewizji/pól (Gemini pkt 5): author/date/initials nigdzie nie zostaje
+        for element in drzewo.iter():
+            for atrybut in (f"{{{W}}}author", f"{{{W}}}date", f"{{{W}}}initials"):
+                if atrybut in element.attrib:
+                    del element.attrib[atrybut]
+        # pola (Gemini pkt 2+3): instrukcja znika, wynik pola (w:t) zostaje jako tekst
+        for instrukcja in list(drzewo.iter(_q("instrText"))):
+            instrukcja.getparent().remove(instrukcja)
+        for fld in list(drzewo.iter(_q("fldSimple"))):
+            fld.attrib.pop(f"{{{W}}}instr", None)
+        # osierocone w:t (np. w:ins bez w:r, Gemini pkt 4) → opakuj w w:r, inaczej
+        # tekst omija segmenty i detekcję
+        for t in list(drzewo.iter(_q("t"))):
+            rodzic = t.getparent()
+            if rodzic is None or rodzic.tag == _q("r"):
+                continue
+            run = rodzic.makeelement(_q("r"), {})
+            rodzic.insert(list(rodzic).index(t), run)
+            run.append(t)
         for nazwa in ("commentRangeStart", "commentRangeEnd", "commentReference", "footnoteReference"):
             for element in list(drzewo.iter(_q(nazwa))):
                 rodzic = element.getparent()
@@ -190,6 +217,12 @@ class AdapterDocx:
                     if akapit is not None and akapit.getparent() is not None:
                         akapit.getparent().remove(akapit)
 
+        # gwarancja schematu OOXML: każda komórka ma akapit (Gemini pkt 6 —
+        # po czyszczeniu w:del komórka nie może zostać pusta)
+        for tc in zasoby["drzewo"].iter(_q("tc")):
+            if tc.find(_q("p")) is None:
+                etree.SubElement(tc, _q("p"))
+
         czesci["word/document.xml"] = etree.tostring(
             zasoby["drzewo"], xml_declaration=True, encoding="UTF-8", standalone=True
         )
@@ -248,7 +281,11 @@ def _przefiltruj_rels(rels_xml: bytes, usun_id: set[str], usun_czesci: set[str])
 def _relacja_celu_w(cel: str | None, usun_czesci: set[str]) -> bool:
     if not cel:
         return False
-    sciezka = f"word/{cel}" if not cel.startswith("/") else cel.lstrip("/")
+    if cel.startswith("/"):
+        sciezka = cel.lstrip("/")
+    else:
+        # Target relacji jest względny wobec części źródłowej: ../customXml/x → customXml/x
+        sciezka = posixpath.normpath(f"word/{cel}")
     return any(sciezka == u or sciezka.startswith(u) for u in usun_czesci)
 
 

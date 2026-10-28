@@ -182,6 +182,248 @@ def zapisz_czesc_obca(sciezka: Path) -> Path:
     return sciezka
 
 
+# --- wzorzec pułapek (K3b): 15 punktów przeglądu DOCX (docs/konsultacje/05) ---
+
+R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+DATA_REWIZJI = "2026-10-28T10:00:00Z"
+
+
+def _run(paragraf_el, tag: str, tekst: str = ""):
+    run = etree.SubElement(paragraf_el, f"{W}{tag}")
+    if tekst:
+        t = etree.SubElement(run, f"{W}t")
+        t.text = tekst
+    return run
+
+
+def _dodaj_pola(dok: Document) -> None:
+    """Pkt 2+3: instrukcja pola złożonego (w:instrText) i prostego (w:fldSimple
+    w:instr) z PII; wynik pola w w:t zostaje legalnie."""
+    el = dok.add_paragraph()._element
+    begin = _run(el, "r")
+    etree.SubElement(begin, f"{W}fldChar").set(f"{W}fldCharType", "begin")
+    instr = _run(el, "r")
+    instr_t = etree.SubElement(instr, f"{W}instrText")
+    instr_t.text = ' AUTHOR "Jan Kowalski" '
+    sep = _run(el, "r")
+    etree.SubElement(sep, f"{W}fldChar").set(f"{W}fldCharType", "separate")
+    _run(el, "r", "Jan Kowalski")  # wynik pola — zostaje jako tekst
+    end = _run(el, "r")
+    etree.SubElement(end, f"{W}fldChar").set(f"{W}fldCharType", "end")
+    fld = etree.SubElement(el, f"{W}fldSimple")
+    fld.set(f"{W}instr", 'AUTHOR "Anna Nowak"')
+    _run(fld, "r", "Anna Nowak")
+
+
+def _dodaj_ins_osierocony(dok: Document) -> None:
+    """Pkt 4: w:t bezpośrednio w w:ins, bez w:r — poza segmentami adaptera."""
+    ins = etree.SubElement(dok.add_paragraph()._element, f"{W}ins")
+    ins.set(f"{W}id", "30")
+    ins.set(f"{W}author", "Jan Kowalski")
+    ins.set(f"{W}date", DATA_REWIZJI)
+    t = etree.SubElement(ins, f"{W}t")
+    t.text = "Awaria: PESEL 44051401359 poza runem"
+
+
+def _dodaj_rpr_change(dok: Document) -> None:
+    """Pkt 5: rewizja formatowania z tożsamością autora."""
+    run = dok.add_paragraph("Robocze sformułowanie").runs[0]
+    rpr = run._element.get_or_add_rPr()
+    change = etree.SubElement(rpr, f"{W}rPrChange")
+    change.set(f"{W}id", "31")
+    change.set(f"{W}author", "Anna Nowak")
+    change.set(f"{W}date", DATA_REWIZJI)
+
+
+def _dodaj_tabele_z_del(dok: Document) -> None:
+    """Pkt 6: komórka, której cała treść to śledzone usunięcie — po czyszczeniu
+    w:del komórka nie może zostać pusta (bez w:p plik jest uszkodzony)."""
+    tabela = dok.add_table(rows=1, cols=1)
+    tc = tabela.cell(0, 0)._tc
+    for p in tc.findall(f"{W}p"):
+        tc.remove(p)
+    usuniete = etree.SubElement(tc, f"{W}del")
+    usuniete.set(f"{W}id", "32")
+    usuniete.set(f"{W}author", "Anna Zielińska")
+    usuniete.set(f"{W}date", DATA_REWIZJI)
+    p = etree.SubElement(usuniete, f"{W}p")
+    _run(p, "r", "usunięty numer 700 800 900").find(f"{W}t").tag = f"{W}delText"
+
+
+def _dodaj_zakladke_i_anchor(dok: Document) -> None:
+    """Pkt 9+14: nazwa zakładki i kotwica hiperłącza z PII."""
+    paragraf = dok.add_paragraph()
+    el = paragraf._element
+    start = etree.SubElement(el, f"{W}bookmarkStart")
+    start.set(f"{W}id", "40")
+    start.set(f"{W}name", "Jan_Kowalski_PESEL_44051401359")
+    paragraf.add_run("Profil klienta")
+    koniec = etree.SubElement(el, f"{W}bookmarkEnd")
+    koniec.set(f"{W}id", "40")
+    link = etree.SubElement(el, f"{W}hyperlink")
+    link.set(f"{W}anchor", "Jan_Kowalski_PESEL_44051401359")
+    _run(link, "r", "skok do sekcji")
+
+
+def _dodaj_sdt(dok: Document) -> None:
+    """Pkt 10: kontrolka treści z PII w alias/tag; sama treść neutralna."""
+    sdt = etree.SubElement(dok.add_paragraph()._element, f"{W}sdt")
+    sdt_pr = etree.SubElement(sdt, f"{W}sdtPr")
+    alias = etree.SubElement(sdt_pr, f"{W}alias")
+    alias.set(f"{W}val", "Jan Kowalski")
+    tag = etree.SubElement(sdt_pr, f"{W}tag")
+    tag.set(f"{W}val", "PESEL 44051401359")
+    tresc = etree.SubElement(sdt, f"{W}sdtContent")
+    p = etree.SubElement(tresc, f"{W}p")
+    _run(p, "r", "PL")
+
+
+def _dodaj_link_query(dok: Document) -> None:
+    """Pkt 11: zewnętrzny URL z danymi osobowymi w query stringu."""
+    id_relacji = dok.part.relate_to(
+        "https://portal.firma.pl/ankieta?pesel=44051401359&nazwisko=Kowalski",
+        f"{R}hyperlink",
+        is_external=True,
+    )
+    link = etree.SubElement(dok.add_paragraph()._element, f"{W}hyperlink")
+    link.set(f"{R}id", id_relacji)
+    _run(link, "r", "Formularz")
+
+
+def _dodaj_docpr_i_vml(dok: Document) -> None:
+    """Pkt 12: metadane grafiki — DrawingML docPr name/title i VML title/alt."""
+    _dodaj_obraz(dok)
+    inline = dok.inline_shapes[-1]._inline
+    inline.docPr.set("name", "Skan_Jan_Kowalski_PESEL_44051401359.png")
+    inline.docPr.set("title", "Jan Kowalski")
+    V = "urn:schemas-microsoft-com:vml"
+    run = _run(dok.add_paragraph()._element, "r")
+    pict = etree.SubElement(run, f"{W}pict")
+    shape = etree.SubElement(pict, f"{{{V}}}shape")
+    shape.set("title", "Podpis Jan Kowalski")
+    shape.set("alt", "Podpis Jan Kowalski")
+
+
+def _dodaj_smarttag(dok: Document) -> None:
+    """Pkt 15: smart tag z PII w w:attr; treść runu zostaje."""
+    st = etree.SubElement(dok.add_paragraph()._element, f"{W}smartTag")
+    st.set(f"{W}element", "urn:contact:PersonName")
+    st.set(f"{W}uri", "urn:schemas-microsoft-com:office:smarttags")
+    pr = etree.SubElement(st, f"{W}smartTagPr")
+    for nazwa, wartosc in (("GivenName", "Jan"), ("FamilyName", "Kowalski")):
+        atrybut = etree.SubElement(pr, f"{W}attr")
+        atrybut.set(f"{W}name", nazwa)
+        atrybut.set(f"{W}val", wartosc)
+    _run(st, "r", "Jan Kowalski")
+
+
+PEOPLE_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<w:people xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    '<w:person w:author="Anna Zielińska"><w:presenceInfo userId="anna@firma-example.pl"/>'
+    "</w:person></w:people>"
+)
+CUSTOM_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties">'
+    '<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="Klient">'
+    "<vt:lpwstr>Jan Kowalski</vt:lpwstr></property></Properties>"
+)
+GLOSSARY_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    "<w:docParts><w:docPart><w:docPartGallery w:val=\"Szybkie części Jan Kowalski\"/>"
+    "</w:docPart></w:docParts></w:glossaryDocument>"
+)
+SETTINGS_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    '<w:zoom w:percent="100"/><w:attachedTemplate r:id="rIdTpl"/>'
+    '<w:documentProtection w:edit="readOnly" w:enforcement="1"/>'
+    '<w:writeProtection w:author="Jan Kowalski"/>'
+    '<w:rsids><w:rsidRoot w:val="4405140A"/><w:rsid w:val="4405140A"/></w:rsids>'
+    "</w:settings>"
+)
+SETTINGS_RELS_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    '<Relationship Id="rIdTpl" '
+    'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" '
+    'Target="file:///C:/Users/jan.kowalski/Szablony/umowa.dotx" TargetMode="External"/>'
+    "</Relationships>"
+)
+HEADER_RELS_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    '<Relationship Id="rId1" '
+    'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+    'Target="media/logo.png"/></Relationships>'
+)
+
+
+def dokument_pulapki() -> Document:
+    """Treść z pułapkami punktów 2-6, 9-12, 15 (bez wstrzyknięć paczkowych)."""
+    dok = _doc_podstawowy()
+    _dodaj_naglowek_stopke(dok)
+    _dodaj_komentarz(dok)
+    _dodaj_hiperlacza(dok)
+    _dodaj_track_changes(dok)
+    _dodaj_przypis(dok)
+    _dodaj_pola(dok)
+    _dodaj_ins_osierocony(dok)
+    _dodaj_rpr_change(dok)
+    _dodaj_tabele_z_del(dok)
+    _dodaj_zakladke_i_anchor(dok)
+    _dodaj_sdt(dok)
+    _dodaj_link_query(dok)
+    _dodaj_docpr_i_vml(dok)
+    _dodaj_smarttag(dok)
+    return dok
+
+
+def zapisz_pulapki(sciezka: Path, paczkowe: str = "wszystko") -> Path:
+    """Wzorzec z pułapkami treściowymi + wstrzyknięte części paczkowe.
+
+    `paczkowe`: "wszystko", "header" (7), "settings" (8), "usuwane" (13).
+    """
+    dok = dokument_pulapki()
+    sciezka.parent.mkdir(parents=True, exist_ok=True)
+    dok.save(sciezka)
+    zrodlo = zipfile.ZipFile(sciezka, "r")
+    czesci = {n: zrodlo.read(n) for n in zrodlo.namelist()}
+    zrodlo.close()
+    if paczkowe in ("wszystko", "settings"):
+        czesci["word/settings.xml"] = SETTINGS_XML.encode()
+        czesci["word/_rels/settings.xml.rels"] = SETTINGS_RELS_XML.encode()
+    if paczkowe in ("wszystko", "header"):
+        czesci["word/_rels/header1.xml.rels"] = HEADER_RELS_XML.encode()
+    if paczkowe in ("wszystko", "usuwane"):
+        czesci["word/people.xml"] = PEOPLE_XML.encode()
+        czesci["docProps/custom.xml"] = CUSTOM_XML.encode()
+        czesci["word/glossary/document.xml"] = GLOSSARY_XML.encode()
+        czesci["word/glossary/_rels/document.xml.rels"] = HEADER_RELS_XML  # relacje galerii też lecą
+        typy = czesci["[Content_Types].xml"].decode()
+        typy = typy.replace(
+            "</Types>",
+            '<Override PartName="/word/people.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml"/>'
+            '<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-props+xml"/>'
+            '<Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.template.docParts+xml"/>'
+            "</Types>",
+        )
+        czesci["[Content_Types].xml"] = typy.encode()
+        czesci["_rels/.rels"] = czesci["_rels/.rels"].decode().replace(
+            "</Relationships>",
+            '<Relationship Id="rIdCustom" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" '
+            'Target="docProps/custom.xml"/></Relationships>',
+        ).encode()
+    with zipfile.ZipFile(sciezka, "w", zipfile.ZIP_DEFLATED) as cel:
+        for nazwa, zawartosc in czesci.items():
+            cel.writestr(nazwa, zawartosc)
+    return sciezka
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Pliki wzorcowe DOCX (K3)")
     parser.add_argument("--katalog", type=Path, default=Path("tests/wzorce"))
@@ -189,6 +431,7 @@ def main(argv: list[str] | None = None) -> int:
     argumenty = parser.parse_args(argv)
     katalog = Path(argumenty.pozycyjne[0]) if argumenty.pozycyjne else argumenty.katalog
     print(zapisz_podstawowy(katalog / "wzorzec.docx"))
+    print(zapisz_pulapki(katalog / "pulapki.docx"))
     print(zapisz_z_makrem(katalog / "z_makrem.docx"))
     print(zapisz_czesc_obca(katalog / "z_czescia_obca.docx"))
     return 0

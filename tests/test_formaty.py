@@ -383,3 +383,170 @@ class TestContentTypesIPola:
         wynik = _wyczysc_core(xml.encode()).decode("utf-8")
         assert "Klienci VIP" not in wynik
         assert "Robocza" not in wynik
+
+
+# --- pułapki K3b: 15 punktów przeglądu DOCX (docs/konsultacje/05) -------------
+
+from lxml import etree
+
+from narzedzia.generator_dokumentow import dokument_pulapki, zapisz_pulapki
+
+W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+@pytest.fixture()
+def pulapki():
+    bufor = io.BytesIO()
+    dokument_pulapki().save(bufor)
+    return bufor.getvalue()
+
+
+def _zakryj(dane: bytes) -> bytes:
+    """Pełny przebieg: reguły → znaczniki → zapis (bez modeli)."""
+    adapter = AdapterDocx()
+    dok = adapter.wczytaj(dane)
+    licznik: dict[str, int] = {}
+    for segment in dok.segmenty:
+        zamiany = []
+        for z in scal(segment.tekst, znajdz_reguly(segment.tekst)):
+            licznik[z.typ.value] = licznik.get(z.typ.value, 0) + 1
+            zamiany.append((z.start, z.koniec, f"[{z.typ.value}_{licznik[z.typ.value]}]"))
+        if zamiany:
+            adapter.wstaw_znaczniki(segment, zamiany)
+    return adapter.zapisz(dok)
+
+
+def _document_xml(wynik: bytes) -> str:
+    return zipfile.ZipFile(io.BytesIO(wynik)).read("word/document.xml").decode("utf-8")
+
+
+class TestPulapkiK3b:
+    def test_instrText_usuniete_wynik_pola_zostaje(self, pulapki):
+        """Gemini pkt 2: instrukcja pola złożonego z PII — usuwana; wynik pola zostaje."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "instrText" not in xml, "instrukcja pola z PII wycieka"
+        assert "Jan Kowalski" in xml  # wynik pola (w:t) zostaje jako tekst
+
+    def test_fldSimple_bez_instr(self, pulapki):
+        """Gemini pkt 3: atrybut w:instr pola prostego czyszczony."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert 'w:instr="' not in xml, "w:instr pola prostego wycieka"
+        assert "Anna Nowak" in xml  # wynik pola zostaje
+
+    def test_ins_osierocone_wt_wchodzi_do_segmentow(self, pulapki):
+        """Gemini pkt 4: w:t bez w:r w w:ins — po normalizacji trafia do segmentów."""
+        dok = AdapterDocx().wczytaj(pulapki)
+        calosc = "\n".join(s.tekst for s in dok.segmenty)
+        assert "PESEL 44051401359 poza runem" in calosc, "osierocone w:t omija detekcję"
+        wynik = _zakryj(pulapki)
+        assert "44051401359 poza runem" not in _document_xml(wynik)
+
+    def test_atrybuty_rewizji_czyste(self, pulapki):
+        """Gemini pkt 5: w:author/w:date/w:initials ze śledzonych zmian usunięte."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "w:author=" not in xml, "tożsamość autora rewizji wycieka"
+        assert "w:date=" not in xml
+        assert "w:initials=" not in xml
+        assert "Anna Zielińska" not in xml
+
+    def test_komorka_po_del_ma_akapit_i_plik_poprawny(self, pulapki):
+        """Gemini pkt 6: komórka z samym w:del nie może zostać pustą w:tc."""
+        wynik = _zakryj(pulapki)
+        drzewo = etree.fromstring(_document_xml(wynik).encode())
+        puste = [tc for tc in drzewo.iter(f"{W_NS}tc") if tc.find(f"{W_NS}p") is None]
+        assert puste == [], f"komórki bez w:p: {len(puste)}"
+        from docx import Document as Otworz
+
+        Otworz(io.BytesIO(wynik))  # plik otwiera się bez "unreadable content"
+
+    def test_rels_usuwanych_czesci_nie_blokuja_i_znikaja(self, tmp_path):
+        """Gemini pkt 7: word/_rels/header1.xml.rels — obsłużone, nie blokada."""
+        sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="header")
+        adapter = AdapterDocx()
+        dok = adapter.wczytaj(sciezka.read_bytes())
+        wynik = adapter.zapisz(dok)
+        assert "word/_rels/header1.xml.rels" not in zipfile.ZipFile(io.BytesIO(wynik)).namelist()
+
+    def test_settings_czyste(self, tmp_path):
+        """Gemini pkt 8: attachedTemplate, documentProtection, writeProtection, rsids."""
+        sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="settings")
+        wynik = _zakryj(sciezka.read_bytes())
+        paczka = zipfile.ZipFile(io.BytesIO(wynik))
+        settings = paczka.read("word/settings.xml").decode("utf-8")
+        assert "attachedTemplate" not in settings
+        assert "documentProtection" not in settings
+        assert "writeProtection" not in settings
+        assert "rsids" not in settings
+        assert "jan.kowalski" not in settings  # ścieżka szablonu z relacji
+        rels_nazwy = paczka.namelist()
+        assert "word/_rels/settings.xml.rels" not in rels_nazwy or "rIdTpl" not in paczka.read(
+            "word/_rels/settings.xml.rels"
+        ).decode()
+
+    def test_zakladki_i_anchor_neutralne(self, pulapki):
+        """Gemini pkt 9+14: nazwy zakładek i kotwice → neutralne _Bm1.."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "Jan_Kowalski_PESEL_44051401359" not in xml, "nazwa zakładki wycieka"
+        assert "_Bm1" in xml
+        assert xml.count('"_Bm1"') >= 2  # zakładka + kotwica wskazują tę samą
+
+    def test_sdt_alias_tag_czyste(self, pulapki):
+        """Gemini pkt 10: alias/tag kontrolki treści usunięte."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "w:alias" not in xml, "alias SDT wycieka"
+        assert "w:tag" not in xml, "tag SDT wycieka"
+        assert "44051401359" not in xml
+
+    def test_query_string_w_rels_obciete(self, pulapki):
+        """Gemini pkt 11: zewnętrzny URL bez query stringa z PII."""
+        wynik = _zakryj(pulapki)
+        rels = zipfile.ZipFile(io.BytesIO(wynik)).read("word/_rels/document.xml.rels").decode("utf-8")
+        assert "44051401359" not in rels, "query string z PESEL wycieka"
+        assert "Kowalski" not in rels
+        assert "https://portal.firma.pl/ankieta" in rels  # domena zostaje
+
+    def test_docpr_i_vml_czyste(self, pulapki):
+        """Gemini pkt 12: name/title docPr i title/alt VML czyszczone."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "Skan_Jan_Kowalski" not in xml, "docPr name wycieka"
+        assert "Podpis Jan Kowalski" not in xml, "VML title/alt wycieka"
+        assert "44051401359.png" not in xml
+
+    def test_people_custom_glossary_usuwane(self, tmp_path):
+        """Gemini pkt 13: people.xml, docProps/custom.xml, word/glossary — usuwane."""
+        sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="usuwane")
+        adapter = AdapterDocx()
+        dok = adapter.wczytaj(sciezka.read_bytes())
+        wynik = adapter.zapisz(dok)
+        paczka = zipfile.ZipFile(io.BytesIO(wynik))
+        nazwy = paczka.namelist()
+        for usunieta in (
+            "word/people.xml",
+            "docProps/custom.xml",
+            "word/glossary/document.xml",
+            "word/glossary/_rels/document.xml.rels",
+        ):
+            assert usunieta not in nazwy, usunieta
+        for czesc in (nazwy, [paczka.read(n) for n in nazwy]):
+            pass
+        calosc = b"".join(paczka.read(n) for n in nazwy)
+        assert b"anna@firma-example.pl" not in calosc
+        assert b"custom-properties" not in paczka.read("_rels/.rels")
+        typy = paczka.read("[Content_Types].xml").decode()
+        assert "people.xml" not in typy
+        assert "custom.xml" not in typy
+        assert "glossary" not in typy
+
+    def test_smarttag_rozpakowany(self, pulapki):
+        """Gemini pkt 15: smartTag rozpakowany, smartTagPr z w:attr usunięty."""
+        wynik = _zakryj(pulapki)
+        xml = _document_xml(wynik)
+        assert "smartTagPr" not in xml, "atrybuty smart taga wycieka"
+        assert "GivenName" not in xml
+        assert 'w:val="Jan"' not in xml
