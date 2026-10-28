@@ -648,7 +648,10 @@ def test_pkt13_regex_email_liniowy():
     start_pomiar = time.perf_counter()
     wynik = znajdz(tekst)
     czas = time.perf_counter() - start_pomiar
-    assert czas < 0.05, f"regex e-maila kwadratowy: {czas:.3f} s na 100 tys. znaków"
+    # Próg 0.1 s: WSL ~0.03-0.05 s; Windows (bieg budowy K7b) 0.055 s na brzegu
+    # starego progu. Celem testu jest obrona przed regresją kwadratową (było
+    # 7,15 s), nie tuning liniowego kosztu.
+    assert czas < 0.1, f"regex e-maila kwadratowy: {czas:.3f} s na 100 tys. znaków"
     assert wynik == []
 
 
