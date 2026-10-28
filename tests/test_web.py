@@ -143,3 +143,25 @@ async def test_podglad_zwija_dopisek_a_ryzyko_przychodzi_z_serwera(klient):
     assert "ZANONIMIZOWANY. …" in apka, "podgląd ma pokazywać skrócony dopisek"
     assert 'createElement("details")' in apka, "rozwinięcie dopisku ma być natywne"
     assert "podwyższone" not in apka, "etykieta ryzyka pochodzi z serwera (jakosc.py)"
+
+
+@pytest.mark.anyio
+async def test_pakiety_elementy_funkcjonalne(klient):
+    """K7b: ekran pierwszego uruchomienia (3 opcje) i Ustawienia z pakietami."""
+    strona = (await klient.get("/")).text
+    apka = (await klient.get("/apka.js")).text
+    for wyraz in (
+        "Przygotowanie do pracy",
+        "Pobierz podstawowy (zalecane)",
+        "Później",
+        "Ustawienia",
+        "Pakiet podstawowy wystarcza",
+    ):
+        assert wyraz in strona, f"brak na stronie: {wyraz}"
+    # trzecia zakładka prowadzi do panelu ustawień
+    assert 'aria-controls="panel-ustawienia"' in strona
+    assert 'id="lista-pakietow"' in strona
+    # skrypt odpytuje stan pakietów i pokaże ekran przy braku wymaganego
+    assert '"/api/pakiety"' in apka
+    assert "ekran-pakietow" in apka and "poziomy_dostepne" in apka
+    assert "Pobierz pakiet podstawowy w Ustawieniach" in apka  # podpowiedź suwaka

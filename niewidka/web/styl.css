@@ -525,3 +525,44 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* --- Pakiety modeli (K7b): ekran pierwszego uruchomienia i Ustawienia --- */
+
+.ekran-pakietow-wybor { display: grid; gap: 0.7rem; max-width: 30rem; }
+.ekran-pakietow-wybor .podpowiedz { margin: 0.3rem 0 0; }
+
+progress {
+  width: 100%;
+  height: 0.7rem;
+  accent-color: var(--tusz);
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.lista-pakietow { display: grid; gap: 0.9rem; margin-top: 1.1rem; }
+.pakiet-wiersz {
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  background: var(--kartka);
+  padding: 0.9rem 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+.pakiet-naglowek { display: flex; align-items: baseline; justify-content: space-between; gap: 0.7rem; }
+.pakiet-naglowek h3 { margin: 0; font-size: 1rem; }
+.pakiet-stan {
+  font-size: 0.88rem;
+  color: var(--atrament-slaby);
+  white-space: nowrap;
+}
+.pakiet-stan-zainstalowany { color: var(--ok); }
+.pakiet-stan-uszkodzony { color: var(--blad); }
+.pakiet-wiersz p { margin: 0; font-size: 0.92rem; color: var(--atrament-slaby); }
+.pakiet-akcje { display: flex; justify-content: flex-end; }
+.postep-pakietu { margin-top: 1rem; }
+.postep-pakietu p { margin: 0 0 0.4rem; font-size: 0.92rem; color: var(--atrament-slaby); }
+
+@media (max-width: 480px) {
+  .pakiet-naglowek { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+}

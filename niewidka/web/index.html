@@ -27,11 +27,31 @@
 
 <main class="srodek" id="glowna">
 
+  <section id="ekran-pakietow" class="panel" hidden>
+    <h2>Przygotowanie do pracy</h2>
+    <p class="wyjasnienie">Program potrzebuje modeli wykrywających dane, aby działać.
+    Modele pobierają się teraz z internetu i zostają na tym komputerze. Potem program
+    nie łączy się z siecią: Twoje dokumenty nigdzie nie wypływają.</p>
+    <div id="ekran-pakietow-wybor" class="ekran-pakietow-wybor">
+      <button type="button" id="pakiet-pobierz-podstawowy" class="przycisk-glowny">Pobierz podstawowy (zalecane)</button>
+      <button type="button" id="pakiet-pobierz-wszystko" class="przycisk-wtorny">Pobierz wszystko (podstawowy i rozszerzony)</button>
+      <button type="button" id="pakiet-pozniej" class="linkowy">Później</button>
+      <p class="podpowiedz">Pakiet podstawowy wystarcza do pełnej pracy programu. Pakiet rozszerzony
+      rozpoznaje dodatkowo adresy IP, kody SWIFT i loginy na poziomie Najdokładniej.</p>
+    </div>
+    <div id="ekran-pakietow-postep" hidden>
+      <p id="ekran-pakietow-status" aria-live="polite"></p>
+      <progress id="ekran-pakietow-pasek" max="100" value="0"></progress>
+    </div>
+  </section>
+
   <div class="zakladki" role="tablist" aria-label="Tryby pracy">
     <button type="button" id="zakladka-ukryj" class="zakladka" role="tab"
             aria-selected="true" aria-controls="panel-ukryj">Ukryj dane</button>
     <button type="button" id="zakladka-przywroc" class="zakladka" role="tab"
             aria-selected="false" aria-controls="panel-przywroc" tabindex="-1">Przywróć dane</button>
+    <button type="button" id="zakladka-ustawienia" class="zakladka" role="tab"
+            aria-selected="false" aria-controls="panel-ustawienia" tabindex="-1">Ustawienia</button>
   </div>
 
   <section id="panel-ukryj" class="panel" role="tabpanel" aria-labelledby="zakladka-ukryj">
@@ -202,6 +222,18 @@
         <ul id="lista-rozbieznosci"></ul>
       </div>
     </section>
+  </section>
+
+  <section id="panel-ustawienia" class="panel" role="tabpanel" aria-labelledby="zakladka-ustawienia" hidden>
+    <h2>Ustawienia</h2>
+    <p class="wyjasnienie">Modele wykrywające dane pobierają się z internetu raz i zostają
+    na tym komputerze. Jeżeli Twoja sieć nie pozwala łączyć się z internetem, osoba
+    opiekująca się programem może wgrać pakiety z dowolnego katalogu w sieci wewnętrznej.</p>
+    <div id="lista-pakietow" class="lista-pakietow"></div>
+    <div id="postep-pakietu" class="postep-pakietu" hidden>
+      <p id="postep-pakietu-status" aria-live="polite"></p>
+      <progress id="postep-pakietu-pasek" max="100" value="0"></progress>
+    </div>
   </section>
 
 </main>

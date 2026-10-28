@@ -80,6 +80,8 @@ const OPOWIEDZI_POZIOMOW = {
 
 const KOMUNIKATY = {
   403: "Sesja wygasła. Odśwież stronę (F5) i spróbuj ponownie.",
+  409: (blad, calosc) =>
+    `${blad || ""} ${calosc && calosc.brak_pakietu ? "Otwórz Ustawienia i pobierz pakiet modeli." : ""}`.trim(),
   413: () => `Za duże wejście: plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
   415: "Nieobsługiwany format pliku: przyjmuję .txt i .docx.",
   422: (blad) => `Nie mogę przetworzyć tego dokumentu. ${blad || ""}`,
@@ -215,9 +217,9 @@ function komunikat(statusId, klasa, naglowek, tresc) {
   return blok;
 }
 
-function komunikatOdpowiedzi(statusId, status, blad) {
+function komunikatOdpowiedzi(statusId, status, blad, calosc) {
   const przepis = KOMUNIKATY[status];
-  const tresc = typeof przepis === "function" ? przepis(blad) : przepis || `Błąd ${status}. ${blad || ""}`;
+  const tresc = typeof przepis === "function" ? przepis(blad, calosc) : przepis || `Błąd ${status}. ${blad || ""}`;
   komunikat(statusId, "komunikat-blad", "Nie udało się", tresc);
 }
 
@@ -344,12 +346,14 @@ function ustawZakladke(wybrana) {
     zakladka.tabIndex = aktywne ? 0 : -1;
     document.getElementById(zakladka.getAttribute("aria-controls")).hidden = !aktywne;
   }
-  if (history.replaceState) history.replaceState(null, "", wybrana.id === "zakladka-przywroc" ? "#przywroc" : "#ukryj");
+  const hasz = wybrana.id === "zakladka-przywroc" ? "#przywroc" : wybrana.id === "zakladka-ustawienia" ? "#ustawienia" : "#ukryj";
+  if (history.replaceState) history.replaceState(null, "", hasz);
 }
 
 function inicjalizujZakladki() {
   const zakladki = [...document.querySelectorAll('[role="tab"]')];
   if (location.hash === "#przywroc") ustawZakladke(document.getElementById("zakladka-przywroc"));
+  if (location.hash === "#ustawienia") ustawZakladke(document.getElementById("zakladka-ustawienia"));
   for (const zakladka of zakladki) {
     zakladka.addEventListener("click", () => ustawZakladke(zakladka));
     zakladka.addEventListener("keydown", (zdarzenie) => {
@@ -432,16 +436,18 @@ async function wyslij(url, dane) {
   return odpowiedz;
 }
 
+function odswiezOpisPoziomu() {
+  const suwak = document.getElementById("poziom");
+  const opis = document.getElementById("opis-poziomu");
+  opis.textContent = OPOWIEDZI_POZIOMOW[suwak.value];
+  suwak.setAttribute("aria-valuetext", NAZWY_POZIOMOW[suwak.value]);
+}
+
 function inicjalizujUkrywanie() {
   const formularz = document.getElementById("form-ukryj");
   const suwak = document.getElementById("poziom");
-  const opis = document.getElementById("opis-poziomu");
-  const odswiezOpis = () => {
-    opis.textContent = OPOWIEDZI_POZIOMOW[suwak.value];
-    suwak.setAttribute("aria-valuetext", NAZWY_POZIOMOW[suwak.value]);
-  };
-  suwak.addEventListener("input", odswiezOpis);
-  odswiezOpis();
+  suwak.addEventListener("input", odswiezOpisPoziomu);
+  odswiezOpisPoziomu();
 
   formularz.addEventListener("submit", async (zdarzenie) => {
     zdarzenie.preventDefault();
@@ -472,7 +478,8 @@ function inicjalizujUkrywanie() {
         document.getElementById("wynik").hidden = true;
         pokazBlokade("status-ukryj", blad.odpowiedz.typy);
       } else {
-        komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message);
+        komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message, blad.odpowiedz);
+        if (blad.status === 409) odswiezPakiety();
       }
     } finally {
       ustawTrwa(formularz, false);
@@ -550,6 +557,172 @@ function inicjalizujPrzywracanie() {
   });
 }
 
+/* ---------- pakiety modeli (K7b) ---------- */
+
+let stanPakietow = { pakiety: [], poziomy_dostepne: [], postep: { pakiet: null, blad: null } };
+let ekranPakietowOdrzucony = false; // „Później" w tej sesji
+let odpytywaniePostepu = null;
+let kolejkaPakietow = []; // „Pobierz wszystko": rozszerzony po podstawowym
+
+function sformatujRozmiar(bajty) {
+  return `${Math.round(bajty / (1024 * 1024))}\u00A0MB`;
+}
+
+const OPISY_STANOW = {
+  zainstalowany: "gotowy",
+  brak: "nie pobrany",
+  uszkodzony: "uszkodzony, pobierz ponownie",
+};
+
+function podswietlStatusPakietu(id) {
+  const wpis = stanPakietow.pakiety.find((p) => p.id === id);
+  return wpis ? OPISY_STANOW[wpis.stan] || wpis.stan : "";
+}
+
+function odswiezSuwakZPakietow() {
+  const suwak = document.getElementById("poziom");
+  const przycisk = document.getElementById("ukryj");
+  const opis = document.getElementById("opis-poziomu");
+  const pusto = stanPakietow.poziomy_dostepne.length === 0;
+  suwak.disabled = pusto;
+  przycisk.disabled = pusto;
+  if (pusto) {
+    opis.textContent = "Modele nie są jeszcze pobrane. Pobierz pakiet podstawowy w Ustawieniach.";
+  } else {
+    odswiezOpisPoziomu();
+  }
+}
+
+function rysujListePakietow() {
+  const lista = document.getElementById("lista-pakietow");
+  lista.innerHTML = "";
+  for (const pakiet of stanPakietow.pakiety) {
+    const wiersz = document.createElement("div");
+    wiersz.className = "pakiet-wiersz";
+    const naglowek = document.createElement("div");
+    naglowek.className = "pakiet-naglowek";
+    const nazwa = document.createElement("h3");
+    nazwa.textContent = pakiet.nazwa;
+    const stan = document.createElement("span");
+    stan.className = `pakiet-stan pakiet-stan-${pakiet.stan}`;
+    stan.textContent = podswietlStatusPakietu(pakiet.id);
+    naglowek.append(nazwa, stan);
+    const opis = document.createElement("p");
+    opis.textContent = `${pakiet.opis} Rozmiar do pobrania: ${sformatujRozmiar(pakiet.rozmiar_bajtow)}.`;
+    const akcje = document.createElement("div");
+    akcje.className = "pakiet-akcje";
+    const przycisk = document.createElement("button");
+    przycisk.type = "button";
+    przycisk.className = pakiet.stan === "zainstalowany" ? "przycisk-wtorny" : "przycisk-glowny";
+    if (pakiet.stan === "zainstalowany") {
+      przycisk.textContent = "Usuń";
+      przycisk.addEventListener("click", () => {
+        if (!confirm(`Usunąć pakiet ${pakiet.nazwa}? Przywrócenie pracy będzie wymagało pobrania go ponownie.`)) return;
+        akcjaPakietu("usun", pakiet.id);
+      });
+    } else {
+      przycisk.textContent = "Pobierz";
+      przycisk.disabled = stanPakietow.postep.pakiet !== null;
+      przycisk.addEventListener("click", () => akcjaPakietu("pobierz", pakiet.id));
+    }
+    akcje.append(przycisk);
+    wiersz.append(naglowek, opis, akcje);
+    lista.append(wiersz);
+  }
+}
+
+function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
+  const blok = document.getElementById("postep-pakietu");
+  const pasek = document.getElementById("postep-pakietu-pasek");
+  const status = document.getElementById("postep-pakietu-status");
+  blok.hidden = !pakietId;
+  if (!pakietId) return;
+  const procent = razem > 0 ? Math.round((pobrane / razem) * 100) : 0;
+  pasek.value = procent;
+  status.textContent = blad
+    ? `Nie udało się pobrać pakietu: ${blad}`
+    : `Pobieranie pakietu ${pakietId}: ${procent}%…`;
+}
+
+async function odswiezPakiety() {
+  try {
+    const odpowiedz = await fetch("/api/pakiety");
+    stanPakietow = await odpowiedz.json();
+  } catch {
+    return; // serwer nieodpowiada: nic nie zmieniamy
+  }
+  rysujListePakietow();
+  odswiezSuwakZPakietow();
+  pokazPostepPostepu(
+    stanPakietow.postep.pakiet,
+    stanPakietow.postep.pobrane,
+    stanPakietow.postep.razem,
+    stanPakietow.postep.blad,
+  );
+
+  const brakujeWymagany = stanPakietow.pakiety.some(
+    (p) => p.wymagany && p.stan !== "zainstalowany",
+  );
+  const ekran = document.getElementById("ekran-pakietow");
+  const pokazEkran = brakujeWymagany && !ekranPakietowOdrzucony;
+  ekran.hidden = !pokazEkran;
+  document.getElementById("ekran-pakietow-wybor").hidden = stanPakietow.postep.pakiet !== null;
+  document.getElementById("ekran-pakietow-postep").hidden = stanPakietow.postep.pakiet === null;
+  return stanPakietow;
+}
+
+function pollujPostep() {
+  if (odpytywaniePostepu) clearInterval(odpytywaniePostepu);
+  odpytywaniePostepu = setInterval(async () => {
+    const stan = await odswiezPakiety();
+    if (!stan || stan.postep.pakiet === null) {
+      clearInterval(odpytywaniePostepu);
+      odpytywaniePostepu = null;
+      zapowiedz("Operacja na pakiecie zakończona");
+      const nastepny = kolejkaPakietow.shift();
+      if (nastepny) akcjaPakietu("pobierz", nastepny);
+    }
+  }, 300);
+}
+
+async function akcjaPakietu(akcja, identyfikator, katalog) {
+  const dane = { akcja, pakiet: identyfikator };
+  if (katalog) dane.katalog = katalog;
+  try {
+    const odpowiedz = await wyslij("/api/pakiety", JSON.stringify(dane));
+    if (akcja === "pobierz") {
+      pollujPostep();
+      odswiezPakiety();
+    } else {
+      zapowiedz(odpowiedz.ok ? "Gotowe" : "Nie udało się");
+      odswiezPakiety();
+    }
+  } catch (blad) {
+    komunikatOdpowiedziDlaPakietow(blad);
+  }
+}
+
+function komunikatOdpowiedziDlaPakietow(blad) {
+  const status = document.getElementById("postep-pakietu");
+  status.hidden = false;
+  document.getElementById("postep-pakietu-status").textContent = `Nie udało się: ${blad.blad || blad.message}`;
+}
+
+function inicjalizujPakiety() {
+  document.getElementById("pakiet-pobierz-podstawowy").addEventListener("click", () => {
+    akcjaPakietu("pobierz", "podstawowy");
+  });
+  document.getElementById("pakiet-pobierz-wszystko").addEventListener("click", () => {
+    kolejkaPakietow = ["rozszerzony"];
+    akcjaPakietu("pobierz", "podstawowy");
+  });
+  document.getElementById("pakiet-pozniej").addEventListener("click", () => {
+    ekranPakietowOdrzucony = true;
+    document.getElementById("ekran-pakietow").hidden = true;
+    odswiezSuwakZPakietow();
+  });
+}
+
 /* ---------- start ---------- */
 
 async function wczytajStan() {
@@ -569,8 +742,10 @@ inicjalizujZakladki();
 inicjalizujWejscie();
 inicjalizujUkrywanie();
 inicjalizujPrzywracanie();
+inicjalizujPakiety();
 budujListeTypow();
 wczytajStan();
+odswiezPakiety();
 
 window.addEventListener("beforeunload", (zdarzenie) => {
   if (document.getElementById("tekst").value.trim()) zdarzenie.preventDefault();
