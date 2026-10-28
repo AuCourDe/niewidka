@@ -142,3 +142,9 @@
   - [x] pytest całości 352 passed/1 xfailed + ruff czysty (zmienione pliki; 10 błędów w cudzych docs/logo/ — nie ruszane); commit+push
 - [~] 13:55 (właściciel) „nazwisko to jedno, a inne? pesel, ulica, numer dowodu?” – LFM2.5 mierzony tylko dla OSOBA
   - [~] Pomiar LFM2.5 per typ (PESEL, ADRES, DOKUMENT, TELEFON, EMAIL, IBAN, DATA) + typy, których Niewidka nie wykrywa (zdrowie, firma, URL, login…) -> `docs/WYNIK-K2e.md` (opencode 1bbf, /tmp/cc-oc-k2e.md)
+- [~] 14:05 (właściciel) „pobieramy model klasy Q4, a pobieranie modelu jest dopiero po instalacji, przy pierwszym uruchomieniu pyta się użytkownika czy chce pobrać modele, oraz czy tylko szybki, czy też pośredni czy wszystkie. W opcjach osobne przełączniki pobierz model szybki, pośredni i dobry”
+  - [ ] Pomiar Q4 (int4 ONNX MatMulNBits) bardsai i LFM2.5 vs INT8/fp32 na korpusie -> `docs/WYNIK-K7-q4.md` (kryterium: recall typu nie spada poniżej progu KRYTERIA)
+  - [ ] Katalog pakietów modeli (Szybki / Dokładny / Najdokładniejszy), źródło z wersją i SHA-256, lustro konfigurowalne przez IT, instalacja offline z katalogu
+  - [ ] Pierwsze uruchomienie: okno wyboru pakietów; Ustawienia: osobne przełączniki pobierz/usuń dla każdego pakietu; suwak blokuje poziomy bez modelu
+  - [ ] Paczka instalacyjna bez wag (K6 przebudowa)
+
