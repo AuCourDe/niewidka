@@ -283,19 +283,24 @@ def create_app(
         menedzer_pakietow = MenedzerPakietow(
             wczytaj_pakiety(), katalog_modeli(), zrodlo()
         )
+    # K7c pkt 1: zmiana pakietów (pobranie/usunięcie/instalacja) unieważnia cache
+    # detektorów — inaczej zainstalowany pakiet Rozszerzony nie wchodzi do detekcji
+    menedzer_pakietow.ustaw_zwrot_zmiany(app.state.detektory.clear)
     app.state.pakiety = menedzer_pakietow
 
     def _detektor_dla(poziom: int):
         """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
         poziomy (testy/desktop); produkcyjne budowane leniwie i cache'owane — budowa
         i tak jest serializowana przez Semaphore(1) kolejki. K7b: brak wymaganego
-        pakietu = jasny `BrakWymaganegoPakietu` (409), nie 500."""
+        pakietu = jasny `BrakWymaganegoPakietu` (409), nie 500. K7c (audyt #1):
+        poziom 3 dostaje zweryfikowany stan pakietu Rozszerzonego z menedżera."""
         if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
             return detektor
         zbudowany = app.state.detektory.get(poziom)
         if zbudowany is None:
+            rozszerzony = app.state.pakiety.stan_pakietu("rozszerzony") == "zainstalowany"
             try:
-                zbudowany = zbuduj_detektor(poziom, konfig)
+                zbudowany = zbuduj_detektor(poziom, konfig, pakiet_rozszerzony=rozszerzony)
             except Exception as blad:
                 brakujace = app.state.pakiety.brakujacy_wymagany()
                 if brakujace:

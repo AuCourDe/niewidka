@@ -350,3 +350,38 @@ def test_menedzer_instaluj_z_katalogu(menedzer, katalog_testowy, tmp_path):
     menedzer.instaluj("podstawowy", lustro)
     wpisy = {w["id"]: w for w in menedzer.lista()}
     assert wpisy["podstawowy"]["stan"] == "zainstalowany"
+
+
+# --- K7c pkt 1: stan pakietu dla rdzenia + zwrot zmiany (invalidacja cache) ---
+
+def test_menedzer_stan_pakietu(menedzer):
+    assert menedzer.stan_pakietu("podstawowy") == "brak"
+    assert menedzer.stan_pakietu("rozszerzony") == "brak"
+    assert menedzer.stan_pakietu("nie-ma") is None
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    assert menedzer.stan_pakietu("podstawowy") == "zainstalowany"
+
+
+def test_menedzer_on_zmiana_po_kazdej_operacji(katalog_testowy, tmp_path):
+    zmiany: list[str] = []
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://x/",
+        klient=httpx.Client(transport=_transport(katalog_testowy["tresci"])),
+        on_zmiana=lambda: zmiany.append("zmiana"),
+    )
+    menedzer.pobierz("podstawowy")
+    menedzer.czekaj()
+    menedzer.usun("podstawowy")
+    menedzer.instaluj("podstawowy", _lustro(katalog_testowy, tmp_path))
+    assert zmiany == ["zmiana", "zmiana", "zmiana"]
+
+
+def _lustro(katalog_testowy, tmp_path):
+    lustro = tmp_path / "lustro"
+    lustro.mkdir(exist_ok=True)
+    for plik in [p for pakiet in katalog_testowy["lista"] for p in pakiet.pliki]:
+        (lustro / plik.zrodlo).write_bytes(katalog_testowy["tresci"][plik.zrodlo])
+    return lustro

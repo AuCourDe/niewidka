@@ -296,6 +296,7 @@ class MenedzerPakietow:
         katalog: Path,
         zrodlo_bazowe: str,
         klient: httpx.Client | None = None,
+        on_zmiana: callable | None = None,  # type: ignore[valid-type] # K7c: invalidacja cache detektorów
     ):
         self._pakiety = {p.id: p for p in lista}
         self._katalog = Path(katalog)
@@ -304,6 +305,21 @@ class MenedzerPakietow:
         self._zajete = threading.Lock()
         self._w_toku = False
         self.postep = PostepPobierania()
+        self._on_zmiana = on_zmiana
+
+    def ustaw_zwrot_zmiany(self, on_zmiana: callable) -> None:  # type: ignore[valid-type]
+        """K7c: zwrot wywoływany po każdej zakończonej operacji (API podpina
+        czyszczenie cache detektorów, by nowy stan pakietów był widoczny)."""
+        self._on_zmiana = on_zmiana
+
+    def _zglos_zmiane(self) -> None:
+        if self._on_zmiana is not None:
+            self._on_zmiana()
+
+    def stan_pakietu(self, identyfikator: str) -> str | None:
+        """Zweryfikowany stan pakietu (SHA-256); None = pakiet poza katalogiem."""
+        pakiet = self._pakiety.get(identyfikator)
+        return stan(pakiet, self._katalog) if pakiet else None
 
     def lista(self) -> list[dict]:
         return [
@@ -357,13 +373,14 @@ class MenedzerPakietow:
                     klient=self._klient,
                     postep=self._przyjmij_postep,
                 )
-                self.postep.pakiet = None
             except BladPakietu as blad:
                 self.postep.blad = str(blad)
             except httpx.HTTPError as blad:
                 self.postep.blad = f"{pakiet.id}: pobieranie nie powiodło się: {blad}"
             finally:
+                self.postep.pakiet = None
                 self._w_toku = False
+                self._zglos_zmiane()
 
         threading.Thread(target=praca, name="niewidka-pakiety", daemon=True).start()
         return True
@@ -372,9 +389,11 @@ class MenedzerPakietow:
         """Instalacja offline (IT); synchronnie — kopia lokalna jest szybka."""
         pakiet = self._pakiety[identyfikator]
         instaluj_z_katalogu(pakiet, self._katalog, katalog_zrodlowy)
+        self._zglos_zmiane()
 
     def usun(self, identyfikator: str) -> None:
         usun(self._pakiety[identyfikator], self._katalog)
+        self._zglos_zmiane()
 
     def _przyjmij_postep(self, pobrane: int, razem: int) -> None:
         self.postep.pobrane = pobrane

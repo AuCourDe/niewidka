@@ -58,11 +58,13 @@ class _BezDaty:
         return [z for z in self._wewnetrzny.znajdz(tekst) if z.typ is not TypEncji.DATA]
 
 
-def zbuduj_detektor(poziom: int, konfig):
+def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
     """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed, LLD §15).
 
     Skład poziomu (1 = reguły+bardsai; 2 = wariant A; 3 = wariant B, K2d) robi
-    `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze.
+    `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze. K7c (audyt #1):
+    `pakiet_rozszerzony` = zweryfikowany stan pakietu Rozszerzonego (API podaje
+    go ze stanu menedżera pakietów); bez niego poziom 3 nie używa LFM2.5.
     """
     if poziom not in (1, 2, 3):
         raise ValueError(f"poziom poza 1-3: {poziom}")
@@ -80,6 +82,7 @@ def zbuduj_detektor(poziom: int, konfig):
         provider=konfig.provider,
         próg_osoba=konfig.prog_osoba,
         reguly=baza,
+        pakiet_rozszerzony=pakiet_rozszerzony,
     )
 
 

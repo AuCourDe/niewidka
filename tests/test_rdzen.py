@@ -257,3 +257,21 @@ def test_filtr_bez_daty():
     detektor = _BezDaty(RegulyDetektor())
     znaleziska = detektor.znajdz("PESEL 44051401359 z dnia 13.05.1982")
     assert {z.typ for z in znaleziska} == {TypEncji.PESEL}
+
+
+def test_zbuduj_detektor_przekazuje_stan_pakietu_rozszerzonego(monkeypatch, tmp_path):
+    """K7c pkt 1: rdzeń przekazuje zweryfikowany stan pakietu Rozszerzonego do
+    budowy poziomu (bez tego zainstalowany LFM2.5 nigdy nie uczestniczy w detekcji)."""
+    from niewidka import rdzen
+
+    otrzymane: dict = {}
+
+    def atrapa_poziom(poziom, katalog, **kwargs):
+        otrzymane.update(kwargs, poziom=poziom)
+        return RegulyDetektor()
+
+    monkeypatch.setattr(rdzen, "zbuduj_poziom", atrapa_poziom)
+    rdzen.zbuduj_detektor(3, Konfig(modele_katalog=tmp_path), pakiet_rozszerzony=True)
+    assert otrzymane["pakiet_rozszerzony"] is True
+    rdzen.zbuduj_detektor(3, Konfig(modele_katalog=tmp_path))
+    assert otrzymane["pakiet_rozszerzony"] is False

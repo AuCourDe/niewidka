@@ -633,3 +633,55 @@ async def test_stan_bez_detektora_wstaje_i_mowi_o_braku(konfig, tmp_path):
     assert odpowiedz.status_code == 200
     assert odpowiedz.json()["modele"] == []
     assert odpowiedz.json()["poziomy_dostepne"] == []
+
+
+@pytest.mark.model
+@pytest.mark.anyio
+async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
+    katalog_modeli, klucz_plik, tmp_path
+):
+    """K7c pkt 1: zainstalowany pakiet Rozszerzony MUSI wykrywać LOGIN na poziomie 3,
+    a zmiana stanu pakietów MUSI unieważnić cache detektorów (to samo app).
+    Ścieżka przez API i menedżera pakietów, bez ręcznych flag (audyt #1: rdzeń
+    nie przekazywał pakiet_rozszerzony=True i login zostawał w tekście)."""
+    import shutil
+
+    menedzer_katalog = tmp_path / "wagi"
+    lustro = tmp_path / "lustro"
+    lustro.mkdir()
+    for pakiet in wczytaj_pakiety():
+        for plik in pakiet.pliki:
+            shutil.copyfile(katalog_modeli / plik.nazwa, lustro / plik.zrodlo)
+    konfig = Konfig(klucz_plik=klucz_plik, modele_katalog=menedzer_katalog)
+    menedzer = MenedzerPakietow(wczytaj_pakiety(), menedzer_katalog, "http://x/")
+    app = create_app(konfig, menedzer_pakietow=menedzer)  # produkcja: detektory leniwe
+    tekst = "Kontakt na czacie: stefan_wodorost."
+    async with _klient(app) as klient:
+        await klient.post(
+            "/api/pakiety",
+            json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
+            headers=_naglowki(app),
+        )
+        menedzer.czekaj()
+        bez = await klient.post(
+            "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
+        )
+        assert bez.status_code == 200
+        assert json.loads(bez.headers["x-niewidka-statystyki"]).get("LOGIN", 0) == 0
+        odpowiedz = await klient.post(
+            "/api/pakiety",
+            json={"akcja": "instaluj", "pakiet": "rozszerzony", "katalog": str(lustro)},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 200
+        menedzer.czekaj()
+        z = await klient.post(
+            "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
+        )
+    assert z.status_code == 200
+    statystyki = json.loads(z.headers["x-niewidka-statystyki"])
+    assert statystyki.get("LOGIN") == 1, f"login nieukryty mimo pakietu: {statystyki}"
+    czesci = _zip(z.content)
+    identyfikator = z.headers["x-niewidka-identyfikator"]
+    wynik_txt = czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"].decode()
+    assert "stefan_wodorost" not in wynik_txt
