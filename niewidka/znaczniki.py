@@ -43,6 +43,13 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
             encja.wariant = formy_grupy[encja.tekst]
 
 
+def znacznik_encji(encja: Encja) -> str:
+    """Tekst znacznika encji: [TYP_N] albo [OSOBA_N_Fk]."""
+    if encja.oznaczenie is None:
+        raise ValueError("encja bez oznaczenia — najpierw nadaj_oznaczenia")
+    return f"[{encja.oznaczenie}]" if encja.wariant is None else f"[{encja.oznaczenie}_{encja.wariant}]"
+
+
 def zamien_w_segment(
     segment_tekst: str, encje: list[Encja], poczatek_kolejnego: int = 0
 ) -> tuple[str, list[int]]:
@@ -55,14 +62,7 @@ def zamien_w_segment(
     kolejne: list[int] = []
     posortowane = sorted(encje, key=lambda e: e.zakres.start)
     for numer, encja in enumerate(posortowane):
-        if encja.oznaczenie is None:
-            raise ValueError("encja bez oznaczenia — najpierw nadaj_oznaczenia")
         kolejne.append(poczatek_kolejnego + numer)
     for encja in reversed(posortowane):
-        znacznik = (
-            f"[{encja.oznaczenie}]"
-            if encja.wariant is None
-            else f"[{encja.oznaczenie}_{encja.wariant}]"
-        )
-        wynik = wynik[: encja.zakres.start] + znacznik + wynik[encja.zakres.koniec :]
+        wynik = wynik[: encja.zakres.start] + znacznik_encji(encja) + wynik[encja.zakres.koniec :]
     return wynik, kolejne

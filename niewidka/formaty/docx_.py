@@ -171,16 +171,24 @@ class AdapterDocx:
 
     # --- zapis --------------------------------------------------------------
 
-    def zapisz(self, dok: Dokument) -> bytes:
+    def zapisz(self, dok: Dokument, dopisek: bool = True) -> bytes:
         zasoby = dok.zasoby
         czesci: dict[str, bytes] = dict(zasoby["czesci"])
 
         body = zasoby["drzewo"].find(_q("body"))
-        dopisek = etree.SubElement(body, _q("p"))
-        run_dopisku = etree.SubElement(dopisek, _q("r"))
-        t = etree.SubElement(run_dopisku, _q("t"))
-        t.text = DOPISEK
-        body.insert(0, dopisek)  # dopisek na POCZĄTKU dokumentu
+        if dopisek:
+            baner = etree.SubElement(body, _q("p"))
+            run_dopisku = etree.SubElement(baner, _q("r"))
+            t = etree.SubElement(run_dopisku, _q("t"))
+            t.text = DOPISEK
+            body.insert(0, baner)  # dopisek na POCZĄTKU dokumentu
+        else:
+            # dokument przywrócony: akapit dopisku z wyniku znika
+            for segment in list(dok.segmenty):
+                if segment.tekst == DOPISEK and segment.runs:
+                    akapit = segment.runs[0].element.getparent()
+                    if akapit is not None and akapit.getparent() is not None:
+                        akapit.getparent().remove(akapit)
 
         czesci["word/document.xml"] = etree.tostring(
             zasoby["drzewo"], xml_declaration=True, encoding="UTF-8", standalone=True

@@ -21,11 +21,20 @@ class ElementNieobslugiwany(Exception):
         super().__init__(", ".join(elementy))
 
 
+class NieznanyFormat(Exception):
+    """Wejście w formacie spoza rejestru (LLD §15 → HTTP 415 z listą obsługiwanych)."""
+
+    def __init__(self, format: str, wspierane: list[str]):
+        self.format = format
+        self.wspierane = wspierane
+        super().__init__(f"nieznany format: {format!r}; obsługiwane: {', '.join(wspierane)}")
+
+
 class AdapterFormatu(Protocol):
     rozszerzenia: frozenset[str]
 
     def wczytaj(self, dane: bytes) -> Dokument: ...
-    def zapisz(self, dok: Dokument) -> bytes: ...  # czyści metadane, dodaje dopisek
+    def zapisz(self, dok: Dokument, dopisek: bool = True) -> bytes: ...  # czyści metadane, dodaje dopisek
     def elementy_nieobslugiwane(self, dok: Dokument) -> list[str]: ...
 
 
@@ -89,18 +98,33 @@ def wstaw_znaczniki(segment: Segment, zamiany: list[tuple[int, int, str]], kopiu
     segment.tekst = "".join(run.tekst for run in segment.runs)
 
 
-_REJESTR: dict[str, type] = {}
+def _fabryka_txt():
+    from niewidka.formaty.tekst import AdapterTekst
+
+    return AdapterTekst()
+
+
+def _fabryka_docx():
+    from niewidka.formaty.docx_ import AdapterDocx
+
+    return AdapterDocx()
+
+
+_FABRYKI: dict[str, object] = {"txt": _fabryka_txt, "docx": _fabryka_docx}
+
+
+def rozszerzenia_wspierane() -> frozenset[str]:
+    return frozenset(_FABRYKI)
+
+
+def adapter_formatu(format: str):
+    """Adapter wg nazwy formatu (rozszerzenia); nieznany = `ElementNieobslugiwany`."""
+    fabryka = _FABRYKI.get(format.lower().strip("."))
+    if fabryka is None:
+        raise ElementNieobslugiwany([f"nieznany format: {format!r}"])
+    return fabryka()
 
 
 def adapter_dla(nazwa_pliku: str):
     """Adapter wg rozszerzenia pliku; nieznane = `ElementNieobslugiwany` (415/422)."""
-    rozszerzenie = Path(nazwa_pliku).suffix.lstrip(".").lower()
-    if rozszerzenie == "txt":
-        from niewidka.formaty.tekst import AdapterTekst
-
-        return AdapterTekst()
-    if rozszerzenie == "docx":
-        from niewidka.formaty.docx_ import AdapterDocx
-
-        return AdapterDocx()
-    raise ElementNieobslugiwany([f"nieznany format: {nazwa_pliku!r}"])
+    return adapter_formatu(Path(nazwa_pliku).suffix.lstrip(".").lower())

@@ -150,23 +150,35 @@ def znajdz_znaczniki(tekst: str) -> list[tuple[int, int, str, str | None]]:
     ]
 
 
-def przywroc_tekst(tekst: str, mapa: Mapa) -> tuple[str, list[Rozbieznosc]]:
-    """Zamiana znaczników na oryginały wg (oznaczenie, wariant); rozbieżności na wyjściu."""
+def przygotuj_zamiany(
+    tekst: str, mapa: Mapa
+) -> tuple[list[tuple[int, int, str]], list[Rozbieznosc], set[str]]:
+    """(zamiany, rozbieżności znaczników, użyte oznaczenia) dla tekstu segmentu."""
     formy = {(w.oznaczenie, wariant): oryginal for w in mapa.wpisy for wariant, oryginal in w.formy.items()}
     rozbieznosci: list[Rozbieznosc] = []
     zamiany: list[tuple[int, int, str]] = []
     uzyte: set[str] = set()
-    for start, koniec, oznaczenie, wariant in reversed(znajdz_znaczniki(tekst)):
-        klucz = (oznaczenie, wariant or WARIANT_DOMYSLNY)
-        oryginal = formy.get(klucz)
+    for start, koniec, oznaczenie, wariant in znajdz_znaczniki(tekst):
+        oryginal = formy.get((oznaczenie, wariant or WARIANT_DOMYSLNY))
         if oryginal is None:
             rozbieznosci.append(Rozbieznosc("znacznik_bez_wpisu", tekst[start:koniec]))
             continue
         zamiany.append((start, koniec, oryginal))
         uzyte.add(oznaczenie)
-    for start, koniec, oryginal in zamiany:
+    return zamiany, rozbieznosci, uzyte
+
+
+def rozbieznosci_wpisow(mapa: Mapa, uzyte: set[str]) -> list[Rozbieznosc]:
+    """Wpisy mapy bez żadnej użytej formy (nieużyta forma w częściowo użytym wpisie jest normalna)."""
+    return [
+        Rozbieznosc("wpis_niewykorzystany", w.oznaczenie) for w in mapa.wpisy if w.oznaczenie not in uzyte
+    ]
+
+
+def przywroc_tekst(tekst: str, mapa: Mapa) -> tuple[str, list[Rozbieznosc]]:
+    """Zamiana znaczników na oryginały wg (oznaczenie, wariant); rozbieżności na wyjściu."""
+    zamiany, rozbieznosci, uzyte = przygotuj_zamiany(tekst, mapa)
+    for start, koniec, oryginal in reversed(zamiany):
         tekst = tekst[:start] + oryginal + tekst[koniec:]
-    for wpis in mapa.wpisy:
-        if wpis.oznaczenie not in uzyte:
-            rozbieznosci.append(Rozbieznosc("wpis_niewykorzystany", wpis.oznaczenie))
+    rozbieznosci.extend(rozbieznosci_wpisow(mapa, uzyte))
     return tekst, rozbieznosci
