@@ -183,6 +183,11 @@ input[type="file"] {
   clip-path: inset(50%);
 }
 
+#plik:focus-visible + .przycisk-wtorny {
+  outline: 2px solid var(--tusz);
+  outline-offset: 2px;
+}
+
 .nazwa-pliku { margin: 0 0 0.4rem; font-weight: 700; word-break: break-all; }
 
 .linkowy {

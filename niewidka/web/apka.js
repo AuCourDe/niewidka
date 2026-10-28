@@ -53,6 +53,7 @@ const OPOWIEDZI_POZIOMOW = {
 const KOMUNIKATY = {
   403: "Sesja wygasła. Odśwież stronę (F5) i spróbuj ponownie.",
   413: () => `Za duże wejście — plik może mieć najwyżej ${limity.rozmiar_mb} MB, wklejony tekst ${limity.tekst_mb} MB.`,
+  415: "Nieobsługiwany format pliku — przyjmuję .txt i .docx.",
   422: (blad) => `Nie mogę przetworzyć tego dokumentu. ${blad || ""}`,
   503: "Program właśnie zajmuje się innym dokumentem. Poczekaj chwilę i spróbuj ponownie.",
   500: (blad) => `Coś się zepsuło po stronie programu. Podaj osobie opiekującej się numer zdarzenia: ${blad}`,
@@ -215,13 +216,23 @@ function pokazWynik(naglowki, czesci) {
   const blokRyzyka = document.getElementById("blok-ryzyka");
   const listaRyzyka = document.getElementById("lista-ryzyka");
   listaRyzyka.innerHTML = "";
-  for (const [typ, wartosc] of Object.entries(r95)) {
+  const oszacowane = Object.entries(r95).filter(([, wartosc]) => wartosc != null);
+  for (const [typ, wartosc] of oszacowane) {
     const wiersz = document.createElement("li");
     const co = document.createElement("span");
     co.textContent = (ETYKIETY[typ] || [typ])[0];
     co.textContent = co.textContent.charAt(0).toUpperCase() + co.textContent.slice(1);
     const ile = document.createElement("span");
     ile.textContent = ryzykoOpis(wartosc);
+    wiersz.append(co, ile);
+    listaRyzyka.append(wiersz);
+  }
+  if (statystyki && oszacowane.length === 0 && Object.keys(statystyki).length > 0) {
+    const wiersz = document.createElement("li");
+    const co = document.createElement("span");
+    co.textContent = "Szacunek ryzyka";
+    const ile = document.createElement("span");
+    ile.textContent = "dostępny na poziomie Szybko";
     wiersz.append(co, ile);
     listaRyzyka.append(wiersz);
   }
