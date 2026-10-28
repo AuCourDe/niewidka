@@ -52,12 +52,15 @@
   - [x] Statusy w todo.md na koniec (ten wpis); pełny zestaw: 80 testów zielonych, ruff czysty, bez pusha
 - [~] 10:25 (właściciel) decyzje: „1a” – właściciel zwolnił dysk (157 GB wolne), LFM2.5 wchodzi jako poziom 2; „2c” – repo najpierw PRYWATNE.
   - [x] Repo prywatne https://github.com/AuCourDe/niewidka (push main)
-  - [~] Korpus +120 próbek, autor zewnętrzny (opencode deepseek, /tmp/cc-oc-korpus.md)
-  - [~] K2b LFM2.5 poziom 2 + K3 TXT/DOCX (claude-glm id 1028-102520-claude-glm-e79f, /tmp/cc-glm-k2b.md). Decyzja orkiestratora: brama K2 (precision OSOBA 0.917) nie blokuje – FN groźniejszy niż FP, próg zostaje, raport uczciwy
+  - [x] Korpus +120 próbek, autor zewnętrzny (commit `10c77f6`, 182 próbki; ujawnił 3 FN reguł, naprawione `3af2316`)
+  - [x] K2b + K3 (claude-glm e79f): LFM2.5 odrzucony pomiarem (unia psuje recall/precision, `docs/WYNIK-K2b.md`); TXT+DOCX z allowlistą i weryfikacją zapisu; 195 passed/1 xfail (zweryfikowane 11:30)
+  - [~] K4 mapa+API (claude-glm c143, /tmp/cc-glm-k4.md)
+  - [~] Poziom 2 wariant „uzupełniający” LFM2.5 bez unii (opencode-kilo 5bc6, /tmp/cc-oc-k2c.md) -> `docs/WYNIK-K2c.md`
+  - [~] Przegląd bezpieczeństwa DOCX (Gemini agy3 6290, /tmp/cc-agy-k3rev.md)
     - [x] Korpus +120 od autora zewnętrznego (opencode, /tmp/cc-oc-korpus.md) → 182 próbki (commit `10c77f6`); ponowny pomiar poziomu 1 i 2 wykonany
     - [x] LFM2.5 pobrany httpx (`pobierz_model.py --model lfm25`, manifest SHA-256, 1,4 GB); kod modelu przejrzany (`docs/KOD-LFM25.md`, werdykt: bezpieczny, uwaga na martwą ścieżkę /lambdafs w nieużywanej funkcji)
     - [x] ONNX wyeksportowany jednorazowo (`narzedzia/eksport_lfm25.py`): fp32 (sanity 1,5e-05, 0 różnic argmax) + INT8 dynamiczne; inferencja wyłącznie onnxruntime. **INT8 psuje recall solo (0.398 vs 0.553) — odpada**
     - [x] Adapter LFM2.5 za wspólnym Protocol (`ADAPTER_LFM25`, BIOES w zdekoduj_bio, trim whitespace offsetów BPE), testy TDD (marker `model`); naprawa FN reguł z nowego korpusu (TELEFON 1-4 stacjonarne, DATA ISO) — poziom 1: wszystkie progi K1 1.000/1.000
     - [x] Pomiar poziomu 2 → `docs/WYNIK-K2b.md`: **zysku brak — strata** (unia z rozmytymi granicami LFM2.5 psuje dokładne trafienia bardsai: OSOBA 0.971/0.943 → 0.922/0.888 fp32); LFM2.5 nie wchodzi; decyzja orkiestratora zapisana (brama nie blokuje, próg bez zmian, R95 odświeżone OSOBA 0.0736)
     - [x] K3: adaptery TXT i DOCX (runy + tabele + pola tekstowe; czyszczone komentarze/przypisy/nagłówki/stopki/właściwości/miniatura/customXml; w:del usunięte, w:ins treść; hiperłącza http zostają, mailto rozpakowane; allowlista – makra i osadzone obiekty = blokada), dopisek ZANONIMIZOWANO, nazwa `ZANONIMIZOWANY_<krótki-id>.<ext>`, weryfikacja zapisu ZAWSZE = `niewidka/kontrola.py` + round-trip (0 nowych znalezisk); descr obrazów czyszczone; generator wzorców (python-docx); przegląd panelu NIM 6/13 (2 defekty naprawione: Content_Types Default, core.xml); pełny zestaw **195 zielonych** + 1 xfail, ruff czysty; push `9c50dd8`
-  - [ ] K4 mapa szyfrowana + API (uwierzytelnianie, wiązanie mapy z dokumentem), K5 web (moje-human-frontend, stonowane kolory), K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu
+  - [ ] K5 web (moje-human-frontend, stonowane kolory), K6 desktop/PWA, przegląd Astra/Argon po każdym, codex na końcu
