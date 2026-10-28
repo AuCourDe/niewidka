@@ -60,3 +60,123 @@
 {"id": "zywe-umowa", "opis": "Umowa najmu: dwie osoby i NIP", "tagi": ["zywe"], "tekst": "Umowę najmu podpisali Janina Przełęcka-Kowalska i Marek Wiśniewski, NIP 1051522482.", "encje": [{"typ": "OSOBA", "start": 22, "koniec": 47, "tekst": "Janina Przełęcka-Kowalska"}, {"typ": "OSOBA", "start": 50, "koniec": 66, "tekst": "Marek Wiśniewski"}, {"typ": "NIP", "start": 72, "koniec": 82, "tekst": "1051522482", "suma": true}]}
 {"id": "zywe-urzad-nazwisko-adres", "opis": "Urząd: osoba, adres z nazwiskiem w ulicy, e-mail", "tagi": ["zywe"], "tekst": "Korespondencję dla Adam Nowak wysłano na ul. Kowalskiego 5, e-mail: adam.nowak@example.com.", "encje": [{"typ": "OSOBA", "start": 19, "koniec": 29, "tekst": "Adam Nowak"}, {"typ": "ADRES", "start": 41, "koniec": 58, "tekst": "ul. Kowalskiego 5"}, {"typ": "EMAIL", "start": 68, "koniec": 90, "tekst": "adam.nowak@example.com"}]}
 {"id": "zywe-przychodnia", "opis": "Przychodnia: pacjentka, data urodzenia, PESEL", "tagi": ["zywe"], "tekst": "Pacjentka Zofia Wiśniewska, data urodzenia 4 marca 1975, PESEL 48050516766.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 26, "tekst": "Zofia Wiśniewska"}, {"typ": "DATA", "start": 43, "koniec": 55, "tekst": "4 marca 1975"}, {"typ": "PESEL", "start": 63, "koniec": 74, "tekst": "48050516766", "suma": true}]}
+{"id": "osoba-001", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Jan Kowalski w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 27, "tekst": "Jan Kowalski"}]}
+{"id": "osoba-002", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Jana Kowalskiego.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 46, "tekst": "Jana Kowalskiego"}]}
+{"id": "osoba-003", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Janowi Kowalskiemu.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 36, "tekst": "Janowi Kowalskiemu"}]}
+{"id": "osoba-004", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Janem Kowalskim o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 31, "tekst": "Janem Kowalskim"}]}
+{"id": "osoba-005", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Anna Nowak w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 25, "tekst": "Anna Nowak"}]}
+{"id": "osoba-006", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Anny Nowak.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 40, "tekst": "Anny Nowak"}]}
+{"id": "osoba-007", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Annie Nowak.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 29, "tekst": "Annie Nowak"}]}
+{"id": "osoba-008", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Anną Nowak o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 26, "tekst": "Anną Nowak"}]}
+{"id": "osoba-009", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Piotr Wiśniewski w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 31, "tekst": "Piotr Wiśniewski"}]}
+{"id": "osoba-010", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Piotra Wiśniewskiego.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 50, "tekst": "Piotra Wiśniewskiego"}]}
+{"id": "osoba-011", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Piotrowi Wiśniewskiemu.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 40, "tekst": "Piotrowi Wiśniewskiemu"}]}
+{"id": "osoba-012", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Piotrem Wiśniewskim o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 35, "tekst": "Piotrem Wiśniewskim"}]}
+{"id": "osoba-013", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Maria Kowalczyk w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 30, "tekst": "Maria Kowalczyk"}]}
+{"id": "osoba-014", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Marii Kowalczyk.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 45, "tekst": "Marii Kowalczyk"}]}
+{"id": "osoba-015", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Marii Kowalczyk.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 33, "tekst": "Marii Kowalczyk"}]}
+{"id": "osoba-016", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Marią Kowalczyk o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 31, "tekst": "Marią Kowalczyk"}]}
+{"id": "osoba-017", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Tomasz Lewandowski w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 33, "tekst": "Tomasz Lewandowski"}]}
+{"id": "osoba-018", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Tomasza Lewandowskiego.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 52, "tekst": "Tomasza Lewandowskiego"}]}
+{"id": "osoba-019", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Tomaszowi Lewandowskiemu.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 42, "tekst": "Tomaszowi Lewandowskiemu"}]}
+{"id": "osoba-020", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Tomaszem Lewandowskim o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 37, "tekst": "Tomaszem Lewandowskim"}]}
+{"id": "osoba-021", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Katarzyna Zielińska w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 34, "tekst": "Katarzyna Zielińska"}]}
+{"id": "osoba-022", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Katarzyny Zielińskiej.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 51, "tekst": "Katarzyny Zielińskiej"}]}
+{"id": "osoba-023", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Katarzynie Zielińskiej.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 40, "tekst": "Katarzynie Zielińskiej"}]}
+{"id": "osoba-024", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Katarzyną Zielińską o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 35, "tekst": "Katarzyną Zielińską"}]}
+{"id": "osoba-025", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Paweł Szymański w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 30, "tekst": "Paweł Szymański"}]}
+{"id": "osoba-026", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Pawła Szymańskiego.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 48, "tekst": "Pawła Szymańskiego"}]}
+{"id": "osoba-027", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Pawłowi Szymańskiemu.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 38, "tekst": "Pawłowi Szymańskiemu"}]}
+{"id": "osoba-028", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Pawłem Szymańskim o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 33, "tekst": "Pawłem Szymańskim"}]}
+{"id": "osoba-029", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Umowę podpisał Magdalena Woźniak w obecności świadków.", "encje": [{"typ": "OSOBA", "start": 15, "koniec": 32, "tekst": "Magdalena Woźniak"}]}
+{"id": "osoba-030", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Nie dostarczono dokumentów od Magdaleny Woźniak.", "encje": [{"typ": "OSOBA", "start": 30, "koniec": 47, "tekst": "Magdaleny Woźniak"}]}
+{"id": "osoba-031", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Przekazano akt do Magdalenie Woźniak.", "encje": [{"typ": "OSOBA", "start": 18, "koniec": 36, "tekst": "Magdalenie Woźniak"}]}
+{"id": "osoba-032", "opis": "próbka osoba", "tagi": ["odmiana"], "tekst": "Rozmawialiśmy z Magdaleną Woźniak o szczegółach.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 33, "tekst": "Magdaleną Woźniak"}]}
+{"id": "osoba-033", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-034", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-035", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-036", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-037", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-038", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-039", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-040", "opis": "próbka osoba", "tagi": ["inicjal"], "tekst": "Sprawę prowadzi J. Nowak w dziale prawnym.", "encje": [{"typ": "OSOBA", "start": 16, "koniec": 24, "tekst": "J. Nowak"}]}
+{"id": "osoba-041", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Kasia przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 15, "tekst": "Kasia"}]}
+{"id": "osoba-042", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Basia przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 15, "tekst": "Basia"}]}
+{"id": "osoba-043", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Tomek przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 15, "tekst": "Tomek"}]}
+{"id": "osoba-044", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Jacek przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 15, "tekst": "Jacek"}]}
+{"id": "osoba-045", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Ania przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 14, "tekst": "Ania"}]}
+{"id": "osoba-046", "opis": "próbka osoba", "tagi": ["zdrobnienie"], "tekst": "Koleżanka Kuba przygotowała raport miesięczny.", "encje": [{"typ": "OSOBA", "start": 10, "koniec": 14, "tekst": "Kuba"}]}
+{"id": "osoba-047", "opis": "próbka osoba", "tagi": ["tytul"], "tekst": "Wykład wygłosi dr hab. Anna Zielińska na konferencji.", "encje": [{"typ": "OSOBA", "start": 23, "koniec": 37, "tekst": "Anna Zielińska"}]}
+{"id": "osoba-048", "opis": "próbka osoba", "tagi": ["tytul"], "tekst": "Wykład wygłosi mgr inż. Piotr Nowak na konferencji.", "encje": [{"typ": "OSOBA", "start": 24, "koniec": 35, "tekst": "Piotr Nowak"}]}
+{"id": "osoba-049", "opis": "próbka osoba", "tagi": ["tytul"], "tekst": "Wykład wygłosi prof. Jan Kowalski na konferencji.", "encje": [{"typ": "OSOBA", "start": 21, "koniec": 33, "tekst": "Jan Kowalski"}]}
+{"id": "osoba-050", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "osoba-051", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "osoba-052", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "osoba-053", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "osoba-054", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "osoba-055", "opis": "próbka osoba", "tagi": ["dwuczlonowe"], "tekst": "Kandydatka Anna Maria Kowalska-Nowak złożyła CV.", "encje": [{"typ": "OSOBA", "start": 11, "koniec": 36, "tekst": "Anna Maria Kowalska-Nowak"}]}
+{"id": "homonim-056", "opis": "homonim", "tagi": ["homonim"], "tekst": "Kowal to dawny zawód, a Kowal jest naszym klientem.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 5, "tekst": "Kowal"}]}
+{"id": "homonim-057", "opis": "homonim", "tagi": ["homonim"], "tekst": "Wiśniewski to częste nazwisko; Wiśniewski podpisał umowę.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 10, "tekst": "Wiśniewski"}]}
+{"id": "homonim-058", "opis": "homonim", "tagi": ["homonim"], "tekst": "Róża kupiła róże na bazarze.", "encje": [{"typ": "OSOBA", "start": 0, "koniec": 4, "tekst": "Róża"}]}
+{"id": "homonim-059", "opis": "adres z nazwiskiem", "tagi": ["homonim"], "tekst": "Siedziba: ul. Mickiewicza 4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 10, "koniec": 27, "tekst": "ul. Mickiewicza 4"}]}
+{"id": "firma-060", "opis": "firma od nazwiska", "tagi": ["homonim"], "tekst": "Firma Nowak Sp. z o.o. wystawiła fakturę.", "encje": []}
+{"id": "inst-061", "opis": "instytucja", "tagi": ["homonim"], "tekst": "Muzeum im. Adama Mickiewicza zaprasza.", "encje": []}
+{"id": "pesel-062", "opis": "PESEL próbka", "tagi": [], "tekst": "PESEL: 44010100002.", "encje": [{"typ": "PESEL", "start": 7, "koniec": 18, "tekst": "44010100002", "suma": true}]}
+{"id": "pesel-063", "opis": "PESEL próbka", "tagi": [], "tekst": "PESEL: 45020279199.", "encje": [{"typ": "PESEL", "start": 7, "koniec": 18, "tekst": "45020279199", "suma": true}]}
+{"id": "peselbad-064", "opis": "pesel błędny", "tagi": [], "tekst": "PESEL: 44010100003.", "encje": []}
+{"id": "peselbad-065", "opis": "pesel błędny", "tagi": [], "tekst": "PESEL: 45020279190.", "encje": []}
+{"id": "nip-066", "opis": "NIP próbka", "tagi": [], "tekst": "NIP: 1011001009.", "encje": [{"typ": "NIP", "start": 5, "koniec": 15, "tekst": "1011001009", "suma": true}]}
+{"id": "nip-067", "opis": "NIP próbka", "tagi": [], "tekst": "NIP: 1031141386.", "encje": [{"typ": "NIP", "start": 5, "koniec": 15, "tekst": "1031141386", "suma": true}]}
+{"id": "nipbad-068", "opis": "nip błędny", "tagi": [], "tekst": "NIP: 1011001000.", "encje": []}
+{"id": "nipbad-069", "opis": "nip błędny", "tagi": [], "tekst": "NIP: 1031141387.", "encje": []}
+{"id": "regon-070", "opis": "REGON próbka", "tagi": [], "tekst": "REGON: 490000010.", "encje": [{"typ": "REGON", "start": 7, "koniec": 16, "tekst": "490000010", "suma": true}]}
+{"id": "regon-071", "opis": "REGON próbka", "tagi": [], "tekst": "REGON: 491000011.", "encje": [{"typ": "REGON", "start": 7, "koniec": 16, "tekst": "491000011", "suma": true}]}
+{"id": "regonbad-072", "opis": "regon błędny", "tagi": [], "tekst": "REGON: 490000011.", "encje": []}
+{"id": "regonbad-073", "opis": "regon błędny", "tagi": [], "tekst": "REGON: 491000012.", "encje": []}
+{"id": "iban-074", "opis": "IBAN próbka", "tagi": [], "tekst": "IBAN: PL34 1090 1014 0000 0000 0000 0000.", "encje": [{"typ": "IBAN", "start": 6, "koniec": 40, "tekst": "PL34 1090 1014 0000 0000 0000 0000", "suma": true}]}
+{"id": "iban-075", "opis": "IBAN próbka", "tagi": [], "tekst": "IBAN: PL59 1090 1014 0000 0000 4807 5369.", "encje": [{"typ": "IBAN", "start": 6, "koniec": 40, "tekst": "PL59 1090 1014 0000 0000 4807 5369", "suma": true}]}
+{"id": "ibanbad-076", "opis": "iban błędny", "tagi": [], "tekst": "IBAN: PL34 1090 1014 0000 0000 0000 0001.", "encje": []}
+{"id": "ibanbad-077", "opis": "iban błędny", "tagi": [], "tekst": "IBAN: PL59 1090 1014 0000 0000 4807 5360.", "encje": []}
+{"id": "dowod-078", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: ALW400001.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "ALW400001", "suma": true}]}
+{"id": "dowod-079", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: TJZ400001.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "TJZ400001", "suma": true}]}
+{"id": "dowodbad-080", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: ALW500001.", "encje": []}
+{"id": "dowodbad-081", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: TJZ500001.", "encje": []}
+{"id": "email-082", "opis": "email", "tagi": [], "tekst": "Kontakt: jan.kowalski@example.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 32, "tekst": "jan.kowalski@example.pl"}]}
+{"id": "email-083", "opis": "email", "tagi": [], "tekst": "Kontakt: anna.nowak@firma.com.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 32, "tekst": "anna.nowak@firma.com.pl"}]}
+{"id": "email-084", "opis": "email", "tagi": [], "tekst": "Kontakt: sekretariat@urzad.gov.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 33, "tekst": "sekretariat@urzad.gov.pl"}]}
+{"id": "tel-085", "opis": "telefon", "tagi": [], "tekst": "Tel.: +48 123 456 789.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 21, "tekst": "+48 123 456 789"}]}
+{"id": "tel-086", "opis": "telefon", "tagi": [], "tekst": "Tel.: 123-456-789.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 17, "tekst": "123-456-789"}]}
+{"id": "tel-087", "opis": "telefon", "tagi": [], "tekst": "Tel.: (22) 123-45-67.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 20, "tekst": "(22) 123-45-67"}]}
+{"id": "tel-088", "opis": "telefon", "tagi": [], "tekst": "Tel.: 0048 600 700 800.", "encje": [{"typ": "TELEFON", "start": 6, "koniec": 22, "tekst": "0048 600 700 800"}]}
+{"id": "adr-089", "opis": "adres", "tagi": [], "tekst": "Adres: ul. Marszałkowska 10/5, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 29, "tekst": "ul. Marszałkowska 10/5"}]}
+{"id": "adr-090", "opis": "adres", "tagi": [], "tekst": "Adres: al. Jerozolimskie 15 m. 3, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 32, "tekst": "al. Jerozolimskie 15 m. 3"}]}
+{"id": "adr-091", "opis": "adres", "tagi": [], "tekst": "Adres: pl. Grunwaldzki 2/4, 00-001 Warszawa.", "encje": [{"typ": "ADRES", "start": 7, "koniec": 26, "tekst": "pl. Grunwaldzki 2/4"}]}
+{"id": "data-092", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 13.05.1982.", "encje": [{"typ": "DATA", "start": 16, "koniec": 26, "tekst": "13.05.1982"}]}
+{"id": "data-093", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 13 maja 1982.", "encje": [{"typ": "DATA", "start": 16, "koniec": 28, "tekst": "13 maja 1982"}]}
+{"id": "data-094", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 1982-05-13.", "encje": [{"typ": "DATA", "start": 16, "koniec": 26, "tekst": "1982-05-13"}]}
+{"id": "data-095", "opis": "data", "tagi": [], "tekst": "Data urodzenia: 5 stycznia 2020.", "encje": [{"typ": "DATA", "start": 16, "koniec": 31, "tekst": "5 stycznia 2020"}]}
+{"id": "neg-096", "opis": "negatywna", "tagi": [], "tekst": "Zwykły tekst bez danych osobowych.", "encje": []}
+{"id": "neg-097", "opis": "negatywna", "tagi": [], "tekst": "Zwykły tekst bez danych osobowych.", "encje": []}
+{"id": "neg-098", "opis": "negatywna", "tagi": [], "tekst": "Zwykły tekst bez danych osobowych.", "encje": []}
+{"id": "osoba-099", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Jana Kowalskiego w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 28, "tekst": "Jana Kowalskiego"}]}
+{"id": "osoba-100", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Jana Kowalskiego na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 28, "tekst": "Jana Kowalskiego"}]}
+{"id": "osoba-101", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Anny Nowak w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 22, "tekst": "Anny Nowak"}]}
+{"id": "osoba-102", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Anny Nowak na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 22, "tekst": "Anny Nowak"}]}
+{"id": "osoba-103", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Piotra Wiśniewskiego w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 32, "tekst": "Piotra Wiśniewskiego"}]}
+{"id": "osoba-104", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Piotra Wiśniewskiego na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 32, "tekst": "Piotra Wiśniewskiego"}]}
+{"id": "osoba-105", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Marii Kowalczyk w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Marii Kowalczyk"}]}
+{"id": "osoba-106", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Marii Kowalczyk na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Marii Kowalczyk"}]}
+{"id": "osoba-107", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Tomasza Lewandowskiego w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 34, "tekst": "Tomasza Lewandowskiego"}]}
+{"id": "osoba-108", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Tomasza Lewandowskiego na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 34, "tekst": "Tomasza Lewandowskiego"}]}
+{"id": "osoba-109", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Katarzyny Zielińskiej w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 33, "tekst": "Katarzyny Zielińskiej"}]}
+{"id": "osoba-110", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Katarzyny Zielińskiej na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 33, "tekst": "Katarzyny Zielińskiej"}]}
+{"id": "osoba-111", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Pawła Szymańskiego w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 30, "tekst": "Pawła Szymańskiego"}]}
+{"id": "osoba-112", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Pawła Szymańskiego na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 30, "tekst": "Pawła Szymańskiego"}]}
+{"id": "osoba-113", "opis": "biernik", "tagi": ["odmiana"], "tekst": "Zatrudniono Magdaleny Woźniak w dziale kadr.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 29, "tekst": "Magdaleny Woźniak"}]}
+{"id": "osoba-114", "opis": "miejscownik", "tagi": ["odmiana"], "tekst": "Mowa była o Magdaleny Woźniak na zebraniu.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 29, "tekst": "Magdaleny Woźniak"}]}
+{"id": "osoba-115", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Anna Nowak złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 22, "tekst": "Anna Nowak"}]}
+{"id": "osoba-116", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Jan Kowalski złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 24, "tekst": "Jan Kowalski"}]}
+{"id": "osoba-117", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Tomasz Lewandowski złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 30, "tekst": "Tomasz Lewandowski"}]}
+{"id": "osoba-118", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Maria Kowalczyk złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Maria Kowalczyk"}]}
+{"id": "osoba-119", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Maria Kowalczyk złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 27, "tekst": "Maria Kowalczyk"}]}
+{"id": "osoba-120", "opis": "hr", "tagi": [], "tekst": "Notatka HR: Piotr Wiśniewski złożył wniosek urlopowy.", "encje": [{"typ": "OSOBA", "start": 12, "koniec": 28, "tekst": "Piotr Wiśniewski"}]}
