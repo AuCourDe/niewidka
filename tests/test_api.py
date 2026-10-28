@@ -621,3 +621,15 @@ async def test_stan_z_pakietami_poziomy_dostepne(konfig, tmp_path):
         menedzer.czekaj()
         dane = (await klient.get("/api/stan")).json()
         assert dane["poziomy_dostepne"] == [1, 2, 3]
+
+
+@pytest.mark.anyio
+async def test_stan_bez_detektora_wstaje_i_mowi_o_braku(konfig, tmp_path):
+    """K7b: łagodny start bez wag — /api/stan odpowiada, modele = [] (żywy bieg exe:
+    None.nazwa wywalał endpoint na 500)."""
+    app = create_app(konfig, detektor=None, menedzer_pakietow=_menedzer_testowy(tmp_path))
+    async with _klient(app) as klient:
+        odpowiedz = await klient.get("/api/stan")
+    assert odpowiedz.status_code == 200
+    assert odpowiedz.json()["modele"] == []
+    assert odpowiedz.json()["poziomy_dostepne"] == []

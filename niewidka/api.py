@@ -578,8 +578,10 @@ def create_app(
 
     @app.get("/api/stan")
     async def endpoint_stan() -> dict:
-        czesci = getattr(app.state.detektor, "czesci", None)
-        modele = [c.nazwa for c in czesci] if czesci else [app.state.detektor.nazwa]
+        czesci = getattr(app.state.detektor, "czesci", None) if app.state.detektor else None
+        modele = [c.nazwa for c in czesci] if czesci else (
+            [app.state.detektor.nazwa] if app.state.detektor else []
+        )
         return {
             "wersja": __version__,
             "modele": modele,
