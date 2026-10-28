@@ -23,6 +23,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
@@ -303,11 +304,24 @@ def create_app(konfig: Konfig | None = None, detektor: Any = None) -> FastAPI:
 
     @app.exception_handler(NieznanyFormat)
     async def _nieznany_format(request: Request, blad: NieznanyFormat):
-        return JSONResponse({"blad": str(blad)}, status_code=415)
+        # K4b pkt 15: nazwa pliku bywa osobowa — odpowiedź niesie tylko listę formatów
+        return JSONResponse(
+            {"blad": f"nieznany format pliku; obsługiwane: {', '.join(sorted(blad.wspierane))}"},
+            status_code=415,
+        )
 
     @app.exception_handler(ElementNieobslugiwany)
     async def _element_nieobslugiwany(request: Request, blad: ElementNieobslugiwany):
-        return JSONResponse({"blad": str(blad), "elementy": blad.elementy}, status_code=422)
+        # K4b pkt 15: nazwy części nie wracają (PII potrafi siedzieć w nazwie)
+        return JSONResponse(
+            {"blad": "dokument zawiera nieobsługiwane elementy", "liczba": len(blad.elementy)},
+            status_code=422,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _walidacja_zadania(request: Request, blad: RequestValidationError):
+        # K4b pkt 15: bez pola input i bez odbicia wartości wejściowych
+        return JSONResponse({"blad": "nieprawidłowe dane żądania"}, status_code=422)
 
     @app.exception_handler(BladMapy)
     async def _blad_mapy(request: Request, blad: BladMapy):

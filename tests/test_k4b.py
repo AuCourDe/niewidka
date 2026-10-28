@@ -681,3 +681,55 @@ def test_pkt14_loopback_dozwolony():
     assert wczytaj_konfig(env={"NIEWIDKA_HOST": "localhost"}).host == "localhost"
     assert wczytaj_konfig(env={"NIEWIDKA_HOST": "::1"}).host == "::1"
 
+
+# --- pkt 15: odpowiedzi błędów bez odbicia danych wejściowych ---------------------
+
+
+@pytest.mark.anyio
+async def test_pkt15_415_bez_nazwy_pliku(konfig):
+    """K4b pkt 15: osobowa nazwa pliku (bez rozszerzenia) nie wraca w 415."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": (f"umowa-{PESEL}", b"tresc")},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 415
+    assert PESEL not in odpowiedz.text
+
+
+@pytest.mark.anyio
+async def test_pkt15_nieobslugiwane_elementy_bez_nazw_czesci(konfig):
+    """K4b pkt 15: 422 dla nieobsługiwanych części nie wypisuje ich nazw
+    (PESEL potrafi siedzieć w nazwie części archiwum)."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    dane = _docx_przebuduj(_wzorzec_docx(), dodaj={"word/obcy/44051401359.xml": b"<root/>"})
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("umowa.docx", dane)},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 422
+    assert PESEL not in odpowiedz.text
+    assert "44051401359.xml" not in odpowiedz.text
+
+
+@pytest.mark.anyio
+async def test_pkt15_walidacja_bez_pola_input(konfig):
+    """K4b pkt 15: RequestValidationError nie odbija wartości wejściowych
+    (audyt: poziom=44051401359-test wracał w polu input)."""
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": f"{PESEL}-test", "tekst": "x"},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 422
+    assert PESEL not in odpowiedz.text
+    assert "input" not in odpowiedz.json()
+
