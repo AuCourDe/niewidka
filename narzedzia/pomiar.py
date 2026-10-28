@@ -19,7 +19,6 @@ from pathlib import Path
 
 from niewidka.detektory import (
     DetektorKompozyt,
-    DetektorUzupełniający,
     RegulyDetektor,
     wczytaj_bardsai,
     wczytaj_lfm25,
