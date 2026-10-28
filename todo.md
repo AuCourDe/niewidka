@@ -193,5 +193,5 @@
 - [x] 18:20 (orkiestrator) odbiór K7b: pytest u orkiestratora 490 passed / 1 xfailed (60 s, z wagami), ruff czysty; zrzuty k7-* obejrzane; nowy ZIP 53 MB + WYNIK-K7 w Desktop/C. Uwaga do K7c: przy SWIFT/loginie niewykrytym wynik i tak pokazuje „Kontrola jakości: zaliczona”.
 - [x] 18:20 (orkiestrator) Codex/astra #2 (z 4): przegląd K7b — 11 znalezisk (`docs/konsultacje/07-przeglad-codex-astra-2.md`); nr 1 = pakiet Rozszerzony w ogóle nie działa w anonimizacji (wyjaśnia SWIFT/login na zrzucie)
 - [~] 18:40 (orkiestrator) K7c: naprawa 11 znalezisk Codexa #2 + uczciwy tekst „kontrola zaliczona” (claude-glm c56a, /tmp/cc-glm-k7c.md)
-  - [ ] 12 punktów z testem ataku, docs/WYNIK-K7c.md, pytest + ruff
-  - [ ] przebudowa EXE na Windows i ponowny test, nowy ZIP do Desktop/C
+  - [x] 12 punktów z testem ataku, docs/WYNIK-K7c.md, pytest + ruff — 527 passed/1 xfailed (z wagami), ruff czysty; tabela 12 pkt (test RED, poprawka, commit `347c580`…`413f8cb` + `c121872`); demo pkt 1 na katalogu k7b: bez pakietu „stefan_wodorost” zostaje, z pakietem `[LOGIN_1]`; środowisko: katalog deweloperski przestawiony na Q4 z zaufanego pakiety.json (INT8 zachowany w bardsai-int8/), katalog k7b zamieniony z symlinków na twarde dowiązania (pkt 4 słusznie je odrzuca); wyścig odświeżenia stanu z pełnego biegu naprawiony; workflow wydania miał niesprawną nazwę kroku (dwukropek) unieważniającą cały plik — naprawione
+  - [ ] przebudowa EXE na Windows i ponowny test, nowy ZIP do Desktop/C (lockfile z pkt 7 wymaga potwierdzenia biegiem budowy na Windows)
