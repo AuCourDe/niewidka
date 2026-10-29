@@ -49,7 +49,7 @@ Kroki:
 5. Na początku wyniku pojawia się dopisek: „ZANONIMIZOWANY. Dane osobowe zastąpiono znacznikami (Niewidka). Oryginalne dane przywrócisz plikiem mapy. Identyfikator mapy: …”.
 6. Mapa (znacznik → oryginał we wszystkich formach) zostaje zaszyfrowana AES-256-GCM do pliku `.nwidka`.
 7. **Kontrola wyniku:** program jeszcze raz przepuszcza ten sam detektor przez gotowy wynik. Znaczniki i dopisek są wyjęte ze skanu. Jeśli kontrola coś znajdzie (model po zamaskowaniu części danych widzi inny kontekst), program dokłada te fragmenty wszędzie, gdzie występują, i ukrywa od nowa. Robi to najwyżej 5 razy. Do osoby dolicza do 2 kolejnych słów z wielkiej litery w tej samej linii. Oryginały z mapy są szukane w całym pliku, także w częściach, których adapter nie czyta (metadane, style DOCX).
-8. Status „ukończony” albo „zablokowany”. Na korpusie testowym (8 pism, 3 poziomy) blokad jest 0; zostaje jako zabezpieczenie. Przy blokadzie wynik nie jest wydawany: brak podglądu, kopiowania i pobrania. Komunikat podaje tylko typy i liczby, nigdy fragmenty danych.
+8. Status „ukończony” albo „zablokowany”. Na korpusie testowym (8 pism, 3 poziomy) blokad jest 0; zostaje jako zabezpieczenie. Przy blokadzie program nie wydaje pliku ani mapy, ale odpowiada 422 z podglądem tekstu (tylko TXT) i listą **miejsc wątpliwych** (typ, fragment, pozycja w podglądzie). Interfejs zaznacza je w podglądzie, wyłącza „Kopiuj” i „Pobierz” i pyta przy każdym miejscu: „Ukryj” albo „To nie dane” (patrz „Poprawki w podglądzie”). Fragmenty są wyłącznie w odpowiedzi do interfejsu na tym komputerze, nigdy w logach ani w dzienniku. Blokada bez miejsc do decyzji (np. nieparsowalna część XML) zostaje zwykłym STOP z typami i liczbami.
 
 Ekran wyniku pokazuje:
 - podgląd ze znacznikami jako plakietkami;
@@ -59,6 +59,25 @@ Ekran wyniku pokazuje:
 - zdanie o zapisanej mapie: „Mapa zapisana na tym komputerze do <data>. Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć.”
 
 Wejście, które już zawiera znaczniki Niewidki, jest odrzucane. Chroni to przed cichym, błędnym przywróceniem.
+
+## Poprawki w podglądzie („Ukryj wszędzie”, „To nie dane”)
+
+Specyfikacja: `docs/MAPY-I-AKTUALIZACJE.md` §4, §8 (wiersze 4-6), §9 (wiersz 3).
+
+**Pamięć wykryć.** Po każdym `/api/ukryj` serwer trzyma w RAM wykrycia ostatniego przebiegu (zakresy, typy, grupy osób, numeracja) razem z oryginałem dokumentu: najwyżej 4 zadania przez 15 minut (`[poprawki] maks_zadan`, `ttl_s`; `NIEWIDKA_POPRAWKI_MAKS_ZADAN`, `NIEWIDKA_POPRAWKI_TTL_S`). Nic na dysk, nic w logach. Kluczem jest identyfikator zadania (`x-niewidka-zadanie`, to identyfikator pierwszej mapy). Po terminie albo przy nieznanym identyfikatorze `/api/popraw` odpowiada 410: „Ukryj dokument ponownie”.
+
+**`POST /api/popraw`** (JSON): `zadanie`, `ukryj` (fragmenty), `nie_dane` (znaczniki, np. `OSOBA_3`), `zostaw` (miejsca wątpliwe z blokady uznane za nie-dane). Za każdym razem pełne listy względem zapamiętanych wykryć, więc cofnięcie poprawki to przeliczenie bez niej. Limity: 200 pozycji po 200 znaków (422). Wynik to nowa mapa z nowym identyfikatorem, zapisana w magazynie jak przy ukryciu; stara mapa zostaje. Odpowiedź ma kształt odpowiedzi `/api/ukryj` plus nagłówek `x-niewidka-wlasne` (znacznik → numer pozycji `ukryj`, z której powstał). Model nie jest uruchamiany.
+
+Zasady:
+- `ukryj`: tylko całe słowa (granice słów z polskimi literami, więc „Lis” nie rusza „Listopad”), wszystkie wystąpienia, w każdej odmianie. Dopasowanie używa rdzenia końcówkowego z `osoby.py` („Brzechwy” i „Brzechwą” to „Brzechwa”). Typ z reguł, jeśli reguła obejmuje cały fragment, inaczej `INNE`. Różne formy tego samego fragmentu dostają warianty `_F2`, `_F3`, więc przywrócenie zwraca właściwą odmianę. Fragment już zakryty znacznikiem nic nie zmienia.
+- `nie_dane`: zdejmuje kliknięty znacznik w całości (wszystkie wystąpienia tej osoby albo wartości w tym wyniku), nie przyszłe wystąpienia. Kontrola nie dokłada zdjętego z powrotem. „Ukryj” wygrywa: grupa, której wystąpienie nachodzi na zaznaczenie z `ukryj`, zostaje. Typy z sumą kontrolną (PESEL, NIP, REGON, IBAN, KARTA, DOKUMENT) są odrzucane (422).
+- Numeracja: numery istniejących znaczników się nie zmieniają; nowe dostają kolejne numery danego typu (liczone od najwyższego numeru z wykryć bazowych, także zdjętych).
+- Kontrola po poprawce to reguły i oryginały z mapy (bez modelu) oraz znaleziska modelu z wyniku bazowego, które nadal są w tekście. Fragmenty dodane przez użytkownika są w kontroli surowej szukane jako całe słowa.
+- Dziennik magazynu: zdarzenie `poprawiono` z liczbami pozycji `ukryj`, `nie_dane` i `zostaw`, bez treści.
+
+**Interfejs.** Zaznaczenie tekstu w podglądzie pokazuje przycisk „Ukryj wszędzie” (to samo robi pole tekstowe pod podglądem, dla klawiatury). Plakietka znacznika jest przyciskiem: „To nie dane osobowe” (dla typów z sumą wyłączone, z wyjaśnieniem) albo „Cofnij tę poprawkę”, gdy znacznik powstał z „Ukryj wszędzie”. Lista „Twoje poprawki” ma cofnięcie każdej pozycji. Po poprawce komunikat „Tekst się zmienił. Skopiuj go ponownie.” (aria-live). Interfejs ignoruje odpowiedzi starszych żądań.
+
+**Znane ograniczenia.** Krótkie słowa (do 3 liter) nie łączą odmian. Poprawka liczy się od zapamiętanych wykryć, więc nie widzi tego, czego model nie znalazł w pierwszym przebiegu, dopóki użytkownik tego nie zaznaczy. Miejsca wątpliwe z modelu, które obejmowały zamaskowany znacznik, tracą pozycję w podglądzie po poprawce.
 
 ## Magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2)
 
