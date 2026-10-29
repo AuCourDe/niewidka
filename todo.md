@@ -244,4 +244,10 @@
   - [x] konfig `[listy] plik/zawsze/nigdy/tylko_administrator` + env, GET/PUT /api/listy z tokenem i Origin (PUT dodany do strażnika) — `81c5b3c`
   - [x] Ustawienia: sekcja „Stałe listy”, w „Twoich poprawkach” przycisk „Ukrywaj zawsze”, znacznik z listy odsyła do Ustawień — `81c5b3c`
   - [x] bramka: pytest 637 passed/26 skipped, ruff czysty, GUI web 27/27 i okno EXE 27/27 (gui/test_nowe_funkcje_gui.js); EXE przebudowany z GitHuba (Windows 615 passed), ZIP w Desktop/C
+- [~] (właściciel) „zapytaj argona o opinię. Do tego dodaj dla wersji web jakiś przyjazny plik konfiguracyjny, żeby administratorzy lokalni mogli postawić centralny model inferencji w jakimś jednym miejscu lokalnie na serwerze lokalnym a użytkownicy mogą go złapać po sieci, konfiguracje działania na cpu albo gpu. Jak skończysz to weź jakiegoś agenta i popatrzcie na aplikację okienkową, ona źle wygląda, jest bardzo długa i trzeba przewijać w dół, może zrób dwa panele, dynamicznie skalowane, zapytaj argona o opinię, pokaż mu zrzuty”
+  - [ ] opinia Argona o stałych listach i sprawie znacznika INNE
+  - [ ] centralny serwer inferencji w sieci lokalnej: przyjazny plik konfiguracyjny z komentarzami, CPU/GPU, dostęp z tokenem z pliku sekretów, klient łączy się po adresie; testy
+  - [ ] wygląd aplikacji okienkowej: dwa panele, skalowanie do okna, bez długiego przewijania (z agentem), zrzuty przed/po
+  - [ ] opinia Argona o układzie na zrzutach, poprawki
+  - [ ] bramka: pytest, GUI web i okno, przebudowa EXE
 
