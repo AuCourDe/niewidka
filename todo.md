@@ -227,8 +227,8 @@
   - [x] (3538932) przywracanie przez wklejenie odpowiedzi AI bez wskazywania pliku mapy (mapa po identyfikatorze albo wybór z listy ostatnich zadań)
   - [x] (f73d150, 631 passed, GUI 19/19 z atrapą) podgląd z decyzją: zaznacz słowo → „Ukryj wszędzie”, klik w znacznik → „To nie dane”; blokada pokazuje wątpliwe miejsca z decyzją
   - [x] (f73d150; uczciwie: dwa modele językowe + reguły + słownik GUS) „Jak to działa”: kilka lokalnych metod naraz zamiast jednego modelu (uczciwie: ile modeli jest naprawdę)
-  - [ ] aktualizacje modeli: podpisany katalog pakietów, sprawdzanie ręczne i automatyczne, aktualizacja z zachowaniem poprzedniej wersji
-  - [ ] testy: pytest, API, GUI web i okno (EXE przebudowany), raport do Desktop/C
+  - [x] (1d60e0f; klucz wydawcy jeszcze zaślepką) aktualizacje modeli: podpisany katalog pakietów, sprawdzanie ręczne i automatyczne, aktualizacja z zachowaniem poprzedniej wersji
+  - [x] testy (9c3376a): pytest 656 passed; API korpus 25/27 (znane Piotr Wrona), nowe API 20/20; GUI web 19/19, okno EXE 19/19; raport i ZIP w Desktop/C
 - [~] 07:54 (agent claude-glm przez szynę, w ramach 07:40) magazyn map z retencją + przywracanie przez wklejenie: TYLKO sekcje 1-3 i 8 (wiersze 2, 3, 9, 10) docs/MAPY-I-AKTUALIZACJE.md; sekcje 4-5 robi kto inny
   - [x] konfig: mapy_retencja_dni (30, 0 = brak zapisu, ujemna = ValueError), mapy_katalog, uniewaznij_pobrane (TOML [mapy] + env NIEWIDKA_MAPY_*) — `e3c33d5`
   - [x] niewidka/magazyn.py: zapis/wczytaj/lista/usuń/usuń wszystkie/sprzątanie wygasłych, dziennik JSONL bez PII, zapis atomowy (wspólna funkcja z pakiety.py), walidacja id regexem (path traversal), jedna blokada, zegar wstrzyknięty — `1dbf813`
