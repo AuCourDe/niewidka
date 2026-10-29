@@ -293,9 +293,27 @@ def test_menedzer_pobierz_i_poziomy_dostepne(menedzer):
     assert menedzer.postep.pakiet is None  # pobieranie się skończyło
 
 
-def test_menedzer_jedno_pobieranie_naraz(menedzer):
+def test_menedzer_jedno_pobieranie_naraz(katalog_testowy, tmp_path):
+    # pobieranie wstrzymane do sygnału: bez tego szybka atrapa kończyła je przed drugim
+    # wywołaniem i test przechodził albo padał zależnie od planisty wątków
+    import threading
+
+    zwolnij = threading.Event()
+    zwykly = _transport(katalog_testowy["tresci"])
+
+    def wstrzymany(request: httpx.Request) -> httpx.Response:
+        zwolnij.wait(10)
+        return zwykly.handle_request(request)
+
+    menedzer = MenedzerPakietow(
+        katalog_testowy["lista"],
+        tmp_path / "m",
+        "http://x/",
+        klient=httpx.Client(transport=httpx.MockTransport(wstrzymany)),
+    )
     assert menedzer.pobierz("podstawowy") is True
     assert menedzer.pobierz("rozszerzony") is False  # w toku
+    zwolnij.set()
     menedzer.czekaj()
     assert menedzer.pobierz("rozszerzony") is True
     menedzer.czekaj()
@@ -806,3 +824,10 @@ def test_koniec_operacji_widoczny_dopiero_gdy_mozna_zaczac_nastepna():
 
     zrodlo = inspect.getsource(MenedzerPakietow._uruchom_w_tle)
     assert zrodlo.index("self._w_toku = False") < zrodlo.index("self.postep.pakiet = None")
+
+
+def test_katalog_podaje_pochodzenie_i_licencje_modeli():
+    """Przed pobraniem użytkownik widzi adres modelu na Hugging Face i typ licencji (2026-10-29)."""
+    for pakiet in pakiety.wczytaj_pakiety():
+        assert pakiet.model_hf and pakiet.model_hf.startswith("https://huggingface.co/")
+        assert pakiet.licencja and pakiet.licencja_url and pakiet.licencja_uwagi

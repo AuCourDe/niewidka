@@ -60,6 +60,11 @@ class Pakiet:
     wymaga: str | None = None  # pakiet potrzebny do działania tego pakietu
     wersja: int = 1
     min_wersja: int = 1
+    # pochodzenie i licencja modelu: tylko informacja dla użytkownika przed pobraniem
+    model_hf: str | None = None
+    licencja: str | None = None
+    licencja_url: str | None = None
+    licencja_uwagi: str | None = None
 
     @property
     def rozmiar(self) -> int:
@@ -87,6 +92,10 @@ def wczytaj_pakiety(plik: Path = KATALOG_PAKIETOW) -> list[Pakiet]:
             wymaga=wpis.get("wymaga"),
             wersja=int(wpis.get("wersja", 1)),
             min_wersja=int(wpis.get("min_wersja", 1)),
+            model_hf=wpis.get("model_hf"),
+            licencja=wpis.get("licencja"),
+            licencja_url=wpis.get("licencja_url"),
+            licencja_uwagi=wpis.get("licencja_uwagi"),
             pliki=[
                 PlikPakietu(
                     nazwa=p["nazwa"], zrodlo=p["zrodlo"], rozmiar=p["rozmiar"], sha256=p["sha256"]
@@ -602,6 +611,10 @@ class MenedzerPakietow:
                     "poziomy": p.poziomy,
                     "wymaga": p.wymaga,
                     "rozmiar_bajtow": p.rozmiar,
+                    "model_hf": p.model_hf,
+                    "licencja": p.licencja,
+                    "licencja_url": p.licencja_url,
+                    "licencja_uwagi": p.licencja_uwagi,
                     "stan": stan(p, self._katalog),
                 }
                 for p in self._pakiety.values()
@@ -673,6 +686,10 @@ class MenedzerPakietow:
                     "poziomy": p.poziomy,
                     "wymaga": p.wymaga,
                     "rozmiar_bajtow": p.rozmiar,
+                    "model_hf": p.model_hf,
+                    "licencja": p.licencja,
+                    "licencja_url": p.licencja_url,
+                    "licencja_uwagi": p.licencja_uwagi,
                     "stan": "brak"
                     if all(
                         not (self._katalog / plik.nazwa).is_file() for plik in p.pliki

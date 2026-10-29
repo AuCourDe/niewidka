@@ -34,7 +34,11 @@
           "rozmiar": 4979,
           "sha256": "33424b38df39e6df478e73b5fee6790367a8fffb45befb911b8d83d49793b3dd"
         }
-      ]
+      ],
+      "model_hf": "https://huggingface.co/bardsai/eu-pii-anonimization-multilang",
+      "licencja": "Apache 2.0",
+      "licencja_url": "https://huggingface.co/bardsai/eu-pii-anonimization-multilang",
+      "licencja_uwagi": "Licencja otwarta: pozwala na użycie, także komercyjne. Przy rozpowszechnianiu trzeba dołączyć tekst licencji."
     },
     {
       "id": "rozszerzony",
@@ -67,7 +71,11 @@
           "rozmiar": 12497,
           "sha256": "ced1b2917ec78c766b309233a38dd3351b6bd1cb4ba22c18363ce47c190679ac"
         }
-      ]
+      ],
+      "model_hf": "https://huggingface.co/LiquidAI/LFM2.5-Encoder-350M-PII-Detector",
+      "licencja": "LFM Open License v1.0",
+      "licencja_url": "https://huggingface.co/LiquidAI/LFM2.5-Encoder-350M-PII-Detector/blob/main/LICENSE",
+      "licencja_uwagi": "Użycie komercyjne dozwolone tylko organizacjom z rocznym przychodem poniżej 10 mln USD. Użycie niekomercyjne bez tego ograniczenia."
     }
   ]
 }
