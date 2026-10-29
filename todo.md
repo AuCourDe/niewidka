@@ -250,4 +250,7 @@
   - [ ] wygląd aplikacji okienkowej: dwa panele, skalowanie do okna, bez długiego przewijania (z agentem), zrzuty przed/po
   - [ ] opinia Argona o układzie na zrzutach, poprawki
   - [ ] bramka: pytest, GUI web i okno, przebudowa EXE
+- [~] (właściciel) „zbadaj też licencje modeli do pobrania czy mogą być używane komercyjnie itp, przy próbie pobrania modeli podaj ich adres huggingface oraz typ licencji, z informacją, żeby przed pobraniem zapoznać się z licencją modelu, tylko napis, bez blokady czy czegoś tam, niech użytkownik ma świadomość tylko”
+  - [ ] licencje modeli z kart Hugging Face: typ, użycie komercyjne, warunki (raport z dowodem)
+  - [ ] katalog pakietów: adres HF i typ licencji; ekran pobierania i Ustawienia pokazują napis „zapoznaj się z licencją” (bez blokady)
 
