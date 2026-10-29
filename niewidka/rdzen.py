@@ -36,7 +36,13 @@ from niewidka.model import Encja, TypEncji, Zakres
 from niewidka.osoby import _TYTUŁY as _TYTULY_OSOB
 from niewidka.osoby import pogrupuj
 from niewidka.scalanie import scal
-from niewidka.znaczniki import dopisek, nadaj_oznaczenia, zakoduj_identyfikator, znacznik_encji
+from niewidka.znaczniki import (
+    dopisek,
+    nadaj_oznaczenia,
+    odkoduj_identyfikator,
+    zakoduj_identyfikator,
+    znacznik_encji,
+)
 
 
 @dataclass
@@ -359,6 +365,23 @@ def ukryj(
 
 
 _ID_W_DOPISKU = re.compile(r"Identyfikator mapy: ([a-p]+)")
+
+
+def identyfikator_z_dopisku(
+    dane: bytes, format: str, *, max_rozpakowane_bajtow: int | None = None
+) -> str | None:
+    """Pierwszy identyfikator mapy z dopisku w treści dokumentu; None, gdy dopisku
+    nie ma (np. czat AI go nie powtórzył, K4b pkt 6). Reużyte przez /api/przywroc
+    do wskazania mapy w magazynie bez pliku .nwidka."""
+    _sprawdz_format(format)
+    _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
+    dok = adapter_formatu(format).wczytaj(dane, max_rozpakowane=max_rozpakowane_bajtow)
+    znalezione = {m.group(1) for s in dok.segmenty for m in _ID_W_DOPISKU.finditer(s.tekst)}
+    for litery in sorted(znalezione):
+        identyfikator = odkoduj_identyfikator(litery)
+        if identyfikator is not None:
+            return identyfikator
+    return None
 
 
 def przywroc(

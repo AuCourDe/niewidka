@@ -24,7 +24,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
@@ -33,6 +33,7 @@ from niewidka.archiwum import BladArchiwum
 from niewidka.formaty import (
     ElementNieobslugiwany,
     NieznanyFormat,
+    adapter_formatu,
     nazwa_wyniku,
     rozszerzenia_wspierane,
 )
@@ -40,15 +41,24 @@ from niewidka.jakosc import opisy_ryzyka, r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
-from niewidka.mapa import BladMapy, odszyfruj, zaszyfruj
+from niewidka.magazyn import MagazynMap
+from niewidka.mapa import WZORZEC_ZNACZNIKA, BladMapy, Mapa, odszyfruj, zaszyfruj
 from niewidka.pakiety import (
     BladPakietu,
     MenedzerPakietow,
+    katalog_danych,
     katalog_modeli,
+    opublikuj_bez_hasza,
     wczytaj_pakiety,
     zrodlo,
 )
-from niewidka.rdzen import ArchiwumZaDuze, przywroc, ukryj, zbuduj_detektor
+from niewidka.rdzen import (
+    ArchiwumZaDuze,
+    identyfikator_z_dopisku,
+    przywroc,
+    ukryj,
+    zbuduj_detektor,
+)
 
 logger = logging.getLogger("niewidka.api")
 
@@ -86,6 +96,20 @@ class BladKontroli(Exception):
     def __init__(self, typy: dict[str, int]):
         self.typy = typy
         super().__init__("kontrola zapisu zablokowała wynik")
+
+
+class WybierzMape(Exception):
+    """Przywracanie bez wskazania mapy: użytkownik ma wybrać z listy zadań
+    (docs/MAPY-I-AKTUALIZACJE.md §3 → 422 z kodem `wybierz_mape` i kandydatami)."""
+
+    def __init__(self, komunikat: str, kandydaci: list[dict]):
+        self.kandydaci = kandydaci
+        super().__init__(komunikat)
+
+
+class BrakMapyWMagazynie(Exception):
+    """Dopisek albo identyfikator wskazuje mapę, której nie ma w magazynie
+    (wygasła, usunięta, obca sesja) → 422 z jasnym komunikatem."""
 
 
 class LicznikZlecen:
@@ -267,6 +291,24 @@ def _dopisz_do_rejestru(plik: Path | None, skrot: str, identyfikator: str) -> No
     except OSError as blad:  # brak zapisu = mapa działa tylko w tej sesji, nie awaria
         logger.warning("rejestr map niezapisany: %s", type(blad).__name__)
 
+
+def _przepisz_rejestr(plik: Path | None, bez_identyfikatorow: set[str]) -> None:
+    """Rejestr wydanych map przepisany atomowo bez skreślonych map (przegląd
+    Argona pkt 3): pobrane kopie tych map przestają działać przy przywracaniu."""
+    if plik is None or not plik.is_file():
+        return
+    wiersze = []
+    for wiersz in plik.read_text(encoding="utf-8").splitlines():
+        try:
+            if str(json.loads(wiersz)["id"]) in bez_identyfikatorow:
+                continue
+        except (ValueError, KeyError, TypeError):
+            pass  # uszkodzony wiersz zostaje: _wczytaj_rejestr_map i tak go pomija
+        wiersze.append(wiersz)
+    opublikuj_bez_hasza(
+        ("\n".join(wiersze) + "\n").encode("utf-8") if wiersze else b"", plik, plik.parent
+    )
+
 def create_app(
     konfig: Konfig | None = None,
     detektor: Any = None,
@@ -284,6 +326,9 @@ def create_app(
             konfig,
             modele_katalog=menedzer_pakietow.katalog if menedzer_pakietow else katalog_modeli(),
         )
+    if konfig.mapy_katalog is None:
+        # magazyn map w katalogu danych użytkownika (przegląd Argona, docs/MAPY-I-AKTUALIZACJE.md §2)
+        konfig = replace(konfig, mapy_katalog=katalog_danych() / "mapy")
     wstrzykniety = detektor
     if wstrzykniety is None:
         try:
@@ -313,6 +358,30 @@ def create_app(
     # mapa musi być jednym z nich (stare/przechwycone szyfrogramy nie podlegają odszyfrowaniu)
     app.state.szyfrogramy: dict[str, str] = {}
     _wczytaj_rejestr_map(konfig.rejestr_map, app.state.szyfrogramy, app.state.identyfikatory)
+    # magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2); sprzątanie wygasłych
+    # przy starcie, zanim cokolwiek przywrócimy (SIMPLIFICATION: bez zegara w tle)
+    app.state.magazyn = MagazynMap(konfig.mapy_katalog, retencja_dni=konfig.mapy_retencja_dni)
+
+    def _skresl_z_rejestru(identyfikatory: set[str] | list[str]) -> None:
+        """Przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu,
+        a pobrana kopia działa dalej. Dopiero opcja `mapy_uniewaznij_pobrane`
+        skreśla mapę z rejestru wydanych map (pamięć i plik), więc kopie przestają
+        działać. Jedna blokada magazynu obejmuję zmianę obu miejsc (pkt 9)."""
+        if not konfig.mapy_uniewaznij_pobrane or not identyfikatory:
+            return
+        identyfikatory = set(identyfikatory)
+        app.state.identyfikatory -= identyfikatory
+        for skrot, wydane in list(app.state.szyfrogramy.items()):
+            if wydane in identyfikatory:
+                del app.state.szyfrogramy[skrot]
+        _przepisz_rejestr(konfig.rejestr_map, identyfikatory)
+
+    def _posprzataj() -> None:
+        """Sprzątanie wygasłych przy każdym wywołaniu ukryj/przywroc/lista (§2)."""
+        with app.state.magazyn.blokada:
+            _skresl_z_rejestru(app.state.magazyn.posprzataj())
+
+    _posprzataj()  # program wyłączony nie sprząta; sprząta przy starcie, zanim cokolwiek przywrócimy
     if menedzer_pakietow is None:
         menedzer_pakietow = MenedzerPakietow(
             wczytaj_pakiety(), konfig.modele_katalog, zrodlo()
@@ -359,16 +428,16 @@ def create_app(
 
     @app.middleware("http")
     async def straznik_i_limity(request: Request, call_next):
-        """Token sesji + Host/Origin dla POST-ów /api/ i GET-ów pakietów/stanu
-        (K7c pkt 5: status pakietów bywa nośnikiem sekreta z lustra); limity
-        przed buforowaniem treści."""
-        strazliwe_gety = ("/api/pakiety", "/api/stan")
+        """Token sesji + Host/Origin dla POST-ów i DELETE-ów /api/ oraz GET-ów
+        pakietów/stanu/map (K7c pkt 5: status pakietów bywa nośnikiem sekreta
+        z lustra); limity przed buforowaniem treści."""
+        strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy")
         # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
         # (Codex 2026-10-29: GET / z obcym Host oddawał token — DNS rebinding)
         if (request.headers.get("host") or "").split(":")[0] not in hosty:
             return JSONResponse({"blad": "niedozwolony Host"}, status_code=403)
         if (
-            request.method == "POST" and request.url.path.startswith("/api/")
+            request.method in ("POST", "DELETE") and request.url.path.startswith("/api/")
         ) or (request.method == "GET" and request.url.path in strazliwe_gety):
             host = (request.headers.get("host") or "").split(":")[0]
             origin = request.headers.get("origin")
@@ -430,6 +499,18 @@ def create_app(
     @app.exception_handler(BladMapy)
     async def _blad_mapy(request: Request, blad: BladMapy):
         return JSONResponse({"blad": str(blad)}, status_code=422)
+
+    @app.exception_handler(WybierzMape)
+    async def _wybierz_mape(request: Request, blad: WybierzMape):
+        # docs/MAPY-I-AKTUALIZACJE.md §3: interfejs prowadzi do listy zadań
+        return JSONResponse(
+            {"kod": "wybierz_mape", "blad": str(blad), "kandydaci": blad.kandydaci},
+            status_code=422,
+        )
+
+    @app.exception_handler(BrakMapyWMagazynie)
+    async def _brak_mapy_w_magazynie(request: Request, blad: BrakMapyWMagazynie):
+        return JSONResponse({"kod": "brak_mapy", "blad": str(blad)}, status_code=422)
 
     @app.exception_handler(ArchiwumZaDuze)
     async def _archiwum_za_duze(request: Request, blad: ArchiwumZaDuze):
@@ -585,10 +666,18 @@ def create_app(
         wynik, mapa, raport, mapa_paczka = await app.state.kolejka.wykonaj(praca)
         if raport.status == "zablokowany":
             raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
-        app.state.identyfikatory.add(mapa.identyfikator)
-        skrot = hashlib.sha256(mapa_paczka).hexdigest()
-        app.state.szyfrogramy[skrot] = mapa.identyfikator
-        _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
+        _posprzataj()  # sprzątanie wygasłych przy każdym wywołaniu (§2)
+        wygasa = None
+        with app.state.magazyn.blokada:  # jedna blokada: magazyn + dziennik + rejestr (pkt 9)
+            app.state.identyfikatory.add(mapa.identyfikator)
+            skrot = hashlib.sha256(mapa_paczka).hexdigest()
+            app.state.szyfrogramy[skrot] = mapa.identyfikator
+            _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
+            try:
+                wygasa = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
+            except OSError as blad:  # magazyn niedostępny: ukrywanie działa, mapa tylko do pobrania
+                logger.warning("magazyn map niezapisany: %s", type(blad).__name__)
+                app.state.identyfikatory.discard(mapa.identyfikator)
 
         # K4b pkt 7: pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
         # tylko krótki skrót (nazwa pliku nie musi być niepodrabialna)
@@ -605,44 +694,178 @@ def create_app(
             # K5c: gotowe teksty ryzyka (próg małej próby liczy serwer), nie gołe R95
             "x-niewidka-r95": _json_naglowek(opisy_ryzyka(poziom, list(raport.statystyki))),
             "x-niewidka-status": raport.status,
+            # docs/MAPY-I-AKTUALIZACJE.md §3: obecny tylko, gdy mapa trafiła do magazynu
             "content-disposition": 'attachment; filename="wynik.zip"',
         }
+        if wygasa is not None:
+            naglowki["x-niewidka-mapa-zapisana"] = wygasa.isoformat()
         return Response(paczka.getvalue(), media_type="application/zip", headers=naglowki)
+
+    def _metadane_listy() -> list[dict]:
+        return [
+            {
+                "id": wpis["identyfikator"],
+                "utworzono": wpis["utworzono"],
+                "wygasa": wpis["wygasa"],
+                "poziom": wpis["poziom"],
+                "statystyki": wpis["statystyki"],
+            }
+            for wpis in app.state.magazyn.lista()
+        ]
+
+    def _mapa_z_magazynu(dane: bytes, format: str, wskazanie: str | None, klucz: bytes) -> tuple[Mapa, bool]:
+        """Wybór mapy bez pliku .nwidka (docs/MAPY-I-AKTUALIZACJE.md §3, §8):
+        dopisek w treści wygrywa z polem `identyfikator` (przegląd Argona pkt 10);
+        bez dopisku kandydatem jest tylko mapa z kompletem znaczników z tekstu
+        (pkt 2: dokładnie jeden = wybrany, więcej albo zero = wybierz_mape)."""
+        limit = konfig.max_rozpakowane_mb * _MB
+        id_z_dopisku = identyfikator_z_dopisku(dane, format, max_rozpakowane_bajtow=limit)
+        wskazane = id_z_dopisku or wskazanie
+        if wskazane is not None:
+            paczka = app.state.magazyn.wczytaj(wskazane)
+            if paczka is None:
+                raise BrakMapyWMagazynie(
+                    "Nie ma już zapisanej mapy tego zadania (usunięta albo po okresie "
+                    "przechowywania). Jeśli masz plik mapy (.nwidka), przywróć nim."
+                )
+            return odszyfruj(paczka, klucz), False
+        adapter = adapter_formatu(format)
+        dok = adapter.wczytaj(dane, max_rozpakowane=limit)
+        tresc = "\n".join(s.tekst for s in dok.segmenty)
+        znaczniki = {f"{m.group(1)}_{m.group(2)}" for m in WZORZEC_ZNACZNIKA.finditer(tresc)}
+        if not znaczniki:
+            raise WybierzMape("W tekście nie ma znaczników Niewidki, więc nie wiem, którą mapę użyć.", [])
+        kandydaci = []
+        for wpis in app.state.magazyn.lista():  # od najnowszej; dopisek i tak wygrywa wyżej
+            paczka = app.state.magazyn.wczytaj(wpis["identyfikator"])
+            if paczka is None:
+                continue
+            try:
+                mapa_ob = odszyfruj(paczka, klucz)
+            except BladMapy:
+                continue  # nieczytelna mapa nie jest kandydatem
+            if {w.oznaczenie for w in mapa_ob.wpisy} >= znaczniki:
+                kandydaci.append(wpis)
+        if len(kandydaci) == 1:
+            return odszyfruj(app.state.magazyn.wczytaj(kandydaci[0]["identyfikator"]), klucz), True
+        if len(kandydaci) > 1:
+            raise WybierzMape(
+                "Kilka zapisanych zadań pasuje do tych znaczników. Wybierz zadanie z listy.",
+                _metadane_listy(),
+            )
+        raise WybierzMape(
+            "Żadna zapisana mapa nie zawiera już tych znaczników. Wybierz mapę z pliku "
+            "(.nwidka), jeśli ją masz.",
+            [],
+        )
 
     @app.post("/api/przywroc")
     async def endpoint_przywroc(
         request: Request,
-        wynik: UploadFile = File(...),  # noqa: B008 — wzorzec FastAPI
-        mapa: UploadFile = File(...),  # noqa: B008
+        wynik: UploadFile | None = File(None),  # noqa: B008 — wzorzec FastAPI
+        tekst: str | None = Form(None),
+        mapa: UploadFile | None = File(None),  # noqa: B008
+        identyfikator: str | None = Form(None),
     ) -> Response:
-        format = _format_z_nazwy(wynik.filename or "")
-        dane_wyniku = await wynik.read()
-        dane_mapy = await mapa.read()
+        """Przywracanie: plik wyniku ALBO wklejony tekst; mapa z pliku, dopisku
+        w treści albo z magazynu po identyfikatorze (§3)."""
+        if (wynik is None) == (tekst is None):
+            raise HTTPException(status_code=422, detail="podaj dokładnie jedno: plik wyniku albo tekst")
+        if tekst is not None and len(tekst.encode()) > konfig.max_tekst_mb * _MB:
+            raise HTTPException(status_code=413, detail=f"tekst ponad limit {konfig.max_tekst_mb} MB")
+        if wynik is not None:
+            format = _format_z_nazwy(wynik.filename or "")
+            dane_wyniku = await wynik.read()
+            if len(dane_wyniku) > konfig.max_rozmiar_mb * _MB:
+                raise HTTPException(
+                    status_code=413, detail=f"wejście ponad limit {konfig.max_rozmiar_mb} MB"
+                )
+        else:
+            format = "txt"
+            dane_wyniku = tekst.encode()
+        dane_mapy = await mapa.read() if mapa is not None else None
+        _posprzataj()  # sprzątanie wygasłych, zanim cokolwiek przywrócimy (§2)
 
         def praca():
             klucz = pobierz_klucz(konfig)
-            # K4b pkt 7: najpierw rejestr wydanych szyfrogramów, dopiero potem
-            # odszyfrowanie — stara mapa z trafionym identyfikatorem nie przechodzi
-            if hashlib.sha256(dane_mapy).hexdigest() not in app.state.szyfrogramy:
-                raise BladMapy("mapa nie została wydana przez ten program")
-            mapa_ob = odszyfruj(dane_mapy, klucz)
-            del klucz
-            if mapa_ob.identyfikator not in app.state.identyfikatory:
-                raise BladMapy("niezgodny identyfikator mapy — mapa z innego zadania albo sesji")
+            wybrana_automatycznie = False
+            if dane_mapy is not None:
+                # K4b pkt 7: najpierw rejestr wydanych szyfrogramów, dopiero potem
+                # odszyfrowanie — stara mapa z trafionym identyfikatorem nie przechodzi
+                if hashlib.sha256(dane_mapy).hexdigest() not in app.state.szyfrogramy:
+                    raise BladMapy("mapa nie została wydana przez ten program")
+                mapa_ob = odszyfruj(dane_mapy, klucz)
+                del klucz
+                if mapa_ob.identyfikator not in app.state.identyfikatory:
+                    raise BladMapy("niezgodny identyfikator mapy — mapa z innego zadania albo sesji")
+            else:
+                mapa_ob, wybrana_automatycznie = _mapa_z_magazynu(dane_wyniku, format, identyfikator, klucz)
+                del klucz
             przywrocony, rozbieznosci = przywroc(
                 dane_wyniku, format, mapa_ob, max_rozpakowane_bajtow=konfig.max_rozpakowane_mb * _MB
             )
-            return przywrocony, rozbieznosci, mapa_ob.identyfikator
+            try:
+                app.state.magazyn.odnotuj("przywrocono", mapa_ob.identyfikator, mapa_ob.poziom)
+            except ValueError:  # obcy identyfikator: audyt bez śmieci w dzienniku
+                pass
+            return przywrocony, rozbieznosci, mapa_ob.identyfikator, wybrana_automatycznie
 
-        plik_przywrocony, rozbieznosci, identyfikator = await app.state.kolejka.wykonaj(praca)
+        plik_przywrocony, rozbieznosci, identyfikator_mapy, wybrana_automatycznie = (
+            await app.state.kolejka.wykonaj(praca)
+        )
         naglowki = {
             "x-niewidka-rozbieznosci": _json_naglowek(
                 [{"typ": r.typ, "opis": r.opis} for r in rozbieznosci]
             ),
-            "x-niewidka-identyfikator": identyfikator,
-            "content-disposition": f'attachment; filename="PRZYWROCONY_{identyfikator}.{format}"',
+            "x-niewidka-identyfikator": identyfikator_mapy,
         }
-        return Response(plik_przywrocony, media_type="application/octet-stream", headers=naglowki)
+        if wybrana_automatycznie:
+            # przegląd Argona pkt 2: jeden kandydat wybrany za użytkownika, jawnie
+            naglowki["x-niewidka-mapa-wybrana-automatycznie"] = "1"
+        if wynik is not None:
+            naglowki["content-disposition"] = (
+                f'attachment; filename="PRZYWROCONY_{identyfikator_mapy}.{format}"'
+            )
+            return Response(
+                plik_przywrocony, media_type="application/octet-stream", headers=naglowki
+            )
+        return PlainTextResponse(
+            plik_przywrocony.decode("utf-8"), media_type="text/plain; charset=utf-8", headers=naglowki
+        )
+
+    @app.get("/api/mapy")
+    async def endpoint_mapy() -> dict:
+        """Zapisane mapy od najnowszej (lista wyboru „Zadanie" i Ustawienia); id to
+        pełny identyfikator - nie jest daną osobową (docs/MAPY-I-AKTUALIZACJE.md §3)."""
+        _posprzataj()
+        return {
+            "retencja_dni": konfig.mapy_retencja_dni,
+            "mapy": _metadane_listy(),
+        }
+
+    @app.delete("/api/mapy/{identyfikator}")
+    async def endpoint_usun_mape(identyfikator: str) -> JSONResponse:
+        try:
+            with app.state.magazyn.blokada:
+                _skresl_z_rejestru(app.state.magazyn.posprzataj())
+                usunieto = app.state.magazyn.usun(identyfikator)
+                if usunieto:
+                    _skresl_z_rejestru([identyfikator])
+        except ValueError as blad:  # zły identyfikator: 422, nie 500 (path traversal)
+            raise HTTPException(status_code=422, detail=str(blad)) from None
+        if not usunieto:
+            raise HTTPException(status_code=404, detail="nie ma takiej mapy w magazynie")
+        return JSONResponse({"stan": "usunieto"})
+
+    @app.delete("/api/mapy")
+    async def endpoint_usun_wszystkie_mapy() -> JSONResponse:
+        with app.state.magazyn.blokada:
+            usuniete = app.state.magazyn.posprzataj()
+            for wpis in app.state.magazyn.lista():
+                if app.state.magazyn.usun(wpis["identyfikator"]):
+                    usuniete.append(wpis["identyfikator"])
+            _skresl_z_rejestru(usuniete)
+        return JSONResponse({"usunieto": len(usuniete)})
 
     @app.get("/api/stan")
     async def endpoint_stan() -> dict:

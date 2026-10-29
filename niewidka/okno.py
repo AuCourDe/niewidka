@@ -138,6 +138,8 @@ def przygotuj_srodowisko(env: MutableMapping[str, str] | None = None) -> None:
     env.setdefault("NIEWIDKA_MODELE_KATALOG", str(katalog_modeli(env)))
     # mapa ma się przywracać po zamknięciu i ponownym otwarciu okna (2026-10-29)
     env.setdefault("NIEWIDKA_REJESTR_MAP", str(katalog_danych(env) / "wydane-mapy.jsonl"))
+    # magazyn map z retencją w katalogu danych (docs/MAPY-I-AKTUALIZACJE.md §2)
+    env.setdefault("NIEWIDKA_MAPY_KATALOG", str(katalog_danych(env) / "mapy"))
 
 
 def port_wolny() -> int:

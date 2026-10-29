@@ -53,7 +53,9 @@ class MagazynMap:
         self.katalog = Path(katalog)
         self.retencja_dni = int(retencja_dni)
         self.zegar = zegar or DOMYSLNY_ZEGAR
-        self.blokada = threading.Lock()
+        # RLock: API trzyma blokadę wokół sekwencji metod (sprzątanie + zapis +
+        # rejestr), a metody magazynu blokują też pojedynczo - ten sam wątek wejdzie
+        self.blokada = threading.RLock()
 
     # --- zapis i odczyt ---------------------------------------------------------
 
@@ -153,6 +155,11 @@ class MagazynMap:
             metadane.unlink(missing_ok=True)
             self._dopisz(zdarzenie, identyfikator, None, None, self.zegar())
         return True
+
+    def odnotuj(self, zdarzenie: str, identyfikator: str, poziom: int | None = None) -> None:
+        """Wpis audytu o zdarzeniu spoza magazynu (np. przywrocono z pobranej kopii)."""
+        with self.blokada:
+            self._dopisz(zdarzenie, sprawdz_id(identyfikator), poziom, None, self.zegar())
 
     # --- dziennik ---------------------------------------------------------------
 
