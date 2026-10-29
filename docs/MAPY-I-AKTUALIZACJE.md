@@ -115,3 +115,18 @@ Każdą uwagę oceniłem względem kodu. Przyjęte zmieniają punkty 1-5:
 | 8 | Próbka „nowy wykrywa wszystko, co stary” blokuje poprawki fałszywych alarmów | **Przyjęte.** Próbka ma `musi_wykryc` i `nie_moze_wykryc`. Nowa wersja jest oceniana względem pliku, nie względem starej wersji. |
 | 9 | Wyścig zapisów JSONL; nadpisywanie zerami przed usunięciem | **Wyścig przyjęty:** jedna blokada procesu na rejestr, dziennik i magazyn. **Zera odrzucone:** na SSD nie działają, a plik to szyfrogram, który bez klucza z magazynu systemowego nic nie daje. |
 | 10 | Stary wybór z listy + nowy tekst z dopiskiem dają 422 | **Przyjęte.** Dopisek wygrywa z wyborem z listy. Interfejs po wklejeniu przestawia wybór sam. |
+
+## 9. Poprawki po przeglądzie Astry (2026-10-29, przed kodem)
+
+| # | Uwaga Astry | Decyzja |
+|---|---|---|
+| 1 | Identyfikator dokumentu w każdym znaczniku, bez zgadywania mapy | **Odrzucone w tej formie:** dłuższe znaczniki AI przepisuje gorzej. Zgadywania i tak nie ma: przy kilku pasujących mapach wybór należy do użytkownika (sekcja 8, wiersz 2), a wynik jest widoczny przed skopiowaniem. |
+| 2 | Wykreślenie z rejestru nie jest unieważnieniem kryptograficznym | **Przyjęte.** Opis mówi wprost: „ten program odmówi”, nie „kopia przestaje działać”. Kopia mapy razem z kluczem pozostaje odszyfrowywalna. |
+| 3 | „To nie dane” jako globalny wyjątek tekstu tworzy dziurę | **Przyjęte.** „To nie dane” dotyczy klikniętego znacznika (tej osoby albo wartości w tym wyniku), nie każdego takiego słowa w przyszłości. „Ukryj” wygrywa z „To nie dane”. Typy z sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) nie mają przycisku „To nie dane”. |
+| 4 | Web: uprawnienia per użytkownik; ACL na Windows | Jak u Argona: serwer tylko na loopbacku. `%LOCALAPPDATA%` ma domyślnie ACL tylko dla użytkownika. Wersja sieciowa czeka na uwierzytelnienie. |
+| 5 | Spójność: wynik wydany przed zapisem mapy, spóźnione odpowiedzi GUI | **Przyjęte.** Mapa zapisana przed odpowiedzią (błąd zapisu = wynik wydany, nagłówek „mapa niezapisana”, interfejs każe pobrać mapę). Interfejs odrzuca odpowiedzi starszych żądań. |
+| 6 | Aktualizacje: cofanie do wycofanych wersji, termin ważności, rotacja klucza | **Przyjęte w części.** Najwyższa przyjęta `wersja_katalogu` zapisana osobno (uszkodzony katalog nie obniża progu). Pakiet może mieć `min_wersja`; cofnięcie poniżej niej zablokowane. Plik klucza publicznego przyjmuje kilka kluczy (rotacja: nowy klucz w wydaniu programu). Termin ważności katalogu odrzucony: sieci offline instalują rzadko i nie mogą tracić pracy. SIMPLIFICATION: bez TUF; rozbudować, gdy będzie więcej niż jeden wydawca albo serwer aktualizacji pod obcą kontrolą. |
+| 7 | Podpis musi obejmować komplet plików, skróty i rozmiary | Już tak jest (katalog ma listę plików z SHA-256 i rozmiarem, ładowane są tylko zweryfikowane pliki, nic nie jest wykonywane). |
+| 8 | Próbka premiuje nadmierne maskowanie | Pokryte listą `nie_moze_wykryc` (sekcja 8, wiersz 8). |
+| 9 | Retencja przy wyłączonym programie | Sprzątanie przy starcie przed jakąkolwiek operacją; zapisane w dokumentacji dla administratora. 30 dni to wartość domyślna, nie wymóg RODO; okres ustawia organizacja. |
+| 10 | Dziennik niepełny i edytowalny | **Przyjęte.** Wpis ma: użytkownika systemu, wersję programu, wersje pakietów modeli, poziom, wynik operacji, liczbę wyjątków „To nie dane”. Wpisy są łańcuchem skrótów SHA-256 (każdy zawiera skrót poprzedniego), więc edycja jest wykrywalna. Bez treści i nazw plików. |
