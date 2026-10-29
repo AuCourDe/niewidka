@@ -503,21 +503,11 @@ def instaluj_z_katalogu(
     weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu (K7c pkt 3/4:
     te same bajty są haszowane i publikowane, bez podążania za dowiązaniami).
     K7c pkt 8: limit bajtów = rozmiar z katalogu wag (plik lustra większy =
-    odmowa PRZED kopiowaniem), limit czasu i anulowanie jak przy pobieraniu."""
+    odmowa PRZED kopiowaniem), limit czasu i anulowanie jak przy pobieraniu.
+    K7/akt: to droga lustra IT (wersje przypięte w wbudowanym katalogu);
+    aktualizacja z folderem i podpisem idzie przez aktualizacje.MenedzerAktualizacji."""
     limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
     start_czasu = time.monotonic()
-
-    # K7/akt: weryfikacja podpisu gdy katalog pakietów znajduje się w folderze offline
-    plik_kat = zrodlo_katalog / "katalog-pakietow.json"
-    if plik_kat.is_file():
-        plik_sig = zrodlo_katalog / "katalog-pakietow.json.sig"
-        if not plik_sig.is_file():
-            raise BladPakietu("brak pliku podpisu katalog-pakietow.json.sig w folderze źródłowym")
-        from niewidka.aktualizacje import wczytaj_klucze_publiczne, weryfikuj_podpis
-
-        klucze = wczytaj_klucze_publiczne()
-        if not weryfikuj_podpis(plik_kat.read_bytes(), plik_sig.read_bytes(), klucze):
-            raise BladPakietu("zły podpis katalogu pakietów w folderze źródłowym")
 
     for plik in pakiet.pliki:
         if przerwano is not None and przerwano():
@@ -647,6 +637,12 @@ class MenedzerPakietow:
                 self._odswiezanie_w_toku = False
 
         threading.Thread(target=praca, name="niewidka-pakiety-stan", daemon=True).start()
+
+    def podmien_pakiety(self, lista: list[Pakiet]) -> None:
+        """K7/akt: przyjęty (podpisany) katalog aktualizacji zastępuje wbudowany;
+        od teraz stan i SHA-256 pilnują nowych wersji. Odświeżenie w tle."""
+        self._pakiety = {p.id: p for p in lista}
+        self.odswiez_w_tle()
 
     def ustaw_zwrot_zmiany(self, on_zmiana: callable) -> None:  # type: ignore[valid-type]
         """K7c: zwrot wywoływany po każdej zakończonej operacji (API podpina

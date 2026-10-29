@@ -26,10 +26,12 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartParser
 
 from niewidka import __version__
 from niewidka.aktualizacje import (
+    TRYBY_AKTUALIZACJI,
     BladAktualizacji,
     MenedzerAktualizacji,
     TrybNarzucony,
@@ -652,6 +654,7 @@ def create_app(
             "narzucony": akt.narzucony,
             "stan": akt.stan,
             "blad": akt.blad,
+            "klucz_wydawcy": akt.ma_klucze,
             "wersja_katalogu": wczytaj_wersje_katalogu(akt.katalog_aktywny_plik),
             "ostatnie_sprawdzenie": akt.ostatnie_sprawdzenie,
             "pakiety": akt.lista_pakietow(),
@@ -660,6 +663,8 @@ def create_app(
 
     @app.post("/api/aktualizacje")
     async def endpoint_aktualizacje_akcja(request: Request) -> JSONResponse:
+        """sprawdz | instaluj (w tle, 202; z folder: offline, §5) | cofnij | tryb
+        (409, gdy tryb narzuca konfiguracja administratora)."""
         try:
             zlecenie = await request.json()
         except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
@@ -673,18 +678,24 @@ def create_app(
             nowy_tryb = zlecenie.get("tryb")
             if not nowy_tryb:
                 raise HTTPException(status_code=422, detail="brak pola tryb")
+            if nowy_tryb not in TRYBY_AKTUALIZACJI:
+                raise HTTPException(status_code=422, detail="nieznany tryb aktualizacji")
             akt.ustaw_tryb(nowy_tryb)
             return JSONResponse({"stan": "zmieniono_tryb", "tryb": nowy_tryb})
 
         if akcja == "sprawdz":
-            akt.sprawdz_aktualizacje()
+            # pobieranie katalogu to żądanie sieciowe: bez blokowania pętli zdarzeń
+            await run_in_threadpool(akt.sprawdz_aktualizacje)
             return JSONResponse({"stan": akt.stan, "blad": akt.blad})
 
         if akcja == "instaluj":
             pakiet_id = zlecenie.get("pakiet")
-            if not pakiet_id:
-                raise HTTPException(status_code=422, detail="instaluj wymaga podania pakietu")
-            if not akt.instaluj_aktualizacje(pakiet_id, w_tle=True):
+            folder = zlecenie.get("folder")
+            if not pakiet_id and not folder:
+                raise HTTPException(
+                    status_code=422, detail="instaluj wymaga pakietu albo folderu z aktualizacją"
+                )
+            if not akt.instaluj_aktualizacje(pakiet_id, w_tle=True, folder=folder and Path(folder)):
                 raise HTTPException(status_code=409, detail="operacja aktualizacji już trwa")
             return JSONResponse({"stan": "instalowanie", "pakiet": pakiet_id}, status_code=202)
 
