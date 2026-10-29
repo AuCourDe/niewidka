@@ -602,3 +602,38 @@ async def test_przywrocenie_wpisuje_przywrocono_do_dziennika(konfig_api):
     dziennik = app.state.magazyn.katalog.joinpath("dziennik.jsonl").read_text(encoding="utf-8")
     assert "przywrocono" in dziennik
     assert "Jan Kowalski" not in dziennik and "44051401359" not in dziennik
+
+
+@pytest.mark.anyio
+async def test_przywroc_zly_identyfikator_w_polu_422_a_nie_500(konfig_api):
+    # id spoza [a-f0-9]{32} w polu formularza: 422, nie 500 (walidacja magazynu)
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, czesci = await _ukryj(klient, app)
+        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+        bez_dopisku = _wynik_txt(identyfikator, czesci).split("\n", 1)[1]
+        przywroc = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku, "identyfikator": "krotki"},
+            headers=_naglowki(app),
+        )
+    assert przywroc.status_code == 422
+    assert "identyfikator" in przywroc.json()["blad"]
+
+
+@pytest.mark.anyio
+async def test_przywroc_wiele_kandydatow_lista_dotyczy_kandydatow(konfig_api):
+    # 422 z wieloma kandydatami pokazuje metadane TYLKO pasujących map, nie całego magazynu
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, czesci = await _ukryj(klient, app)
+        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+        bez_dopisku = _wynik_txt(identyfikator, czesci).split("\n", 1)[1]
+        await _ukryj(klient, app)  # druga pasująca
+        _, _czesci_3 = await _ukryj(klient, app, "Inny tekst bez wspolnych znacznikow. PESEL 44051401359.")
+        przywroc = await klient.post(
+            "/api/przywroc", data={"tekst": bez_dopisku}, headers=_naglowki(app)
+        )
+    assert przywroc.status_code == 422
+    kandydaci = przywroc.json()["kandydaci"]
+    assert len(kandydaci) == 2  # trzecia mapa (inny zestaw znaczników) nie jest kandydatem

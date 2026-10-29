@@ -675,7 +675,7 @@ def create_app(
             _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
             try:
                 wygasa = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
-            except OSError as blad:  # magazyn niedostępny: ukrywanie działa, mapa tylko do pobrania
+            except (OSError, BladMapy) as blad:  # magazyn niedostępny: ukrywanie działa, mapa tylko do pobrania
                 logger.warning("magazyn map niezapisany: %s", type(blad).__name__)
                 app.state.identyfikatory.discard(mapa.identyfikator)
 
@@ -722,7 +722,10 @@ def create_app(
         id_z_dopisku = identyfikator_z_dopisku(dane, format, max_rozpakowane_bajtow=limit)
         wskazane = id_z_dopisku or wskazanie
         if wskazane is not None:
-            paczka = app.state.magazyn.wczytaj(wskazane)
+            try:
+                paczka = app.state.magazyn.wczytaj(wskazane)
+            except ValueError as blad:  # id spoza wzorca (w tym traversal): 422, nie 500
+                raise WybierzMape(f"Zły identyfikator mapy: {blad}", []) from None
             if paczka is None:
                 raise BrakMapyWMagazynie(
                     "Nie ma już zapisanej mapy tego zadania (usunięta albo po okresie "
@@ -751,7 +754,7 @@ def create_app(
         if len(kandydaci) > 1:
             raise WybierzMape(
                 "Kilka zapisanych zadań pasuje do tych znaczników. Wybierz zadanie z listy.",
-                _metadane_listy(),
+                kandydaci,  # metadane TYLKO pasujących, nie całego magazynu
             )
         raise WybierzMape(
             "Żadna zapisana mapa nie zawiera już tych znaczników. Wybierz mapę z pliku "
@@ -837,11 +840,12 @@ def create_app(
     async def endpoint_mapy() -> dict:
         """Zapisane mapy od najnowszej (lista wyboru „Zadanie" i Ustawienia); id to
         pełny identyfikator - nie jest daną osobową (docs/MAPY-I-AKTUALIZACJE.md §3)."""
-        _posprzataj()
-        return {
-            "retencja_dni": konfig.mapy_retencja_dni,
-            "mapy": _metadane_listy(),
-        }
+        with app.state.magazyn.blokada:  # odczyt spójny z równoległym usuwaniem/sprzątaniem
+            _posprzataj()
+            return {
+                "retencja_dni": konfig.mapy_retencja_dni,
+                "mapy": _metadane_listy(),
+            }
 
     @app.delete("/api/mapy/{identyfikator}")
     async def endpoint_usun_mape(identyfikator: str) -> JSONResponse:
