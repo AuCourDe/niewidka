@@ -1,6 +1,6 @@
 # Niewidka — logika aplikacji (do konsultacji: poprawność podejścia i ułatwienia dla użytkownika)
 
-Stan: 2026-10-29, commit 56029d1. Dokument bez danych klienta. Przykłady są fikcyjne.
+Stan: 2026-10-29, commit 8e62ba5. Dokument bez danych klienta. Przykłady są fikcyjne.
 
 ## Cel i odbiorca
 
@@ -26,6 +26,8 @@ Ekran „Przygotowanie do pracy” proponuje do wyboru:
 
 Po pobraniu program sprawdza sumy SHA-256 każdego pliku. Ustawienia mają osobne przełączniki Pobierz/Usuń dla każdego pakietu.
 
+Modele i rejestr wydanych map leżą w katalogu danych użytkownika (Windows: `%LOCALAPPDATA%\Niewidka`), więc aktualizacja programu ich nie kasuje.
+
 Klucz szyfrujący mapy powstaje raz. Trafia do magazynu systemowego (Windows Credential Manager)
 albo do pliku sekretów wskazanego przez IT. Aplikacja nie trzyma klucza w konfiguracji.
 
@@ -47,7 +49,7 @@ Kroki:
 5. Na początku wyniku pojawia się dopisek: „ZANONIMIZOWANY. Dane osobowe zastąpiono znacznikami (Niewidka). Oryginalne dane przywrócisz plikiem mapy. Identyfikator mapy: …”.
 6. Mapa (znacznik → oryginał we wszystkich formach) zostaje zaszyfrowana AES-256-GCM do pliku `.nwidka`.
 7. **Kontrola wyniku:** program jeszcze raz przepuszcza ten sam detektor przez gotowy wynik. Znaczniki i dopisek są wyjęte ze skanu. Jeśli kontrola coś znajdzie (model po zamaskowaniu części danych widzi inny kontekst), program dokłada te fragmenty wszędzie, gdzie występują, i ukrywa od nowa. Robi to najwyżej 5 razy. Do osoby dolicza do 2 kolejnych słów z wielkiej litery w tej samej linii. Oryginały z mapy są szukane w całym pliku, także w częściach, których adapter nie czyta (metadane, style DOCX).
-8. Status „ukończony” albo „zablokowany”. Przy blokadzie wynik nie jest wydawany: brak podglądu, kopiowania i pobrania. Komunikat podaje tylko typy i liczby, nigdy fragmenty danych.
+8. Status „ukończony” albo „zablokowany”. Na korpusie testowym (8 pism, 3 poziomy) blokad jest 0; zostaje jako zabezpieczenie. Przy blokadzie wynik nie jest wydawany: brak podglądu, kopiowania i pobrania. Komunikat podaje tylko typy i liczby, nigdy fragmenty danych.
 
 Ekran wyniku pokazuje:
 - podgląd ze znacznikami jako plakietkami;
