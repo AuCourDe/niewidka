@@ -89,6 +89,9 @@ def srodowisko(monkeypatch, tmp_path):
     monkeypatch.delenv("NIEWIDKA_PORT", raising=False)
     monkeypatch.delenv("NIEWIDKA_KLUCZ_PLIK", raising=False)
     monkeypatch.delenv("NIEWIDKA_MODELE_KATALOG", raising=False)
+    # katalog danych użytkownika też w tmp: inaczej test widzi prawdziwe wagi z profilu
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "profil"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "profil"))
     monkeypatch.setenv("NIEWIDKA_REJESTR_MAP", str(tmp_path / "wydane-mapy.jsonl"))
 
 
