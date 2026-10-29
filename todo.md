@@ -246,7 +246,7 @@
   - [x] bramka: pytest 637 passed/26 skipped, ruff czysty, GUI web 27/27 i okno EXE 27/27 (gui/test_nowe_funkcje_gui.js); EXE przebudowany z GitHuba (Windows 615 passed), ZIP w Desktop/C
 - [~] (właściciel) „zapytaj argona o opinię. Do tego dodaj dla wersji web jakiś przyjazny plik konfiguracyjny, żeby administratorzy lokalni mogli postawić centralny model inferencji w jakimś jednym miejscu lokalnie na serwerze lokalnym a użytkownicy mogą go złapać po sieci, konfiguracje działania na cpu albo gpu. Jak skończysz to weź jakiegoś agenta i popatrzcie na aplikację okienkową, ona źle wygląda, jest bardzo długa i trzeba przewijać w dół, może zrób dwa panele, dynamicznie skalowane, zapytaj argona o opinię, pokaż mu zrzuty”
   - [x] opinia Argona o stałych listach i znaczniku INNE — docs/konsultacje/2026-10-29-argon-stale-listy.md; wdrożone pkt 1, 3, 5, 6 (`b5af584`: „Oznacz jako inne dane”, „Odkryj tylko w tym dokumencie”, sprzeczność z listą administratora, komunikat wygaśnięcia); pkt 7 (PESEL fałszywie dodatni) do decyzji właściciela
-  - [~] centralny serwer inferencji w sieci lokalnej: przyjazny plik konfiguracyjny z komentarzami, CPU/GPU, dostęp z tokenem z pliku sekretów, klient łączy się po adresie; testy (agent Sonnet; claude-glm i opencode bez limitu)
+  - [x] centralny serwer inferencji: `1d5a4d3`, `5c0297c` (konfiguracja/serwer-inferencji.przyklad.toml, klient-web.przyklad.toml, docs/SERWER-INFERENCJI.md); pytest 674 passed; bieg na prawdziwych wagach: 401 bez tokenu, aplikacja bez lokalnych modeli ukrywa przez serwer (poziomy 1 i 3 → 200), treść nie trafia do logu serwera, serwer wyłączony → 503 „Serwer modeli nie odpowiada”; GPU niesprawdzone (brak onnxruntime-gpu)
   - [~] wygląd aplikacji okienkowej: dwa panele, skalowanie do okna, bez długiego przewijania (agent Sonnet), zrzuty przed: gui/uklad-przed-*.png
   - [~] opinia Argona o układzie na zrzutach (przed) — docs/konsultacje/2026-10-29-argon-uklad-okna.md; wdrożenie u agenta (Sonnet), potem zrzuty po do Argona
   - [ ] bramka: pytest, GUI web i okno, przebudowa EXE
@@ -254,3 +254,8 @@
   - [x] licencje: bardsai Apache 2.0 (komercyjnie tak), LFM2.5 LFM Open License v1.0 (komercyjnie tylko poniżej 10 mln USD przychodu) — docs/LICENCJE-MODELI.md, `814690c`
   - [~] katalog pakietów: adres HF i licencja w /api/pakiety (`814690c`); napis w interfejsie u agenta układu
 
+- [~] 13:00 (właściciel, zlecone agentowi) układ dwupanelowy okna Niewidki (brief /tmp/niew-zad/uklad-okna.md): zero przewijania strony od 1100x800, dwa panele, licencje modeli przy pakietach
+  - [ ] index.html/styl.css/apka.js: siatka dwupanelowa, pasek podsumowania, pasek akcji, stan pusty, nagłówek 56 px
+  - [ ] pakiety: adres HF, licencja, uwaga i „Przed pobraniem zapoznaj się z licencją modelu.” na ekranie pobierania i w Ustawieniach
+  - [ ] pomiar scrollHeight/innerHeight (1084x821, 1440x900, 800x900) przed i po ukryciu, zrzuty uklad-po-*.png
+  - [ ] testy: pytest, GUI 27/27, audyt web-design-guidelines
