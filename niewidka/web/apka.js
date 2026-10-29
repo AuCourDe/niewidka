@@ -620,7 +620,7 @@ function inicjalizujPrzywracanie() {
 
     const tryb = radiotryby.find((radio) => radio.checked).value;
     const dane = new FormData();
-    let zPliku = false;
+    let mapaZPliku = false;
     if (tryb === "tekst") {
       const wklejone = document.getElementById("tekst-przywroc").value.trim();
       if (!wklejone) {
@@ -632,7 +632,10 @@ function inicjalizujPrzywracanie() {
       const wybraneZadanie = document.getElementById("lista-zadan").value;
       if (wybraneZadanie) dane.set("identyfikator", wybraneZadanie);
       const plikMapy = document.getElementById("plik-mapa-tekst").files[0];
-      if (mapaJest.checked && plikMapy) dane.set("mapa", plikMapy);
+      if (mapaJest.checked && plikMapy) {
+        dane.set("mapa", plikMapy);
+        mapaZPliku = true;
+      }
     } else {
       const plikWynik = document.getElementById("plik-wynik").files[0];
       const plikMapa = document.getElementById("plik-mapa").files[0];
@@ -643,7 +646,7 @@ function inicjalizujPrzywracanie() {
       }
       dane.set("wynik", plikWynik);
       dane.set("mapa", plikMapa);
-      zPliku = true;
+      mapaZPliku = true;
     }
 
     ustawTrwa(formularz, true);
@@ -651,8 +654,10 @@ function inicjalizujPrzywracanie() {
     try {
       const odpowiedz = await wyslij("/api/przywroc", dane);
       const blob = await odpowiedz.blob();
+      // wklejony tekst wraca jako text/plain, bez content-disposition (tylko plik go ma)
+      const nazwaPliku = (odpowiedz.headers.get("content-disposition") || "").match(/filename="(.*)"/);
       przywrocony = {
-        nazwa: (odpowiedz.headers.get("content-disposition").match(/filename="(.*)"/) || [])[1] || "PRZYWROCONY.txt",
+        nazwa: (nazwaPliku && nazwaPliku[1]) || "PRZYWROCONY.txt",
         blob,
       };
       const rozbieznosci = JSON.parse(odpowiedz.headers.get("x-niewidka-rozbieznosci") || "[]");
@@ -668,18 +673,18 @@ function inicjalizujPrzywracanie() {
       }
       document.getElementById("blok-rozbieznosci").hidden = lista.children.length === 0;
 
-      /* jawnie: jedna pasująca mapa została wybrana za użytkownika (przegląd Argona pkt 2) */
+      /* jawnie: z której zapisanej mapy wróciły dane (przegląd Argona pkt 2); przy
+         mapie z pliku .nwidka źródło jest oczywiste, więc komunikat zbędny */
       const blokAuto = document.getElementById("mapa-wybrana-auto");
-      const wybranoAutomatycznie = odpowiedz.headers.get("x-niewidka-mapa-wybrana-automatycznie");
-      if (wybranoAutomatycznie) {
-        const wpis = (mapyZapisane.mapy || []).find(
-          (m) => m.id === odpowiedz.headers.get("x-niewidka-identyfikator"),
-        );
+      const wpisMapy = (mapyZapisane.mapy || []).find(
+        (m) => m.id === odpowiedz.headers.get("x-niewidka-identyfikator"),
+      );
+      if (wpisMapy && !mapaZPliku) {
         blokAuto.innerHTML = "";
         const opis = document.createElement("p");
-        opis.textContent = wpis
-          ? `Przywrócono z mapy zadania: ${etykietaZadania(wpis)}.`
-          : "Przywrócono z mapy ostatniego pasującego zadania.";
+        opis.textContent = odpowiedz.headers.get("x-niewidka-mapa-wybrana-automatycznie")
+          ? `Przywrócono z mapy zadania: ${etykietaZadania(wpisMapy)} (jedyna pasująca).`
+          : `Przywrócono z mapy zadania: ${etykietaZadania(wpisMapy)}.`;
         blokAuto.append(opis);
         blokAuto.hidden = false;
       } else {
@@ -687,7 +692,7 @@ function inicjalizujPrzywracanie() {
       }
 
       const podglad = document.getElementById("blok-podglad-przywroc");
-      if (!zPliku) {
+      if (tryb === "tekst") {  // wklejony tekst wraca do podglądu; plik odpowiedzi do pobrania
         const tekst = await blob.text();
         pokazPodgladPrzywrocony(tekst);
         podglad.hidden = false;
