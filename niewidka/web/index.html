@@ -160,6 +160,8 @@
 
       <div id="komunikat-status" class="komunikat" hidden></div>
 
+      <div id="mapa-zapisana" class="komunikat komunikat-ok" hidden></div>
+
       <div id="blok-zamienione" class="blok-zamienione" hidden>
         <h3>Ukryte dane</h3>
         <ul id="lista-zamienionych" class="lista-danych"></ul>
@@ -197,16 +199,50 @@
   <section id="panel-przywroc" class="panel" role="tabpanel" aria-labelledby="zakladka-przywroc" hidden>
 
     <form id="form-przywroc" novalidate>
-      <p class="wyjasnienie">Masz dokument z ukrytymi danymi i jego mapę? Przywrócę oryginalne
-      dane w miejsce znaczników. Dokument i mapa muszą pochodzić z tego samego ukrywania danych.</p>
+      <p class="wyjasnienie">Masz odpowiedź sztucznej inteligencji z ukrytymi danymi? Wklej ją,
+      a przywrócę oryginalne dane w miejsce znaczników.</p>
 
-      <div class="pole-przywroc">
-        <label for="plik-wynik">Dokument z ukrytymi danymi (TXT albo DOCX)</label>
-        <input type="file" id="plik-wynik" name="wynik" accept=".txt,.docx" autocomplete="off" required>
+      <div class="przelacznik" role="radiogroup" aria-label="Skąd pochodzi odpowiedź">
+        <label class="opcja">
+          <input type="radio" name="tryb-przywroc" value="tekst" checked>
+          Wklej odpowiedź z czatu AI
+        </label>
+        <label class="opcja">
+          <input type="radio" name="tryb-przywroc" value="plik">
+          Mam plik dokumentu i mapę (.nwidka)
+        </label>
       </div>
-      <div class="pole-przywroc">
-        <label for="plik-mapa">Mapa (.nwidka)</label>
-        <input type="file" id="plik-mapa" name="mapa" accept=".nwidka" autocomplete="off" required>
+
+      <div id="tryb-tekst">
+        <div class="pole-przywroc">
+          <label for="tekst-przywroc">Wklej odpowiedź z czatu AI</label>
+          <textarea id="tekst-przywroc" name="tekst" rows="10" spellcheck="false" autocomplete="off"
+            placeholder="Wklej tu odpowiedź, w której są znaczniki, na przykład [OSOBA_1]…"></textarea>
+        </div>
+        <div class="pole-przywroc">
+          <label for="lista-zadan">Zadanie</label>
+          <select id="lista-zadan" autocomplete="off" aria-describedby="podpowiedz-listy-zadan"></select>
+          <p class="podpowiedz" id="podpowiedz-listy-zadan">Domyślnie najnowsze zadanie. Jeśli odpowiedź
+          zachowała dopisek z identyfikatorem mapy, program używa go, nawet gdy wybór jest inny.</p>
+        </div>
+        <div class="pole-przywroc">
+          <label class="opcja">
+            <input type="checkbox" id="mapa-tekst-jest" autocomplete="off">
+            Mam plik mapy (.nwidka)
+          </label>
+          <input type="file" id="plik-mapa-tekst" name="mapa" accept=".nwidka" autocomplete="off" hidden>
+        </div>
+      </div>
+
+      <div id="tryb-plik" hidden>
+        <div class="pole-przywroc">
+          <label for="plik-wynik">Dokument z ukrytymi danymi (TXT albo DOCX)</label>
+          <input type="file" id="plik-wynik" name="wynik" accept=".txt,.docx" autocomplete="off">
+        </div>
+        <div class="pole-przywroc">
+          <label for="plik-mapa">Mapa (.nwidka)</label>
+          <input type="file" id="plik-mapa" name="mapa" accept=".nwidka" autocomplete="off">
+        </div>
       </div>
 
       <button type="submit" id="przywroc" class="przycisk-glowny">Przywróć dane</button>
@@ -216,6 +252,14 @@
 
     <section id="wynik-przywroc" class="wynik" hidden>
       <h2>Przywrócono</h2>
+      <div id="mapa-wybrana-auto" class="komunikat komunikat-ok" hidden></div>
+      <div id="blok-podglad-przywroc" class="podglad" hidden>
+        <div class="podglad-naglowek">
+          <h3>Podgląd przywróconego tekstu</h3>
+          <button type="button" id="kopiuj-przywrocony" class="przycisk-wtorny">Kopiuj</button>
+        </div>
+        <div class="kartka"><div id="podglad-przywroconego" class="tekst-kartki"></div></div>
+      </div>
       <p class="pobieracz"><button type="button" id="pobierz-przywrocony" class="przycisk-glowny">Pobierz przywrócony dokument</button></p>
       <div id="blok-rozbieznosci" class="komunikat komunikat-ostrzezenie" hidden>
         <h3>Nie wszystko wróciło idealnie</h3>
@@ -234,6 +278,11 @@
       <p id="postep-pakietu-status" aria-live="polite"></p>
       <progress id="postep-pakietu-pasek" max="100" value="0"></progress>
     </div>
+
+    <h3 class="naglowek-map">Zapisane mapy</h3>
+    <p id="okres-map" class="podpowiedz"></p>
+    <ul id="lista-map-zapisanych" class="lista-mapy"></ul>
+    <p><button type="button" id="usun-wszystkie-mapy" class="przycisk-wtorny" hidden>Usuń wszystkie</button></p>
   </section>
 
 </main>

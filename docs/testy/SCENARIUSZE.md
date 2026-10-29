@@ -823,6 +823,92 @@ Rodzaj: brzegowy
 
 ---
 
+## 14. Magazyn map z retencją i przywracanie przez wklejenie
+
+Scenariusze z `docs/MAPY-I-AKTUALIZACJE.md` §1-3 i §8 (wiersze 2, 3, 9, 10). Magazyn leży
+w katalogu danych użytkownika (`%LOCALAPPDATA%\Niewidka\mapy`); retencja domyślnie 30 dni.
+
+### S-WSP-84: ukrycie zapisuje mapę automatycznie
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §1 pkt 1, §3 nagłówek `x-niewidka-mapa-zapisana`
+Warunki wstępne: retencja większa od zera (domyślna), klucz mapy utworzony.
+Kroki: 1. Ukryj wklejony tekst. 2. Obejrzyj ekran wyniku.
+Oczekiwany stan końcowy: na ekranie wyniku zdanie „Mapa zapisana na tym komputerze do <data>. Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć.”; w katalogu magazynu powstają `<id>.nwidka` i `<id>.json`, a w `dziennik.jsonl` wpis `utworzono` z 12-znakowym skrótem id; dziennik nie zawiera treści dokumentu ani oryginałów.
+Rodzaj: pozytywny
+
+### S-WSP-85: przywrócenie przez wklejenie odpowiedzi z dopiskiem
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §1 pkt 2-3, §3
+Warunki wstępne: wykonane ukrycie (S-WSP-84); wynik skopiowany do czatu AI i odpowiedź wklejona.
+Kroki: 1. Zakładka „Przywróć dane”, tryb „Wklej odpowiedź z czatu AI”. 2. Wklej odpowiedź ze znacznikami i dopiskiem. 3. Kliknij „Przywróć dane”.
+Oczekiwany stan końcowy: podgląd przywróconego tekstu z przyciskiem „Kopiuj”; kopiowanie daje pełny tekst z oryginałami; „Pobierz przywrócony dokument” działa; lista zadań nie musiała być dotykana (dopisek wygrywa z wyborem z listy, przegląd Argona pkt 10).
+Rodzaj: pozytywny
+
+### S-WSP-86: przywrócenie bez dopisku z wyborem z listy zadań
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §1 pkt 3, §3, §8 pkt 2
+Warunki wstępne: dwa wykonane ukrycia; odpowiedź AI bez dopisku (czat go nie powtarza).
+Kroki: 1. Wklej odpowiedź bez dopisku. 2. Z listy „Zadanie” wybierz właściwe zadanie (etykieta „dziś 7:41 · 3 osoby, 1 numer PESEL”). 3. Przywróć.
+Oczekiwany stan końcowy: dane wracają; gdy lista zawiera dokładnie jedną mapę z kompletem znaczników, program wybiera sam i pokazuje komunikat „Przywrócono z mapy zadania: …”; gdy pasuje kilka, pojawia się 422 `wybierz_mape` i komunikat prowadzi do listy (brak domyślnego wyboru).
+Rodzaj: pozytywny
+
+### S-WSP-87: komunikat `wybierz_mape` prowadzi do listy
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §3
+Warunki wstępne: magazyn pusty albo żadna mapa nie pasuje.
+Kroki: 1. Wklej tekst ze znacznikami bez dopisku przy pustym magazynie. 2. Przywróć.
+Oczekiwany stan końcowy: komunikat „Wskaż mapę” z wyjaśnieniem i przeniesieniem uwagi na listę zadań (fokus); brak śladu treści w komunikacie.
+Rodzaj: negatywny
+
+### S-WSP-88: plik mapy (.nwidka) działa jak dawniej
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §1 pkt 4
+Warunki wstępne: retencja 0 (albo mapa wcześniej pobrana do akt).
+Kroki: 1. Ukryj tekst, pobierz mapę. 2. W trybie „Mam plik dokumentu i mapę” przywróć z plików.
+Oczekiwany stan końcowy: przywrócenie identyczne jak przed magazynem; przy retencji 0 brak nagłówka `x-niewidka-mapa-zapisana` i brak wpisów w magazynie.
+Rodzaj: pozytywny
+
+### S-WSP-89: retencja usuwa wygasłe mapy i (opcjonalnie) unieważnia pobrane kopie
+Warstwa: API
+Źródło: MAPY-I-AKTUALIZACJE §2, §8 pkt 3
+Warunki wstępne: mapa zapisana; zegar przesunięty za termin retencji (w teście zegar wstrzyknięty).
+Kroki: 1. Zrestartuj program albo wywołaj ukryj/przywróć/listę. 2. Spróbuj przywrócić pobraną wcześniej kopię mapy.
+Oczekiwany stan końcowy: domyślnie (bez `uniewaznij_pobrane`) plik `.nwidka` z akt nadal przywraca; przy `[mapy] uniewaznij_pobrane = true` przywrócenie odmawia („mapa nie została wydana przez ten program”), a `wydane-mapy.jsonl` zostaje przepisany bez tej mapy; w dzienniku wpis `wygasla`.
+Rodzaj: brzegowy
+
+### S-WSP-90: ręczne usuwanie map w Ustawieniach
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §2 (Ustawienia)
+Warunki wstępne: co najmniej dwie zapisane mapy.
+Kroki: 1. Ustawienia, sekcja „Zapisane mapy”. 2. Kliknij „Usuń” przy jednej. 3. Kliknij „Usuń wszystkie” i potwierdź.
+Oczekiwany stan końcowy: lista maleje po każdym kroku; usunięcie wszystkich pyta w oknie potwierdzenia i czyści listę; „Usuń wszystkie” znika przy pustej liście; domyślnie pobrane kopie nadal działają (pkt 3 przeglądu Argona); dziennik ma wpisy `usunieto`.
+Rodzaj: pozytywny
+
+### S-WSP-91: zdanie o okresie przechowywania i retencja zero
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §2
+Warunki wstępne: domyślna retencja, potem retencja 0 (`NIEWIDKA_MAPY_RETENCJA_DNI=0`).
+Kroki: 1. Otwórz Ustawienia przy retencji 30 dni. 2. Zmień retencję na 0 i otwórz ponownie.
+Oczekiwany stan końcowy: przy 30 dniach zdanie „Mapy są usuwane automatycznie po 30 dniach. Okres ustawia administrator.”; przy 0: „Mapy nie są zapisywane automatycznie. Pobierz mapę po każdym ukryciu.” i lista zadań w Przywróć pokazuje „Brak zapisanych map”.
+Rodzaj: brzegowy
+
+### S-OKNO-92: magazyn map w katalogu danych użytkownika (okno)
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §2; wzorzec wag i rejestru (K6)
+Warunki wstępne: okienkowa, czysty profil.
+Kroki: 1. Ukryj tekst w oknie. 2. Zamknij okno i otwórz ponownie. 3. Przywróć przez wklejenie.
+Oczekiwany stan końcowy: magazyn leży w `%LOCALAPPDATA%\Niewidka\mapy` (nie obok exe); po restarcie okna lista zadań zawiera poprzednie ukrycie i przywrócenie działa.
+Rodzaj: pozytywny
+
+### S-WEB-93: API mapy wymaga tokenu
+Warstwa: API
+Źródło: MAPY-I-AKTUALIZACJE §3
+Kroki: 1. `GET /api/mapy`, `DELETE /api/mapy/<id>`, `DELETE /api/mapy` bez nagłówka tokenu albo ze złym tokenem.
+Oczekiwany stan końcowy: wszystkie 403; z poprawnym tokenem 200. Zły identyfikator w DELETE to 422, nie 500.
+Rodzaj: negatywny
+
+---
+
 ## Tabela scenariuszy
 
 | ID | Warstwa | Wersja | Rodzaj |
@@ -910,6 +996,16 @@ Rodzaj: brzegowy
 | S-WSP-81 | API | WSP | brzegowy |
 | S-WSP-82 | API | WSP | negatywny |
 | S-WSP-83 | API | WSP | brzegowy |
+| S-WSP-84 | oba | WSP | pozytywny |
+| S-WSP-85 | oba | WSP | pozytywny |
+| S-WSP-86 | oba | WSP | pozytywny |
+| S-WSP-87 | GUI | WSP | negatywny |
+| S-WSP-88 | oba | WSP | pozytywny |
+| S-WSP-89 | API | WSP | brzegowy |
+| S-WSP-90 | oba | WSP | pozytywny |
+| S-WSP-91 | GUI | WSP | brzegowy |
+| S-OKNO-92 | GUI | OKNO | pozytywny |
+| S-WEB-93 | API | WEB | negatywny |
 
 ## Pytania `NIEJASNE` do rozstrzygnięcia
 

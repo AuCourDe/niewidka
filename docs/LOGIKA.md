@@ -26,7 +26,7 @@ Ekran „Przygotowanie do pracy” proponuje do wyboru:
 
 Po pobraniu program sprawdza sumy SHA-256 każdego pliku. Ustawienia mają osobne przełączniki Pobierz/Usuń dla każdego pakietu.
 
-Modele i rejestr wydanych map leżą w katalogu danych użytkownika (Windows: `%LOCALAPPDATA%\Niewidka`), więc aktualizacja programu ich nie kasuje.
+Modele, rejestr wydanych map i magazyn zapisanych map leżą w katalogu danych użytkownika (Windows: `%LOCALAPPDATA%\Niewidka`), więc aktualizacja programu ich nie kasuje.
 
 Klucz szyfrujący mapy powstaje raz. Trafia do magazynu systemowego (Windows Credential Manager)
 albo do pliku sekretów wskazanego przez IT. Aplikacja nie trzyma klucza w konfiguracji.
@@ -55,14 +55,57 @@ Ekran wyniku pokazuje:
 - podgląd ze znacznikami jako plakietkami;
 - przyciski „Kopiuj”, „Pobierz dokument z ukrytymi danymi” i „Pobierz mapę (.nwidka)”;
 - listę „co zamieniono” (typ i liczba);
-- szacunek ryzyka pominięcia dla każdego typu (górna granica 95% z kalibracji, np. „małe do umiarkowanego: co najwyżej ok. 1 na 14”).
+- szacunek ryzyka pominięcia dla każdego typu (górna granica 95% z kalibracji, np. „małe do umiarkowanego: co najwyżej ok. 1 na 14”);
+- zdanie o zapisanej mapie: „Mapa zapisana na tym komputerze do <data>. Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć.”
 
 Wejście, które już zawiera znaczniki Niewidki, jest odrzucane. Chroni to przed cichym, błędnym przywróceniem.
 
+## Magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2)
+
+Program sam zapisuje zaszyfrowaną mapę każdego ukrycia w `<katalog danych>/mapy`:
+`<id>.nwidka` (szyfrogram AES-256-GCM, jak przy pobieraniu) i `<id>.json` (metadane bez danych
+osobowych: utworzono, wygasa, poziom, liczby per typ). Kradzież katalogu bez klucza z magazynu
+systemowego nic nie daje. Dziennik `dziennik.jsonl` zapisuje czas, zdarzenie (`utworzono`,
+`przywrocono`, `usunieto`, `wygasla`), 12-znakowy skrót identyfikatora, poziom i liczby per typ,
+nigdy treści ani nazw plików.
+
+- **Retencja**: `[mapy] retencja_dni` albo `NIEWIDKA_MAPY_RETENCJA_DNI`, domyślnie 30 (wartość
+  domyślna, nie wymóg RODO - okres ustawia organizacja); `0` wyłącza automatyczny zapis (zostaje
+  pobranie pliku, jak dawniej); ujemna wartość odrzucana przy starcie. Dla administratora:
+  sprzątanie po terminie działa przy starcie programu i przy każdym ukryj/przywróć/liście;
+  program wyłączony nie sprząta, ale sprząta przy następnym uruchomieniu, zanim cokolwiek
+  przywrócimy.
+- **Pobrane kopie**: retencja i ręczne „Usuń” dotyczą magazynu programu; pobrany plik `.nwidka`
+  działa dalej i podlega przechowywaniu organizacji. Dopiero opcja `[mapy] uniewaznij_pobrane`
+  skreśla mapę z rejestru wydanych map: ten program odmówi jej przywrócenia (to wykreślenie
+  z rejestru, nie unieważnienie kryptograficzne - kopia razem z kluczem pozostaje
+  odszyfrowywalna narzędziami mającymi klucz).
+- **Blokada**: jedna blokada procesu obejmuje magazyn, dziennik i rejestr wydanych map.
+- **Dziennik podpisany łańcuchem**: każdy wpis ma skrót SHA-256 poprzedniej linii, więc edycja
+  albo usunięcie wpisu jest wykrywalne (`zweryfikuj_lancuch` w `niewidka/magazyn.py`).
+
+## Przywracanie przez wklejenie (zakładka „Przywróć”)
+
+Domyślny tryb: użytkownik wkleja odpowiedź AI, bez wskazywania plików. Program bierze mapę:
+1. z pliku `.nwidka`, jeśli użytkownik go podał (dawny sposób);
+2. z dopisku w treści (identyfikator mapy); dopisek wygrywa z wyborem z listy, więc stare
+   ustawienie listy nie psuje nowego tekstu;
+3. z wyboru na liście „Zadanie” (etykieta „dziś 7:41 · 3 osoby, 1 numer PESEL”, domyślnie najnowsze).
+
+Bez dopisku kandydatem jest tylko mapa zawierająca WSZYSTKIE znaczniki z tekstu. Dokładnie jeden
+kandydat: przywracane z jawnym komunikatem „Przywrócono z mapy zadania: …”. Więcej kandydatów albo
+zero: komunikat „Wskaż mapę” prowadzi do listy. Wklejony tekst wraca w podglądzie z „Kopiuj”;
+plik odpowiedzi wraca jak dawniej, do pobrania.
+
+Zapisane mapy widać w Ustawieniach („Zapisane mapy”): lista z liczbami per typ i terminem
+usunięcia, „Usuń” przy każdej, „Usuń wszystkie” z potwierdzeniem i zdanie o okresie
+przechowywania.
+
 ## Przywracanie (zakładka „Przywróć”)
 
-Użytkownik podaje tekst albo plik z odpowiedzią AI (ze znacznikami) i plik mapy. Program sprawdza trzy rzeczy:
-1. mapa została wydana przez ten program (rejestr skrótów SHA-256 w pliku, bez danych);
+Program sprawdza trzy rzeczy:
+1. mapa została wydana przez ten program (rejestr skrótów SHA-256 w pliku, bez danych; mapa
+   pobrana z magazynu programu jest z definicji wydana, bo zapisano ją przy ukrywaniu);
 2. identyfikator w dopisku zgadza się z identyfikatorem mapy;
 3. mapa daje się odszyfrować kluczem.
 

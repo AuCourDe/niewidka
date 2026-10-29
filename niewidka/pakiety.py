@@ -220,7 +220,7 @@ def _opublikuj(
     """
     if hashlib.sha256(bajty).hexdigest() != suma_oczekiwana:
         raise BladPakietu(f"SHA-256 niezgodny dla {cel.name}; plik nie trafił do katalogu wag")
-    _opublikuj_bez_hasza(bajty, cel, katalog)
+    opublikuj_bez_hasza(bajty, cel, katalog)
 
 
 def _podziel_postep(postep, rozmiary: list[int]):
@@ -378,10 +378,13 @@ def _zapisz_manifest(pakiet: Pakiet, katalog: Path) -> None:
         "pliki": {Path(p.nazwa).name: p.sha256 for p in pakiet.pliki},
     }
     tresc = (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-    _opublikuj_bez_hasza(tresc, katalog_pakietu / "manifest.json", katalog)
+    opublikuj_bez_hasza(tresc, katalog_pakietu / "manifest.json", katalog)
 
 
-def _opublikuj_bez_hasza(bajty: bytes, cel: Path, katalog: Path) -> None:
+def opublikuj_bez_hasza(bajty: bytes, cel: Path, katalog: Path) -> None:
+    """Atomowa publikacja pliku (K7c pkt 4, wspólna z magazynem map): świeży
+    O_EXCL + os.replace, uprawnienia 0600, symlink w miejscu docelowym zostaje
+    ZASTĄPIONY, nie przezpisany."""
     _odrzuc_dowiazania(katalog, str(cel.relative_to(katalog)))
     cel.parent.mkdir(parents=True, exist_ok=True)
     tymczasowy = cel.with_name(cel.name + PUBLIKOWANY)

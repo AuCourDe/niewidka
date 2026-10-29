@@ -198,3 +198,83 @@ async def test_kontrola_jakosci_tekst_uczciwy(klient):
         "stare kłamliwe sformułowanie ma zniknąć"
     )
     assert "nie znalazło danych, które program umie wykrywać" in apka
+
+
+# --- magazyn map: zakładka Przywróć, ekran wyniku, Ustawienia ------------------
+
+
+@pytest.mark.anyio
+async def test_przywroc_ma_tryb_wklejenia_i_liste_zadan(klient):
+    """docs/MAPY-I-AKTUALIZACJE.md §1: domyślnie wklejanie odpowiedzi AI z wyborem
+    zadania; plik mapy to opcja odsłaniana przyciskiem."""
+    strona = (await klient.get("/")).text
+    apka = (await klient.get("/apka.js")).text
+    assert "Wklej odpowiedź z czatu AI" in strona, "tryb domyślny zakładki Przywróć"
+    assert 'id="tekst-przywroc"' in strona, "pole na wklejoną odpowiedź"
+    assert 'id="lista-zadan"' in strona, "lista wyboru Zadanie"
+    assert "Mam plik mapy (.nwidka)" in strona, "opcja odsłaniająca pole pliku mapy"
+    assert 'id="plik-mapa-tekst"' in strona, "pole pliku mapy w trybie wklejenia"
+    assert 'fetch("/api/mapy", { headers: NAGLOWKI })' in apka, "lista zadań z API, za tokenem"
+
+
+@pytest.mark.anyio
+async def test_wynik_ukrywania_mowi_o_zapisanej_mapie(klient):
+    """§1: użytkownik nie musi pobierać pliku; mapę zapisze program na tym komputerze."""
+    apka = (await klient.get("/apka.js")).text
+    strona = (await klient.get("/")).text
+    assert 'id="mapa-zapisana"' in strona
+    assert "Mapa zapisana na tym komputerze do" in apka
+    assert "Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć." in apka
+    assert 'get("x-niewidka-mapa-zapisana")' in apka, "zdanie tylko gdy mapa faktycznie zapisana"
+
+
+@pytest.mark.anyio
+async def test_ustawienia_zapisane_mapy_z_usuwaniem(klient):
+    """§2: lista zapisanych map w Ustawieniach, Usuń przy każdej, Usuń wszystkie
+    z potwierdzeniem, zdanie o okresie przechowywania."""
+    strona = (await klient.get("/")).text
+    apka = (await klient.get("/apka.js")).text
+    assert "Zapisane mapy" in strona
+    assert 'id="lista-map-zapisanych"' in strona
+    assert 'id="usun-wszystkie-mapy"' in strona
+    assert "Mapy są usuwane automatycznie po" in apka
+    assert "Okres ustawia administrator." in apka
+    assert "Mapy nie są zapisywane automatycznie. Pobierz mapę po każdym ukryciu." in apka
+    # usuwanie: pojedyncze i wszystkie, oba przez API i za tokenem
+    assert "/api/mapy/${" in apka, "Usuń pojedynczej mapy przez API"
+    assert '"DELETE"' in apka and '"/api/mapy"' in apka, "Usuń wszystkie przez API"
+    assert "confirm(" in apka, "Usuń wszystkie ma potwierdzenie"
+
+
+@pytest.mark.anyio
+async def test_wybierz_mape_prowadzi_do_listy_zadan(klient):
+    """§3: 422 z kodem wybierz_mape nie zostaje błędem ogólnym; interfejs pokazuje
+    komunikat i prowadzi do listy zadań."""
+    apka = (await klient.get("/apka.js")).text
+    assert 'wybierz_mape' in apka
+    assert "Wybierz zadanie z listy" in apka
+    assert 'lista-zadan' in apka, "po komunikacie fokus/akcja na liście zadań"
+
+
+@pytest.mark.anyio
+async def test_przywrocony_tekst_w_podgladzie_z_kopiowaniem(klient):
+    """§1: wynik przywrócenia z wklejonego tekstu widać w podglądzie z Kopiuj;
+    dla pliku pozostaje pobranie."""
+    strona = (await klient.get("/")).text
+    apka = (await klient.get("/apka.js")).text
+    assert 'id="blok-podglad-przywroc"' in strona
+    assert 'id="kopiuj-przywrocony"' in strona
+    assert 'id="podglad-przywroconego"' in strona
+    assert "tekstPrzywroconego" in apka, "surowy tekst pod podglądem do kopiowania"
+    assert 'id="pobierz-przywrocony"' in strona, "pobranie zostaje (plik i tekst)"
+
+
+@pytest.mark.anyio
+async def test_mapa_niezapisana_i_licznik_zlecen(klient):
+    """sekcja 9 pkt 5: błąd zapisu mapy = wynik wydany z nagłówkiem „blad” i
+    komunikatem „Pobierz mapę”; odpowiedzi starszych żądań są odrzucane."""
+    apka = (await klient.get("/apka.js")).text
+    assert "Pobierz mapę, bo nie została zapisana." in apka
+    assert '"blad"' in apka or "'blad'" in apka
+    assert "licznikZlecen" in apka
+    assert "mojaKolejna !== licznikZlecen" in apka, "spóźniona odpowiedź nie renderuje się"

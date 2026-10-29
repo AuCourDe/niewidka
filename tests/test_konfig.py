@@ -140,3 +140,66 @@ def test_zly_prog_osoba_jawny_blad():
         assert "NIEWIDKA_PROG_OSOBA" in str(e)
     else:
         raise AssertionError("brak błędu dla złego progu")
+
+
+# --- magazyn map (docs/MAPY-I-AKTUALIZACJE.md §2) -----------------------------
+
+
+def test_mapy_domyslne():
+    k = wczytaj_konfig(env={})
+    assert k.mapy_retencja_dni == 30  # RODO: rozsądny domyślny okres przechowywania
+    assert k.mapy_katalog is None  # dopiero create_app podstawia katalog_danych()/"mapy"
+    assert k.mapy_uniewaznij_pobrane is False  # pobrana kopia działa dalej (przegląd Argona pkt 3)
+
+
+def test_mapy_toml(tmp_path: Path):
+    plik = tmp_path / "niewidka.toml"
+    plik.write_text(
+        '[mapy]\nretencja_dni = 90\nkatalog = "/var/niewidka/mapy"\nuniewaznij_pobrane = true\n',
+        encoding="utf-8",
+    )
+    k = wczytaj_konfig(plik, env={})
+    assert k.mapy_retencja_dni == 90
+    assert k.mapy_katalog == Path("/var/niewidka/mapy")
+    assert k.mapy_uniewaznij_pobrane is True
+
+
+def test_mapy_env_wygra_z_toml(tmp_path: Path):
+    plik = tmp_path / "niewidka.toml"
+    plik.write_text('[mapy]\nretencja_dni = 90\nkatalog = "/a"\n', encoding="utf-8")
+    k = wczytaj_konfig(
+        plik,
+        env={
+            "NIEWIDKA_MAPY_RETENCJA_DNI": "0",
+            "NIEWIDKA_MAPY_KATALOG": "/b",
+            "NIEWIDKA_MAPY_UNIEWAZNIJ_POBRANE": "1",
+        },
+    )
+    assert k.mapy_retencja_dni == 0  # 0 = nie zapisuj automatycznie (tylko pobranie pliku)
+    assert k.mapy_katalog == Path("/b")
+    assert k.mapy_uniewaznij_pobrane is True
+
+
+def test_mapy_retencja_zero_i_dodatnia_z_env():
+    assert wczytaj_konfig(env={"NIEWIDKA_MAPY_RETENCJA_DNI": "0"}).mapy_retencja_dni == 0
+    assert wczytaj_konfig(env={"NIEWIDKA_MAPY_RETENCJA_DNI": "1"}).mapy_retencja_dni == 1
+
+
+def test_mapy_retencja_ujemna_jawny_blad():
+    try:
+        wczytaj_konfig(env={"NIEWIDKA_MAPY_RETENCJA_DNI": "-5"})
+    except ValueError as e:
+        assert "NIEWIDKA_MAPY_RETENCJA_DNI" in str(e)
+    else:
+        raise AssertionError("brak błędu dla ujemnej retencji")
+
+
+def test_mapy_retencja_ujemna_w_toml_jawny_blad(tmp_path: Path):
+    plik = tmp_path / "niewidka.toml"
+    plik.write_text("[mapy]\nretencja_dni = -1\n", encoding="utf-8")
+    try:
+        wczytaj_konfig(plik, env={})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("brak błędu dla ujemnej retencji z TOML")

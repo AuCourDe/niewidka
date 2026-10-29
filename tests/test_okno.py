@@ -373,3 +373,21 @@ def test_okno_pozwala_pobierac_pliki(srodowisko, keyring_pamieciowy):
     atrapa.settings = {"ALLOW_DOWNLOADS": False}
     okno.uruchom(detektor=AtrapaDetektora(), webview=atrapa)
     assert atrapa.settings["ALLOW_DOWNLOADS"] is True
+
+
+def test_przygotuj_srodowisko_magazyn_map_w_katalogu_danych(monkeypatch, tmp_path):
+    # magazyn map leży przy wagach i rejestrze: aktualizacja programu go nie kasuje
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "Niewidka.exe"))
+    env = {"LOCALAPPDATA": str(tmp_path / "profil"), "XDG_DATA_HOME": str(tmp_path / "profil")}
+    okno.przygotuj_srodowisko(env)
+    dane = tmp_path / "profil" / "Niewidka"
+    assert env["NIEWIDKA_MAPY_KATALOG"] == str(dane / "mapy")
+
+
+def test_przygotuj_srodowisko_magazyn_jawne_env_wygywa(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "Niewidka.exe"))
+    env = {"NIEWIDKA_MAPY_KATALOG": r"D:\mapy-magazyn"}
+    okno.przygotuj_srodowisko(env)
+    assert env["NIEWIDKA_MAPY_KATALOG"] == r"D:\mapy-magazyn"

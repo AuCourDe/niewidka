@@ -229,3 +229,12 @@
   - [ ] „Jak to działa”: kilka lokalnych metod naraz zamiast jednego modelu (uczciwie: ile modeli jest naprawdę)
   - [ ] aktualizacje modeli: podpisany katalog pakietów, sprawdzanie ręczne i automatyczne, aktualizacja z zachowaniem poprzedniej wersji
   - [ ] testy: pytest, API, GUI web i okno (EXE przebudowany), raport do Desktop/C
+- [~] 07:54 (agent claude-glm przez szynę, w ramach 07:40) magazyn map z retencją + przywracanie przez wklejenie: TYLKO sekcje 1-3 i 8 (wiersze 2, 3, 9, 10) docs/MAPY-I-AKTUALIZACJE.md; sekcje 4-5 robi kto inny
+  - [x] konfig: mapy_retencja_dni (30, 0 = brak zapisu, ujemna = ValueError), mapy_katalog, uniewaznij_pobrane (TOML [mapy] + env NIEWIDKA_MAPY_*) — `e3c33d5`
+  - [x] niewidka/magazyn.py: zapis/wczytaj/lista/usuń/usuń wszystkie/sprzątanie wygasłych, dziennik JSONL bez PII, zapis atomowy (wspólna funkcja z pakiety.py), walidacja id regexem (path traversal), jedna blokada, zegar wstrzyknięty — `1dbf813`
+  - [x] api.py: zapis mapy w /api/ukryj (nagłówek x-niewidka-mapa-zapisana), /api/przywroc z tekst/wynik + opcjonalna mapa/identyfikator (dopisek wygrywa z polem; bez dopisku kandydaci tylko z kompletem znaczników; nic → 422 wybierz_mape), GET/DELETE /api/mapy; usunięcie/wygaśnięcie skreśla z rejestru TYLKO przy uniewaznij_pobrane — `dc7d220`
+  - [x] okno.py: przygotuj_srodowisko ustawia NIEWIDKA_MAPY_KATALOG (setdefault) — `dc7d220`
+  - [x] web: zakładka Przywróć (wklejenie odpowiedzi + lista Zadanie z GET /api/mapy), zdanie o zapisanej mapie na ekranie wyniku, sekcja Zapisane mapy w Ustawieniach, bez półpauz — `97074c1`, naprawy z żywego GUI `222ef87` (zrzut /tmp/niew/przywroc-wynik.png)
+  - [x] testy RED→GREEN (tests/test_magazyn.py 31, test_konfig 6, test_okno 2, test_web 5); izolacja katalogu danych (LOCALAPPDATA/XDG_DATA_HOME → tmp) w test_magazyn.py; LOGIKA.md + SCENARIUSZE.md S-WSP-84..S-WEB-93 — `8c3f221`
+  - [x] bramka: pełny pytest 612 passed, 1 xfailed (baza 560, zero regresji) + ruff czysty; raport /tmp/niew/raport-mapy.md
+  - [x] dopilnowane z szyny (sekcja 9: wiersze 2, 5, 9, 10) — `14bd51b`: dziennik z użytkownikiem, wersją programu i pakietów, wynikiem operacji i łańcuchem SHA-256 (zweryfikuj_lancuch + testy edycji/usunięcia); zapis mapy przed odpowiedzią, nagłówek 'blad' + komunikat UI, licznik żądań; dokumentacja 'ten program odmówi' i zdanie dla administratora (30 dni domyślne, nie wymóg RODO)
