@@ -239,9 +239,9 @@
   - [x] bramka: pełny pytest 612 passed, 1 xfailed (baza 560, zero regresji) + ruff czysty; raport /tmp/niew/raport-mapy.md
   - [x] dopilnowane z szyny (sekcja 9: wiersze 2, 5, 9, 10) — `14bd51b`: dziennik z użytkownikiem, wersją programu i pakietów, wynikiem operacji i łańcuchem SHA-256 (zweryfikuj_lancuch + testy edycji/usunięcia); zapis mapy przed odpowiedzią, nagłówek 'blad' + komunikat UI, licznik żądań; dokumentacja 'ten program odmówi' i zdanie dla administratora (30 dni domyślne, nie wymóg RODO)
 - [~] (właściciel) „1a, i popraw znacznik INNE” — 1a: stałe listy „zawsze ukrywaj” i „nigdy nie ukrywaj” w Ustawieniach, edycja przez użytkownika, administrator może narzucić; poprawka: fragment ukryty ręcznie („Ukryj wszędzie”) dostaje znacznik INNE zamiast OSOBA
-  - [ ] znacznik INNE dla ręcznie ukrytych fragmentów (test RED → GREEN)
-  - [ ] listy w rdzeniu: „zawsze ukrywaj” dodaje wykrycia, „nigdy nie ukrywaj” zdejmuje (bez typów z sumą kontrolną), test
-  - [ ] konfiguracja: plik list w katalogu danych + lista administratora (narzucona, nieedytowalna), API GET/PUT
-  - [ ] Ustawienia: sekcja z dwiema listami, bez półpauz i pauz; z podglądu „dodaj na stałe”
-  - [ ] bramka: pytest, ruff, test GUI web i okno
+  - [x] znacznik INNE: diagnoza — to nie błąd poprawek; model na poziomie 3 sam ukrył „Zielony Dąb” jako OSOBA 3 już przy ukryciu, a test GUI przechodził na pusto. Poprawione: komunikat „było już ukryte… Tekst się nie zmienił”, test GUI sprawdza nowe słowo → INNE — `81c5b3c`
+  - [x] listy (niewidka/listy.py) przez wspólne `popraw`: „zawsze” = ukryj wszędzie, „nigdy” = to nie dane (bez typów z sumą), tests/test_listy.py 6 — `81c5b3c`
+  - [x] konfig `[listy] plik/zawsze/nigdy/tylko_administrator` + env, GET/PUT /api/listy z tokenem i Origin (PUT dodany do strażnika) — `81c5b3c`
+  - [x] Ustawienia: sekcja „Stałe listy”, w „Twoich poprawkach” przycisk „Ukrywaj zawsze”, znacznik z listy odsyła do Ustawień — `81c5b3c`
+  - [~] bramka: pytest 637 passed/26 skipped, ruff czysty, GUI web 27/27 (gui/test_nowe_funkcje_gui.js); okno EXE w toku
 
