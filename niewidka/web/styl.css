@@ -640,7 +640,14 @@ progress {
   color: var(--atrament-slaby);
   white-space: nowrap;
 }
-.pakiet-stan-zainstalowany { color: var(--ok); }
+.pakiet-stan-zainstalowany {
+  color: var(--ok);
+  background: #EAF4EF;
+  border: 1px solid #C4DED2;
+  border-radius: 999px;
+  padding: 0 0.7rem;
+  font-weight: 700;
+}
 .pakiet-stan-uszkodzony { color: var(--blad); }
 .pakiet-wiersz p { margin: 0; font-size: 0.92rem; color: var(--atrament-slaby); }
 .pakiet-akcje { display: flex; justify-content: flex-end; }
@@ -736,8 +743,8 @@ progress {
 input[type="range"] { margin: 0.1rem 0; }
 
 .poprawki { margin: 0; flex: none; }
-.pole-poprawki { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.3rem 0.5rem; margin: 0; }
-.pole-poprawki label { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
+.pole-poprawki { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.3rem 0.6rem; margin: 0; }
+.pole-poprawki label { margin: 0; font-size: 0.88rem; white-space: nowrap; }
 .pole-poprawki input {
   min-width: 0;
   padding: 0.4rem 0.55rem;
@@ -747,10 +754,11 @@ input[type="range"] { margin: 0.1rem 0; }
   background: var(--papier);
   color: inherit;
 }
-.twoje-poprawki { margin-top: 0.5rem; border-top: 1px solid var(--linie); padding-top: 0.35rem; font-size: 0.92rem; }
+.twoje-poprawki { margin-top: 0.4rem; font-size: 0.9rem; }
 .twoje-poprawki summary { cursor: pointer; font-weight: 700; color: #2C4560; }
 .twoje-poprawki .lista-poprawek { max-height: 9rem; overflow-y: auto; }
 .komunikat-poprawek { margin: 0; min-height: 0; font-size: 0.9rem; }
+.komunikat-poprawek:empty { display: none; }
 .poprawki .komunikat { margin: 0 0 0.5rem; padding: 0.6rem 0.8rem; }
 
 /* prawy panel: stan pusty z krokami */
@@ -860,6 +868,14 @@ input[type="range"] { margin: 0.1rem 0; }
   background: var(--papier);
 }
 .pobrania { display: contents; }
+.tylko-czytnik { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mapa-info { order: 5; flex: 1 1 100%; margin: 0; color: var(--atrament-slaby); font-size: 0.82rem; }
+.mapa-info-uwaga { color: var(--ostrzegaj); font-weight: 700; }
+.pasek-edycji { display: none; }
+/* „Kontrola jakości: zaliczona” to krótka linia stanu, nie ramka; ostrzeżenie zostaje ramką */
+#komunikat-status .komunikat-ok { background: none; border: 0; padding: 0 0.1rem; color: var(--ok); }
+#komunikat-status .komunikat-ok h3 { color: var(--ok); }
+#komunikat-status .komunikat-ok p { color: var(--atrament-slaby); }
 #pobierz-wynik, #pobierz-przywrocony { margin-left: auto; padding: 0.55rem 1.3rem; }
 .pasek-akcji .wazne {
   order: 5;
@@ -932,6 +948,9 @@ input[type="range"] { margin: 0.1rem 0; }
   .kartka { max-height: 60vh; flex: 0 1 auto; }
   .podglad { flex: 0 0 auto; }
   .stan-pusty { overflow: visible; flex: 0 0 auto; }
+  .pasek-edycji { display: none; }
+  .uklad.wejscie-zwiniete .pasek-edycji { display: block; }
+  .uklad.wejscie-zwiniete #form-ukryj { display: none; }
   .szczegoly-tresc { position: static; width: auto; box-shadow: none; margin-top: 0.3rem; flex-basis: 100%; }
   #widok-tekstu textarea { min-height: 9rem; }
   #form-przywroc #tryb-tekst > .pole-przywroc:first-child { min-height: 0; }

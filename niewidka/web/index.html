@@ -60,6 +60,7 @@
     <div class="uklad">
 
       <div class="kolumna kolumna-wejscie">
+        <button type="button" id="edytuj-wejscie" class="przycisk-wtorny pasek-edycji">Edytuj tekst wejściowy</button>
         <div id="blok-serwer" class="komunikat komunikat-blad" role="alert" hidden>
           <p id="blok-serwer-tekst"></p>
         </div>
@@ -95,34 +96,15 @@
           <button type="submit" id="ukryj" class="przycisk-glowny">Ukryj dane</button>
         </form>
 
-        <div id="blok-poprawek" class="poprawki" hidden>
-          <div id="akcja-znacznika" class="komunikat komunikat-ok" role="group" aria-label="Poprawka znacznika" hidden>
-            <p id="akcja-znacznika-opis"></p>
-            <p id="akcja-znacznika-wyjasnienie" class="podpowiedz"></p>
-            <button type="button" id="akcja-znacznika-przycisk" class="przycisk-wtorny"></button>
-            <button type="button" id="akcja-znacznika-inne" class="przycisk-wtorny" hidden>Oznacz jako inne dane</button>
-            <button type="button" id="akcja-znacznika-zamknij" class="linkowy">Zamknij</button>
-          </div>
-          <div class="pole-poprawki">
-            <label for="pole-ukryj-wszedzie">Ukryj wszędzie słowo lub fragment</label>
-            <input type="text" id="pole-ukryj-wszedzie" maxlength="200" autocomplete="off" spellcheck="false">
-            <button type="button" id="przycisk-ukryj-wszedzie" class="przycisk-wtorny">Ukryj wszędzie</button>
-          </div>
-          <details id="naglowek-poprawek" class="twoje-poprawki" hidden>
-            <summary>Twoje poprawki (<span id="licznik-poprawek">0</span>)</summary>
-            <ul id="lista-poprawek" class="lista-poprawek"></ul>
-          </details>
-        </div>
-        <p id="komunikat-poprawek" class="komunikat-poprawek" aria-live="polite"></p>
       </div>
 
       <div class="kolumna kolumna-wynik">
         <div class="stan-pusty" id="stan-pusty">
           <h2>Jak to działa</h2>
           <ol class="kroki">
-            <li><span><strong>Wklej tekst albo wybierz plik.</strong> Obsługuję .txt i .docx.</span></li>
-            <li><span><strong>Niewidka zasłania dane osobowe.</strong> Zamienia je na znaczniki, na przykład [OSOBA_1]. Mapa do przywrócenia zapisuje się sama na tym komputerze.</span></li>
-            <li><span><strong>Wyślij bezpieczny tekst dalej.</strong> Odpowiedź AI wklej na zakładce Przywróć, a dane wrócą na miejsce.</span></li>
+            <li><span><strong>Wklej tekst albo wybierz plik.</strong> Obsługuję pliki .txt i .docx.</span></li>
+            <li><span><strong>Niewidka zasłania dane osobowe.</strong> Imiona, nazwiska, numery PESEL, adresy i inne dane zamieniają się na czarne plakietki.</span></li>
+            <li><span><strong>Wyślij bezpieczny tekst do czatu AI.</strong> Gdy czat odpowie, wklej jego odpowiedź na zakładce Przywróć: prawdziwe dane wrócą na miejsce.</span></li>
           </ol>
           <p class="kroki-uwaga">Niewidka wspiera Twoją pracę i nie gwarantuje wykrycia wszystkich danych. Przed wysłaniem zawsze przejrzyj wynik.</p>
         <details class="jak-to-dziala" id="jak-to-dziala">
@@ -222,7 +204,7 @@
         <div id="status-ukryj" class="status" aria-live="polite"></div>
 
         <section id="wynik" class="wynik" hidden>
-          <h2 id="naglowek-wyniku">Gotowe: dokument z ukrytymi danymi</h2>
+          <h2 id="naglowek-wyniku" class="tylko-czytnik">Gotowe: dokument z ukrytymi danymi</h2>
 
           <div id="blok-decyzji" class="komunikat komunikat-blad" hidden>
             <h3>STOP: kontrola ma wątpliwości</h3>
@@ -233,8 +215,6 @@
           </div>
 
           <div id="komunikat-status" class="komunikat" hidden></div>
-
-          <div id="mapa-zapisana" class="komunikat komunikat-ok" hidden></div>
 
           <div id="blok-zamienione" class="pasek-podsumowania" hidden>
             <h3>Ukryte dane</h3>
@@ -262,14 +242,33 @@
             Kliknij czarną plakietkę, żeby uznać ją za zwykły tekst.</p>
           </div>
 
+          <div id="blok-poprawek" class="poprawki" hidden>
+            <div id="akcja-znacznika" class="komunikat komunikat-ok" role="group" aria-label="Poprawka znacznika" hidden>
+              <p id="akcja-znacznika-opis"></p>
+              <p id="akcja-znacznika-wyjasnienie" class="podpowiedz"></p>
+              <button type="button" id="akcja-znacznika-przycisk" class="przycisk-wtorny"></button>
+              <button type="button" id="akcja-znacznika-inne" class="przycisk-wtorny" hidden>Oznacz jako inne dane</button>
+              <button type="button" id="akcja-znacznika-zamknij" class="linkowy">Zamknij</button>
+            </div>
+            <div class="pole-poprawki">
+              <label for="pole-ukryj-wszedzie">Słowo lub fragment do ukrycia</label>
+              <input type="text" id="pole-ukryj-wszedzie" maxlength="200" autocomplete="off" spellcheck="false">
+              <button type="button" id="przycisk-ukryj-wszedzie" class="przycisk-wtorny">Ukryj wszędzie</button>
+            </div>
+            <details id="naglowek-poprawek" class="twoje-poprawki" hidden>
+              <summary>Twoje poprawki (<span id="licznik-poprawek">0</span>)</summary>
+              <ul id="lista-poprawek" class="lista-poprawek"></ul>
+            </details>
+          </div>
+          <p id="komunikat-poprawek" class="komunikat-poprawek" aria-live="polite"></p>
+
           <div class="pasek-akcji">
             <button type="button" id="kopiuj" class="przycisk-wtorny">Kopiuj tekst</button>
             <div id="blok-pobrania" class="pobrania" hidden>
               <button type="button" id="pobierz-mape" class="przycisk-wtorny">Pobierz mapę (.nwidka)</button>
               <button type="button" id="pobierz-wynik" class="przycisk-glowny">Pobierz dokument</button>
-              <p class="wazne"><strong>Bez mapy nie przywrócisz ukrytych danych.</strong> Pobrany plik mapy
-              to Twoja kopia, na przykład do akt sprawy. Przechowuj go w bezpiecznym miejscu.</p>
             </div>
+            <p id="mapa-zapisana" class="mapa-info" hidden></p>
           </div>
         </section>
       </div>

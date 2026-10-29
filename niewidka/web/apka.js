@@ -447,25 +447,19 @@ function pokazWynik(naglowki, czesci) {
      (§9 pkt 5: wynik i tak wydany, ale mapę trzeba pobrać). */
   const blokMapy = document.getElementById("mapa-zapisana");
   const zapisanaDo = naglowki.get("x-niewidka-mapa-zapisana");
+  blokMapy.hidden = false;
   if (zapisanaDo === "blad") {
-    blokMapy.className = "komunikat komunikat-ostrzezenie";
-    blokMapy.innerHTML = "";
-    const opis = document.createElement("p");
-    opis.textContent = "Nie udało się zapisać mapy na tym komputerze. "
+    blokMapy.className = "mapa-info mapa-info-uwaga";
+    blokMapy.textContent = "Nie udało się zapisać mapy na tym komputerze. "
       + "Pobierz mapę, bo nie została zapisana.";
-    blokMapy.append(opis);
-    blokMapy.hidden = false;
   } else if (zapisanaDo) {
-    blokMapy.className = "komunikat komunikat-ok";
-    blokMapy.innerHTML = "";
-    const opis = document.createElement("p");
-    opis.textContent = `Mapa zapisana na tym komputerze do ${doDaty(zapisanaDo)}. `
-      + "Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć.";
-    blokMapy.append(opis);
-    blokMapy.hidden = false;
+    blokMapy.className = "mapa-info";
+    blokMapy.textContent = `Mapa zapisana na tym komputerze do ${doDaty(zapisanaDo)}. `
+      + "Bez mapy nie przywrócisz danych.";
     odswiezMapy();
   } else {
-    blokMapy.hidden = true;
+    blokMapy.className = "mapa-info";
+    blokMapy.textContent = "Pobierz mapę: bez niej nie przywrócisz danych.";
   }
   zapowiedz("Dane ukryte, wynik gotowy");
 }
@@ -914,6 +908,19 @@ async function wyslij(url, dane) {
   return odpowiedz;
 }
 
+/* Po wyniku „Ukryj” przestaje konkurować z „Pobierz dokument”: staje się drugorzędnym
+   „Ukryj ponownie”, a główny wraca dopiero po zmianie tekstu, pliku lub poziomu.
+   W wąskim oknie wejście zwija się do paska „Edytuj tekst wejściowy”. */
+function ustawPrzyciskUkryj(ponownie) {
+  const przycisk = document.getElementById("ukryj");
+  przycisk.textContent = ponownie ? "Ukryj ponownie" : "Ukryj dane";
+  przycisk.className = ponownie ? "przycisk-wtorny" : "przycisk-glowny";
+}
+
+function zwinWejscie(zwin) {
+  document.querySelector("#panel-ukryj .uklad").classList.toggle("wejscie-zwiniete", zwin);
+}
+
 function odswiezOpisPoziomu() {
   const suwak = document.getElementById("poziom");
   const opis = document.getElementById("opis-poziomu");
@@ -926,12 +933,20 @@ function inicjalizujUkrywanie() {
   const suwak = document.getElementById("poziom");
   suwak.addEventListener("input", odswiezOpisPoziomu);
   odswiezOpisPoziomu();
+  for (const [id, zdarzenie] of [["tekst", "input"], ["poziom", "input"], ["plik", "change"], ["przycisk-tekst-zamiast", "click"]]) {
+    document.getElementById(id).addEventListener(zdarzenie, () => ustawPrzyciskUkryj(false));
+  }
+  document.getElementById("edytuj-wejscie").addEventListener("click", () => {
+    zwinWejscie(false);
+    (wybranyPlik ? document.getElementById("plik") : document.getElementById("tekst")).focus();
+  });
 
   formularz.addEventListener("submit", async (zdarzenie) => {
     zdarzenie.preventDefault();
     document.getElementById("status-ukryj").innerHTML = "";
     document.getElementById("wynik").hidden = true;
     document.getElementById("blok-poprawek").hidden = true;
+    zwinWejscie(false);
 
     const tekst = document.getElementById("tekst").value.trim();
     if (!wybranyPlik && !tekst) {
@@ -955,6 +970,8 @@ function inicjalizujUkrywanie() {
       nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
       poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "{}");
       pokazWynik(odpowiedz.headers, czesci);
+      ustawPrzyciskUkryj(true);
+      zwinWejscie(true);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
       if (mojaKolejna !== licznikZlecen) return;
@@ -962,6 +979,8 @@ function inicjalizujUkrywanie() {
         document.getElementById("status-ukryj").innerHTML = "";
         nowePoprawki(blad.odpowiedz.zadanie || null);
         pokazBlokadeZMiejscami(blad.odpowiedz);
+        ustawPrzyciskUkryj(true);
+        zwinWejscie(document.getElementById("wynik").hidden === false);
       } else {
         komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message, blad.odpowiedz);
         if (blad.status === 409) odswiezPakiety();
@@ -1296,7 +1315,7 @@ function sformatujRozmiar(bajty) {
 }
 
 const OPISY_STANOW = {
-  zainstalowany: "gotowy",
+  zainstalowany: "Zainstalowany i gotowy",
   brak: "nie pobrany",
   uszkodzony: "uszkodzony, pobierz ponownie",
 };
@@ -1335,13 +1354,22 @@ function odnosnik(adres, tekst) {
   return a;
 }
 
-function opisLicencji(pakiet) {
+function opisLicencji(pakiet, krotko = false) {
   const blok = document.createElement("div");
   blok.className = "pakiet-licencja";
   if (pakiet.model_hf) {
     const wiersz = document.createElement("p");
     wiersz.append("Model: ", odnosnik(pakiet.model_hf, pakiet.model_hf.replace(/^https:\/\/(www\.)?/, "")));
     blok.append(wiersz);
+  }
+  if (krotko) {
+    // pakiet już zainstalowany: sam odnośnik, bez ponaglenia do czytania
+    if (pakiet.licencja) {
+      const wiersz = document.createElement("p");
+      wiersz.append(`Licencja: ${pakiet.licencja}. `, odnosnik(pakiet.licencja_url, "Zobacz licencję"));
+      blok.append(wiersz);
+    }
+    return blok;
   }
   if (pakiet.licencja) {
     const wiersz = document.createElement("p");
@@ -1390,9 +1418,9 @@ function rysujListePakietow() {
     akcje.className = "pakiet-akcje";
     const przycisk = document.createElement("button");
     przycisk.type = "button";
-    przycisk.className = pakiet.stan === "zainstalowany" ? "przycisk-wtorny" : "przycisk-glowny";
+    przycisk.className = pakiet.stan === "zainstalowany" ? "linkowy" : "przycisk-glowny";
     if (pakiet.stan === "zainstalowany") {
-      przycisk.textContent = "Usuń";
+      przycisk.textContent = "Usuń z dysku";
       przycisk.addEventListener("click", () => {
         if (!confirm(`Usunąć pakiet ${pakiet.nazwa}? Przywrócenie pracy będzie wymagało pobrania go ponownie.`)) return;
         akcjaPakietu("usun", pakiet.id);
@@ -1403,7 +1431,7 @@ function rysujListePakietow() {
       przycisk.addEventListener("click", () => akcjaPakietu("pobierz", pakiet.id));
     }
     akcje.append(przycisk);
-    wiersz.append(naglowek, opis, opisLicencji(pakiet), akcje);
+    wiersz.append(naglowek, opis, opisLicencji(pakiet, pakiet.stan === "zainstalowany"), akcje);
     lista.append(wiersz);
   }
 }

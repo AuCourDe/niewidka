@@ -224,7 +224,7 @@ async def test_wynik_ukrywania_mowi_o_zapisanej_mapie(klient):
     strona = (await klient.get("/")).text
     assert 'id="mapa-zapisana"' in strona
     assert "Mapa zapisana na tym komputerze do" in apka
-    assert "Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć." in apka
+    assert "Bez mapy nie przywrócisz danych." in apka
     assert 'get("x-niewidka-mapa-zapisana")' in apka, "zdanie tylko gdy mapa faktycznie zapisana"
 
 
