@@ -909,6 +909,43 @@ Rodzaj: negatywny
 
 ---
 
+### S-WEB-94: sekcja Aktualizacje modeli w Ustawieniach
+Warstwa: GUI (web)
+Źródło: MAPY-I-AKTUALIZACJE §5
+Kroki: 1. Uruchom program, otwórz Ustawienia. 2. Odczytaj blok „Aktualizacje modeli”: wybór sposobu sprawdzania, przycisk „Sprawdź teraz”, stan.
+Oczekiwany stan końcowy: sekcja pokazuje trzy tryby opisane ludzkim językiem; stan „Masz najnowsze modele.” (albo informacja o dostępnej aktualizacji z nazwą pakietu i rozmiarem); brak znaków półpauzy w tekstach.
+Rodzaj: pozytywny
+
+### S-WEB-95: wybór trybu zapisuje się, tryb narzucony jest zablokowany
+Warstwa: GUI (web)
+Źródło: MAPY-I-AKTUALIZACJE §5
+Kroki: 1. Zmień tryb na „Ręcznie”, odśwież stronę. 2. Uruchom program z `NIEWIDKA_AKTUALIZACJE=wylaczone` i otwórz Ustawienia.
+Oczekiwany stan końcowy: wybrany tryb przetrwał odświeżenie (zapis w ustawienia.json). Przy trybie narzuconym lista jest nieaktywna, obok dopisek „Tryb ustawiony przez administratora.”, a „Sprawdź teraz” jest nieaktywne.
+Rodzaj: brzegowy
+
+### S-WEB-96: program bez klucza wydawcy pokazuje czytelny komunikat
+Warstwa: GUI (web)
+Źródło: MAPY-I-AKTUALIZACJE §5, WYDANIE
+Kroki: 1. Uruchom program z placeholderem w `klucz-katalogu.pub`. 2. W Ustawieniach kliknij „Sprawdź teraz”. 3. Odczytaj stan.
+Oczekiwany stan końcowy: program działa (żaden ekran nie pada); przycisk „Sprawdź teraz” nieaktywny, stan wyjaśnia, że w programie nie ma klucza publicznego wydawcy i że aktualizacja z folderu pozostaje dostępna; instalacja z folderu ze złym podpisem daje komunikat o podpisie, nie o awarii.
+Rodzaj: negatywny
+
+### S-WEB-97: instalacja aktualizacji z folderu od IT z powrotem do poprzedniej wersji
+Warstwa: GUI (web)
+Źródło: MAPY-I-AKTUALIZACJE §5, §8 w. 8
+Kroki: 1. Przygotuj folder: podpisany katalog o wersji wyższej, podpis i pliki. 2. Wklej ścieżkę, kliknij „Zainstaluj z folderu”. 3. Obserwuj postęp. 4. Po zakończeniu kliknij „Wróć do poprzedniej wersji”.
+Oczekiwany stan końcowy: postęp widać w sekcji; po zakończeniu stan „Masz najnowsze modele.”, wersja zainstalowana w wierszu pakietu rośnie; „Wróć do poprzedniej wersji” przywraca wcześniejszą wersję (plik manifest.json i wagi). Folder z katalogiem bez podpisu albo o wersji nie wyższej jest odrzucony z komunikatem, poprzednia wersja zostaje na miejscu.
+Rodzaj: pozytywny
+
+### S-WEB-98: błąd integralności przyjętego katalogu jest widoczny i blokuje aktualizacje
+Warstwa: GUI (web)
+Źródło: MAPY-I-AKTUALIZACJE §8 w. 7, §9 w. 6
+Kroki: 1. Przyjmij podpisany katalog. 2. Uszkodź bajt w zapisanym `katalog-pakietow.json` lub `.sig` w katalogu danych. 3. Uruchom program ponownie i otwórz Ustawienia.
+Oczekiwany stan końcowy: program startuje normalnie na katalogu wbudowanym; Ustawienia pokazują ostrzeżenie o błędzie integralności; „Sprawdź teraz” i instalacja zwracają komunikat o blokadzie; próg najwyższej wersji w ustawienia.json NIE obniżył się, więc ponowne przyjęcie starego katalogu jest odrzucone.
+Rodzaj: negatywny
+
+---
+
 ## Tabela scenariuszy
 
 | ID | Warstwa | Wersja | Rodzaj |
@@ -1006,6 +1043,11 @@ Rodzaj: negatywny
 | S-WSP-91 | GUI | WSP | brzegowy |
 | S-OKNO-92 | GUI | OKNO | pozytywny |
 | S-WEB-93 | API | WEB | negatywny |
+| S-WEB-94 | GUI | WEB | pozytywny |
+| S-WEB-95 | GUI | WEB | brzegowy |
+| S-WEB-96 | GUI | WEB | negatywny |
+| S-WEB-97 | GUI | WEB | pozytywny |
+| S-WEB-98 | GUI | WEB | negatywny |
 
 ## Pytania `NIEJASNE` do rozstrzygnięcia
 

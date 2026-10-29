@@ -279,6 +279,38 @@
       <progress id="postep-pakietu-pasek" max="100" value="0"></progress>
     </div>
 
+    <h3 class="naglowek-map">Aktualizacje modeli</h3>
+    <p class="podpowiedz">Program może sprawdzać w internecie, czy wyszły nowsze wersje modeli.
+    Sprawdzenie pobiera wyłącznie wykaz wersji, nigdy Twoje dokumenty. Aktualizacja instaluje
+    się dopiero po próbie na przykładowych zdaniach, a poprzednia wersja zostaje, więc można
+    do niej wrócić.</p>
+    <div class="pakiet-wiersz">
+      <label for="aktualizacje-tryb">Sposób sprawdzania aktualizacji</label>
+      <div class="aktualizacje-tryb">
+        <select id="aktualizacje-tryb"></select>
+        <span id="aktualizacje-narzucony" class="podpowiedz" hidden>Tryb ustawiony przez administratora.</span>
+      </div>
+      <div class="pakiet-akcje">
+        <button type="button" id="aktualizacje-sprawdz" class="przycisk-wtorny">Sprawdź teraz</button>
+      </div>
+      <p id="aktualizacje-stan" class="podpowiedz" aria-live="polite"></p>
+    </div>
+    <div id="aktualizacje-pakiety" class="lista-pakietow"></div>
+    <div id="postep-aktualizacji" class="postep-pakietu" hidden>
+      <p id="postep-aktualizacji-status" aria-live="polite"></p>
+      <progress id="postep-aktualizacji-pasek" max="100" value="0"></progress>
+    </div>
+    <div class="pakiet-wiersz" id="blok-aktualizacji-folder">
+      <p>Sieć bez internetu: osoba opiekująca się programem wkleja ścieżkę do folderu
+      z aktualizacją przygotowaną przez IT (wykaz wersji z podpisem i pliki).</p>
+      <div class="aktualizacje-folder-wiersz">
+        <input type="text" id="aktualizacje-folder" class="pole-sciezki"
+               placeholder="Na przykład D:\aktualizacja-niewidka"
+               aria-label="Folder z aktualizacją">
+        <button type="button" id="aktualizacje-z-folderu" class="przycisk-wtorny">Zainstaluj z folderu</button>
+      </div>
+    </div>
+
     <h3 class="naglowek-map">Zapisane mapy</h3>
     <p id="okres-map" class="podpowiedz"></p>
     <ul id="lista-map-zapisanych" class="lista-mapy"></ul>
