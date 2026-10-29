@@ -11,6 +11,8 @@ const NAGLOWKI = { "X-Niewidka-Token": token };
 let limity = { rozmiar_mb: 25, tekst_mb: 1 };
 let wynikPaczka = null; // { wynik: {nazwa, blob}, mapa: {nazwa, blob} }
 let przywrocony = null; // {nazwa, blob}
+let tekstPrzywroconego = ""; // surowy tekst z podglądu przywracania do „Kopiuj"
+let mapyZapisane = { retencja_dni: 30, mapy: [] }; // GET /api/mapy
 
 /* ---------- etykiety po ludzku ---------- */
 
@@ -36,6 +38,37 @@ const ETYKIETY = {
 function etykieta(typ, ile) {
   const formy = ETYKIETY[typ] || [typ.toLowerCase(), typ.toLowerCase()];
   return `${ile} ${ile === 1 ? formy[0] : formy[1]}`;
+}
+
+/* ---------- daty po ludzku (listy map) ---------- */
+
+function _godzina(data) {
+  return `${String(data.getHours()).padStart(2, "0")}:${String(data.getMinutes()).padStart(2, "0")}`;
+}
+
+function kiedy(data) {
+  const teraz = new Date();
+  const tenDzien = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+  const roznica = Math.round((new Date(teraz.getFullYear(), teraz.getMonth(), teraz.getDate()) - tenDzien) / 86_400_000);
+  if (roznica === 0) return `dziś ${_godzina(data)}`;
+  if (roznica === 1) return `wczoraj ${_godzina(data)}`;
+  const dzienMiesiac = `${String(data.getDate()).padStart(2, "0")}.${String(data.getMonth() + 1).padStart(2, "0")}`;
+  if (data.getFullYear() === teraz.getFullYear()) return `${dzienMiesiac} ${_godzina(data)}`;
+  return `${dzienMiesiac}.${data.getFullYear()} ${_godzina(data)}`;
+}
+
+function doDaty(iso) {
+  const data = new Date(iso);
+  return `${String(data.getDate()).padStart(2, "0")}.${String(data.getMonth() + 1).padStart(2, "0")}.${data.getFullYear()}`;
+}
+
+function opisStatystyk(statystyki) {
+  const czesci = Object.entries(statystyki || {}).map(([typ, ile]) => etykieta(typ, ile));
+  return czesci.length ? czesci.join(", ") : "bez wykrytych danych";
+}
+
+function etykietaZadania(wpis) {
+  return `${kiedy(new Date(wpis.utworzono))} · ${opisStatystyk(wpis.statystyki)}`;
 }
 
 /* Sekcja „Jak to działa”: wykrywane dane. Nazwy typów pochodzą z ETYKIETY
@@ -165,13 +198,36 @@ const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 // go nie przywróci (przegląd Codex 2026-10-29, P1)
 let tekstPodgladu = "";
 
-function pokazPodglad(tekst) {
-  tekstPodgladu = tekst;
-  const miejsce = document.getElementById("podglad-tekstu");
+function wypelnijPodglad(tekst, idMiejsca) {
+  const miejsce = document.getElementById(idMiejsca);
   miejsce.textContent = "";
   let tresc = tekst;
   if (tresc.startsWith(POCZATEK_DOPISEKU)) tresc = pokazDopisek(miejsce, tresc);
   pokazZaslepki(miejsce, tresc);
+}
+
+function pokazPodglad(tekst) {
+  tekstPodgladu = tekst;
+  wypelnijPodglad(tekst, "podglad-tekstu");
+}
+
+function pokazPodgladPrzywrocony(tekst) {
+  tekstPrzywroconego = tekst;
+  wypelnijPodglad(tekst, "podglad-przywroconego");
+}
+
+/* wspólne „Kopiuj" dla podglądu ukrywania i przywracania */
+async function skopiujDoSchowka(tekst, przycisk) {
+  let tresc;
+  try {
+    await navigator.clipboard.writeText(tekst);
+    tresc = "Skopiowano";
+  } catch {
+    tresc = "Nie udało się skopiować. Pobierz dokument przyciskiem obok.";
+  }
+  zapowiedz(tresc);
+  przycisk.textContent = tresc;
+  setTimeout(() => { przycisk.textContent = "Kopiuj"; }, 2500);
 }
 
 /* K5c: pełny dopisek z identyfikatorem mapy zostaje w pliku wynikowym; w podglądzie
@@ -345,6 +401,23 @@ function pokazWynik(naglowki, czesci) {
   if (wygladaNaTekst) pokazPodglad(trescTekstowa);
 
   document.getElementById("blok-pobrania").hidden = false;
+
+  /* docs/MAPY-I-AKTUALIZACJE.md §1: mapa zapisuje się sama; nagłówek jest tylko
+     wtedy, gdy program faktycznie zapisał (retencja > 0). Pobieranie mapy zostaje
+     jako opcja, np. do akt sprawy. */
+  const blokMapy = document.getElementById("mapa-zapisana");
+  const zapisanaDo = naglowki.get("x-niewidka-mapa-zapisana");
+  if (zapisanaDo) {
+    blokMapy.innerHTML = "";
+    const opis = document.createElement("p");
+    opis.textContent = `Mapa zapisana na tym komputerze do ${doDaty(zapisanaDo)}. `
+      + "Przywrócisz dane, wklejając odpowiedź na zakładce Przywróć.";
+    blokMapy.append(opis);
+    blokMapy.hidden = false;
+    odswiezMapy();
+  } else {
+    blokMapy.hidden = true;
+  }
   zapowiedz("Dane ukryte, wynik gotowy");
 }
 
@@ -511,16 +584,7 @@ function inicjalizujUkrywanie() {
 
   const przyciskKopiuj = document.getElementById("kopiuj");
   przyciskKopiuj.addEventListener("click", async () => {
-    let komunikat;
-    try {
-      await navigator.clipboard.writeText(tekstPodgladu);
-      komunikat = "Skopiowano";
-    } catch {
-      komunikat = "Nie udało się skopiować. Pobierz dokument przyciskiem obok.";
-    }
-    zapowiedz(komunikat);
-    przyciskKopiuj.textContent = komunikat;
-    setTimeout(() => { przyciskKopiuj.textContent = "Kopiuj"; }, 2500);
+    await skopiujDoSchowka(tekstPodgladu, przyciskKopiuj);
   });
 
   document.getElementById("pobierz-wynik").addEventListener("click", () => {
@@ -533,31 +597,65 @@ function inicjalizujUkrywanie() {
 
 function inicjalizujPrzywracanie() {
   const formularz = document.getElementById("form-przywroc");
+  const radiotryby = [...document.querySelectorAll('input[name="tryb-przywroc"]')];
+
+  const przelaczTryby = () => {
+    const tryb = radiotryby.find((radio) => radio.checked).value;
+    document.getElementById("tryb-tekst").hidden = tryb !== "tekst";
+    document.getElementById("tryb-plik").hidden = tryb !== "plik";
+  };
+  for (const radio of radiotryby) radio.addEventListener("change", przelaczTryby);
+  przelaczTryby();
+
+  const mapaJest = document.getElementById("mapa-tekst-jest");
+  mapaJest.addEventListener("change", () => {
+    document.getElementById("plik-mapa-tekst").hidden = !mapaJest.checked;
+    if (!mapaJest.checked) document.getElementById("plik-mapa-tekst").value = "";
+  });
+
   formularz.addEventListener("submit", async (zdarzenie) => {
     zdarzenie.preventDefault();
     document.getElementById("status-przywroc").innerHTML = "";
     document.getElementById("wynik-przywroc").hidden = true;
 
-    const plikWynik = document.getElementById("plik-wynik").files[0];
-    const plikMapa = document.getElementById("plik-mapa").files[0];
-    if (!plikWynik || !plikMapa) {
-      komunikat("status-przywroc", "komunikat-blad", "Brakuje pliku", "Wybierz oba pliki: dokument z ukrytymi danymi i mapę (.nwidka).");
-      (plikWynik ? document.getElementById("plik-mapa") : document.getElementById("plik-wynik")).focus();
-      return;
-    }
+    const tryb = radiotryby.find((radio) => radio.checked).value;
     const dane = new FormData();
-    dane.set("wynik", plikWynik);
-    dane.set("mapa", plikMapa);
+    let zPliku = false;
+    if (tryb === "tekst") {
+      const wklejone = document.getElementById("tekst-przywroc").value.trim();
+      if (!wklejone) {
+        komunikat("status-przywroc", "komunikat-blad", "Pusto", "Wklej odpowiedź z czatu AI, którą mam przywrócić.");
+        document.getElementById("tekst-przywroc").focus();
+        return;
+      }
+      dane.set("tekst", wklejone);
+      const wybraneZadanie = document.getElementById("lista-zadan").value;
+      if (wybraneZadanie) dane.set("identyfikator", wybraneZadanie);
+      const plikMapy = document.getElementById("plik-mapa-tekst").files[0];
+      if (mapaJest.checked && plikMapy) dane.set("mapa", plikMapy);
+    } else {
+      const plikWynik = document.getElementById("plik-wynik").files[0];
+      const plikMapa = document.getElementById("plik-mapa").files[0];
+      if (!plikWynik || !plikMapa) {
+        komunikat("status-przywroc", "komunikat-blad", "Brakuje pliku", "Wybierz oba pliki: dokument z ukrytymi danymi i mapę (.nwidka).");
+        (plikWynik ? document.getElementById("plik-mapa") : document.getElementById("plik-wynik")).focus();
+        return;
+      }
+      dane.set("wynik", plikWynik);
+      dane.set("mapa", plikMapa);
+      zPliku = true;
+    }
 
     ustawTrwa(formularz, true);
     komunikat("status-przywroc", "komunikat-ok", null, "Przywracam dane…");
     try {
       const odpowiedz = await wyslij("/api/przywroc", dane);
-      const rozbieznosci = JSON.parse(odpowiedz.headers.get("x-niewidka-rozbieznosci") || "[]");
+      const blob = await odpowiedz.blob();
       przywrocony = {
         nazwa: (odpowiedz.headers.get("content-disposition").match(/filename="(.*)"/) || [])[1] || "PRZYWROCONY.txt",
-        blob: await odpowiedz.blob(),
+        blob,
       };
+      const rozbieznosci = JSON.parse(odpowiedz.headers.get("x-niewidka-rozbieznosci") || "[]");
       const lista = document.getElementById("lista-rozbieznosci");
       lista.innerHTML = "";
       for (const rozbieznosc of rozbieznosci) {
@@ -569,11 +667,44 @@ function inicjalizujPrzywracanie() {
         lista.append(wiersz);
       }
       document.getElementById("blok-rozbieznosci").hidden = lista.children.length === 0;
+
+      /* jawnie: jedna pasująca mapa została wybrana za użytkownika (przegląd Argona pkt 2) */
+      const blokAuto = document.getElementById("mapa-wybrana-auto");
+      const wybranoAutomatycznie = odpowiedz.headers.get("x-niewidka-mapa-wybrana-automatycznie");
+      if (wybranoAutomatycznie) {
+        const wpis = (mapyZapisane.mapy || []).find(
+          (m) => m.id === odpowiedz.headers.get("x-niewidka-identyfikator"),
+        );
+        blokAuto.innerHTML = "";
+        const opis = document.createElement("p");
+        opis.textContent = wpis
+          ? `Przywrócono z mapy zadania: ${etykietaZadania(wpis)}.`
+          : "Przywrócono z mapy ostatniego pasującego zadania.";
+        blokAuto.append(opis);
+        blokAuto.hidden = false;
+      } else {
+        blokAuto.hidden = true;
+      }
+
+      const podglad = document.getElementById("blok-podglad-przywroc");
+      if (!zPliku) {
+        const tekst = await blob.text();
+        pokazPodgladPrzywrocony(tekst);
+        podglad.hidden = false;
+      } else {
+        podglad.hidden = true;
+      }
       document.getElementById("wynik-przywroc").hidden = false;
       document.getElementById("status-przywroc").innerHTML = "";
       zapowiedz("Dane przywrócone");
     } catch (blad) {
-      komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message);
+      if (blad.odpowiedz && blad.odpowiedz.kod === "wybierz_mape") {
+        /* docs/MAPY-I-AKTUALIZACJE.md §3: komunikat prowadzi do listy zadań */
+        komunikat("status-przywroc", "komunikat-ostrzezenie", "Wskaż mapę", `${blad.blad} Wybierz zadanie z listy.`);
+        document.getElementById("lista-zadan").focus();
+      } else {
+        komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message);
+      }
     } finally {
       ustawTrwa(formularz, false);
     }
@@ -581,6 +712,94 @@ function inicjalizujPrzywracanie() {
 
   document.getElementById("pobierz-przywrocony").addEventListener("click", () => {
     if (przywrocony) pobierzBlob(przywrocony.blob, przywrocony.nazwa);
+  });
+  document.getElementById("kopiuj-przywrocony").addEventListener("click", async (zdarzenie) => {
+    await skopiujDoSchowka(tekstPrzywroconego, zdarzenie.currentTarget);
+  });
+}
+
+/* ---------- zapisane mapy (docs/MAPY-I-AKTUALIZACJE.md §1-2) ---------- */
+
+async function odswiezMapy() {
+  try {
+    const odpowiedz = await fetch("/api/mapy", { headers: NAGLOWKI });
+    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
+    mapyZapisane = await odpowiedz.json();
+  } catch {
+    return; // serwer nieodpowiada: nic nie zmieniamy
+  }
+  wypelnijListeZadan();
+  rysujListeMapZapisanych();
+}
+
+function wypelnijListeZadan() {
+  const lista = document.getElementById("lista-zadan");
+  lista.innerHTML = "";
+  const wpisy = mapyZapisane.mapy || [];
+  if (wpisy.length === 0) {
+    const pusta = document.createElement("option");
+    pusta.value = "";
+    pusta.textContent = "Brak zapisanych map";
+    pusta.disabled = true;
+    pusta.selected = true;
+    lista.append(pusta);
+    return;
+  }
+  for (const [i, wpis] of wpisy.entries()) {
+    const opcja = document.createElement("option");
+    opcja.value = wpis.id;
+    opcja.textContent = etykietaZadania(wpis);
+    if (i === 0) opcja.selected = true; // domyślnie najnowsze
+    lista.append(opcja);
+  }
+}
+
+function rysujListeMapZapisanych() {
+  const lista = document.getElementById("lista-map-zapisanych");
+  lista.innerHTML = "";
+  const okres = document.getElementById("okres-map");
+  if (mapyZapisane.retencja_dni === 0) {
+    okres.textContent = "Mapy nie są zapisywane automatycznie. Pobierz mapę po każdym ukryciu.";
+  } else {
+    okres.textContent = `Mapy są usuwane automatycznie po ${mapyZapisane.retencja_dni} dniach. Okres ustawia administrator.`;
+  }
+  for (const wpis of mapyZapisane.mapy || []) {
+    const wiersz = document.createElement("li");
+    const opis = document.createElement("span");
+    opis.textContent = `${etykietaZadania(wpis)}, przechowywana do ${doDaty(wpis.wygasa)}`;
+    const przycisk = document.createElement("button");
+    przycisk.type = "button";
+    przycisk.className = "przycisk-wtorny";
+    przycisk.textContent = "Usuń";
+    przycisk.addEventListener("click", async () => {
+      await usunMape(wpis.id);
+      odswiezMapy();
+    });
+    wiersz.append(opis, przycisk);
+    lista.append(wiersz);
+  }
+  document.getElementById("usun-wszystkie-mapy").hidden = (mapyZapisane.mapy || []).length === 0;
+}
+
+async function usunMape(identyfikator) {
+  try {
+    const odpowiedz = await fetch(`/api/mapy/${identyfikator}`, { method: "DELETE", headers: NAGLOWKI });
+    zapowiedz(odpowiedz.ok ? "Mapa usunięta" : "Nie udało się usunąć mapy");
+  } catch {
+    zapowiedz("Nie udało się usunąć mapy");
+  }
+}
+
+function inicjalizujMapy() {
+  document.getElementById("usun-wszystkie-mapy").addEventListener("click", async () => {
+    if (!confirm("Usunąć wszystkie zapisane mapy? Pobrane pliki map (.nwidka) zostają.")) return;
+    try {
+      const odpowiedz = await fetch("/api/mapy", { method: "DELETE", headers: NAGLOWKI });
+      zapowiedz(odpowiedz.ok ? "Mapy usunięte" : "Nie udało się usunąć map");
+    } catch {
+      zapowiedz("Nie udało się usunąć map");
+    }
+    odswiezMapy();
   });
 }
 
@@ -779,9 +998,11 @@ inicjalizujWejscie();
 inicjalizujUkrywanie();
 inicjalizujPrzywracanie();
 inicjalizujPakiety();
+inicjalizujMapy();
 budujListeTypow();
 wczytajStan();
 odswiezPakiety();
+odswiezMapy();
 /* Ekran pierwszego uruchomienia znika sam, gdy pakiet pojawi się z zewnątrz
    (IT instaluje z katalogu albo drugie okno pobiera): lekki odpyt tylko,
    dopóki ekran jest widoczny. */

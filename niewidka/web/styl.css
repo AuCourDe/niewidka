@@ -493,6 +493,37 @@ summary:focus-visible {
 
 #form-przywroc .przycisk-glowny { margin-top: 0.4rem; }
 
+/* przełącznik trybów przywracania i wybory z potwierdzeniem (magazyn map) */
+.przelacznik { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; margin: 1rem 0 0.2rem; }
+
+.opcja { display: flex; align-items: center; gap: 0.45rem; cursor: pointer; }
+
+#lista-zadan {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--atrament-slaby);
+  border-radius: 8px;
+  background: var(--kartka);
+  max-width: 100%;
+}
+
+/* lista zapisanych map w Ustawieniach */
+.naglowek-map { margin-top: 2.2rem; }
+
+.lista-mapy { list-style: none; margin: 0.5rem 0; padding: 0; }
+
+.lista-mapy li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #E3E1DA;
+}
+
+.lista-mapy li button { flex-shrink: 0; }
+
 /* ---------- stopka ---------- */
 
 .stopka {

@@ -191,15 +191,15 @@ def test_zapis_uszkodzonej_mapy_nie_powstaje(magazyn):
 
 # --- API: magazyn w /api/ukryj, /api/przywroc, /api/mapy ----------------------
 
-import base64  # noqa: E402
-from dataclasses import replace  # noqa: E402
-import zipfile  # noqa: E402
+import base64
+import zipfile
+from dataclasses import replace
 
-import httpx  # noqa: E402
+import httpx
 
-from niewidka.api import create_app  # noqa: E402
-from niewidka.detektory import RegulyDetektor  # noqa: E402
-from niewidka.konfig import Konfig  # noqa: E402
+from niewidka.api import create_app
+from niewidka.detektory import RegulyDetektor
+from niewidka.konfig import Konfig
 
 TEKST = "Jan Kowalski, PESEL 44051401359. Telefon +48 601 234 567, e-mail jan@example.com."
 
@@ -271,7 +271,7 @@ async def test_ukryj_zapisuje_mape_do_magazynu_z_naglowkiem(konfig_api):
     magazyn = app.state.magazyn
     assert (magazyn.katalog / f"{identyfikator}.nwidka").is_file()
     assert (magazyn.katalog / f"{identyfikator}.json").is_file()
-    assert datetime.fromisoformat(wygasla := wygasa) > datetime.now(UTC) - timedelta(seconds=5)
+    assert datetime.fromisoformat(wygasa) > datetime.now(UTC) - timedelta(seconds=5)
     # dziennik audytu bez danych osobowych z dokumentu
     dziennik = (magazyn.katalog / "dziennik.jsonl").read_text(encoding="utf-8")
     assert "Jan Kowalski" not in dziennik and "44051401359" not in dziennik
@@ -349,7 +349,7 @@ async def test_przywroc_dopisek_wygrywa_z_polem_identyfikator(konfig_api):
     # przegląd Argona pkt 10: stary wybór z listy + nowy tekst z dopiskiem = dopisek wygrywa
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
-        pierwsza, czesci_1 = await _ukryj(klient, app)
+        pierwsza, _czesci_1 = await _ukryj(klient, app)
         id_pierwszej = pierwsza.headers["x-niewidka-identyfikator"]
         druga, czesci_2 = await _ukryj(klient, app)
         id_drugiej = druga.headers["x-niewidka-identyfikator"]
