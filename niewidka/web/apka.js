@@ -12,6 +12,7 @@ let limity = { rozmiar_mb: 25, tekst_mb: 1 };
 let wynikPaczka = null; // { wynik: {nazwa, blob}, mapa: {nazwa, blob} }
 let przywrocony = null; // {nazwa, blob}
 let tekstPrzywroconego = ""; // surowy tekst z podglądu przywracania do „Kopiuj"
+let stanInferencji = null; // /api/stan.inferencja: null = modele lokalne
 let mapyZapisane = { retencja_dni: 30, mapy: [] }; // GET /api/mapy
 
 /* ---------- etykiety po ludzku ---------- */
@@ -312,6 +313,11 @@ function komunikat(statusId, klasa, naglowek, tresc) {
 
 function komunikatOdpowiedzi(statusId, status, blad, calosc) {
   const przepis = KOMUNIKATY[status];
+  if (calosc && calosc.kod === "serwer_modeli" && blad) {
+    // 503 z centralnego serwera inferencji: komunikat serwera zamiast ogólnego „zajęty”
+    komunikat(statusId, "komunikat-blad", "Nie udało się", blad);
+    return;
+  }
   const tresc = typeof przepis === "function" ? przepis(blad, calosc) : przepis || `Błąd ${status}. ${blad || ""}`;
   komunikat(statusId, "komunikat-blad", "Nie udało się", tresc);
 }
@@ -367,8 +373,7 @@ function pokazWynik(naglowki, czesci) {
   blok.append(tytul);
   const opis = document.createElement("p");
   opis.textContent = zaliczona
-    ? "Ponowne sprawdzenie wyniku nie znalazło danych, które program umie wykrywać. "
-      + "Program nie wykrywa wszystkiego, dlatego przejrzyj wynik przed wysłaniem."
+    ? "Ponowne sprawdzenie nie znalazło danych, które program umie wykrywać."
     : "Ponowne sprawdzenie znalazło w wyniku dane przypominające oryginalne. Lista jest niżej.";
   blok.append(opis);
   const uwagi = JSON.parse(naglowki.get("x-niewidka-uwagi") || "[]");
@@ -432,6 +437,7 @@ function pokazWynik(naglowki, czesci) {
   const podglad = document.getElementById("blok-podglad");
   const wygladaNaTekst = nazwaWyniku.endsWith(".txt") && !trescTekstowa.slice(0, 100).includes("\0");
   podglad.hidden = !wygladaNaTekst;
+  document.getElementById("kopiuj").hidden = !wygladaNaTekst; // docx: brak tekstu do skopiowania
   if (wygladaNaTekst) pokazPodglad(trescTekstowa);
 
   document.getElementById("blok-pobrania").hidden = false;
@@ -476,6 +482,7 @@ const MAKS_ZNAKOW = 200;
 
 let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
 let zaznaczone = "";
+let liczbaPozycjiPoprawek = 0;
 
 function nowePoprawki(zadanie) {
   poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
@@ -502,7 +509,13 @@ function rysujPoprawki() {
     ...poprawki.naInne.map((z, i) => ({ opis: `Inne dane zamiast ${z.replace("_", " ")}`, tablica: "naInne", i })),
     ...poprawki.odkryj.map((t, i) => ({ opis: `Odkryte tylko tu: „${t}”`, tablica: "odkryj", i })),
   ];
-  document.getElementById("naglowek-poprawek").hidden = pozycje.length === 0;
+  const sekcjaPoprawek = document.getElementById("naglowek-poprawek");
+  sekcjaPoprawek.hidden = pozycje.length === 0;
+  document.getElementById("licznik-poprawek").textContent = String(pozycje.length);
+  // zwinięte domyślnie, ale nowa poprawka rozwija listę (widać „Cofnij”)
+  if (pozycje.length > liczbaPozycjiPoprawek) sekcjaPoprawek.open = true;
+  if (pozycje.length === 0) sekcjaPoprawek.open = false;
+  liczbaPozycjiPoprawek = pozycje.length;
   for (const pozycja of pozycje) {
     const wiersz = document.createElement("li");
     const opis = document.createElement("span");
@@ -708,6 +721,7 @@ function pokazBlokadeZMiejscami(odpowiedz) {
   const blokPodgladu = document.getElementById("blok-podglad");
   blokPodgladu.hidden = odpowiedz.podglad == null;
   if (odpowiedz.podglad != null) pokazPodglad(odpowiedz.podglad, miejsca);
+  document.getElementById("kopiuj").hidden = odpowiedz.podglad == null;
   document.getElementById("kopiuj").disabled = true; // Kopiuj aktywne dopiero po decyzji o wszystkich miejscach
 
   const blok = document.getElementById("blok-decyzji");
@@ -917,6 +931,7 @@ function inicjalizujUkrywanie() {
     zdarzenie.preventDefault();
     document.getElementById("status-ukryj").innerHTML = "";
     document.getElementById("wynik").hidden = true;
+    document.getElementById("blok-poprawek").hidden = true;
 
     const tekst = document.getElementById("tekst").value.trim();
     if (!wybranyPlik && !tekst) {
@@ -1296,16 +1311,66 @@ function odswiezSuwakZPakietow() {
   const przycisk = document.getElementById("ukryj");
   const opis = document.getElementById("opis-poziomu");
   const pusto = stanPakietow.poziomy_dostepne.length === 0;
+  const serwerPadl = stanInferencji !== null && !stanInferencji.dostepny;
   suwak.disabled = pusto;
   przycisk.disabled = pusto || trwaZlecenie;
-  if (pusto) {
+  if (serwerPadl) {
+    opis.textContent = "Serwer modeli nie odpowiada. Skontaktuj się z administratorem.";
+  } else if (pusto) {
     opis.textContent = "Modele nie są jeszcze pobrane. Pobierz pakiet podstawowy w Ustawieniach.";
   } else {
     odswiezOpisPoziomu();
   }
 }
 
+/* Informacja o modelu i licencji: tylko napis, bez blokady (polecenie właściciela 2026-10-29).
+   Odnośniki otwierają się w przeglądarce systemowej (pywebview: OPEN_EXTERNAL_LINKS_IN_BROWSER). */
+function odnosnik(adres, tekst) {
+  if (!/^https:\/\//.test(adres || "")) return document.createTextNode(tekst);
+  const a = document.createElement("a");
+  a.href = adres;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = tekst;
+  return a;
+}
+
+function opisLicencji(pakiet) {
+  const blok = document.createElement("div");
+  blok.className = "pakiet-licencja";
+  if (pakiet.model_hf) {
+    const wiersz = document.createElement("p");
+    wiersz.append("Model: ", odnosnik(pakiet.model_hf, pakiet.model_hf.replace(/^https:\/\/(www\.)?/, "")));
+    blok.append(wiersz);
+  }
+  if (pakiet.licencja) {
+    const wiersz = document.createElement("p");
+    wiersz.append("Licencja: ", odnosnik(pakiet.licencja_url, pakiet.licencja));
+    if (pakiet.licencja_uwagi) wiersz.append(`. ${pakiet.licencja_uwagi}`);
+    blok.append(wiersz);
+  }
+  const uwaga = document.createElement("p");
+  uwaga.className = "pakiet-licencja-uwaga";
+  uwaga.textContent = "Przed pobraniem zapoznaj się z licencją modelu.";
+  blok.append(uwaga);
+  return blok;
+}
+
+function rysujEkranPakietow() {
+  const lista = document.getElementById("ekran-pakietow-lista");
+  lista.innerHTML = "";
+  for (const pakiet of stanPakietow.pakiety) {
+    const wiersz = document.createElement("div");
+    wiersz.className = "pakiet-wiersz";
+    const nazwa = document.createElement("h3");
+    nazwa.textContent = pakiet.nazwa;
+    wiersz.append(nazwa, opisLicencji(pakiet));
+    lista.append(wiersz);
+  }
+}
+
 function rysujListePakietow() {
+  rysujEkranPakietow();
   const lista = document.getElementById("lista-pakietow");
   lista.innerHTML = "";
   for (const pakiet of stanPakietow.pakiety) {
@@ -1338,7 +1403,7 @@ function rysujListePakietow() {
       przycisk.addEventListener("click", () => akcjaPakietu("pobierz", pakiet.id));
     }
     akcje.append(przycisk);
-    wiersz.append(naglowek, opis, akcje);
+    wiersz.append(naglowek, opis, opisLicencji(pakiet), akcje);
     lista.append(wiersz);
   }
 }
@@ -1363,6 +1428,7 @@ function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
 }
 
 async function odswiezPakiety() {
+  await stanGotowy; // wiadomo już, czy modele są lokalne czy na serwerze
   try {
     const odpowiedz = await fetch("/api/pakiety", { headers: NAGLOWKI });
     if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
@@ -1383,7 +1449,8 @@ async function odswiezPakiety() {
     (p) => p.wymagany && p.stan !== "zainstalowany",
   );
   const ekran = document.getElementById("ekran-pakietow");
-  const pokazEkran = brakujeWymagany && !ekranPakietowOdrzucony;
+  // przy serwerze inferencji modeli się nie pobiera: ekranu pakietów nie ma
+  const pokazEkran = brakujeWymagany && !ekranPakietowOdrzucony && stanInferencji === null;
   ekran.hidden = !pokazEkran;
   document.getElementById("ekran-pakietow-wybor").hidden = stanPakietow.postep.pakiet !== null;
   return stanPakietow;
@@ -1658,12 +1725,35 @@ function inicjalizujAktualizacje() {
 
 /* ---------- start ---------- */
 
+function rysujMiejsceModeli() {
+  const serwer = stanInferencji;
+  const wSieci = serwer !== null;
+  document.getElementById("tryb-etykieta").textContent = wSieci ? "W sieci urzędu." : "Na tym urządzeniu.";
+  document.getElementById("tryb-opis").textContent = wSieci
+    ? " Twoje dane nie opuszczają sieci urzędu."
+    : " Twoje dane nie opuszczają tego komputera.";
+  const linia = document.getElementById("linia-modeli");
+  if (!wSieci) linia.textContent = "Modele: na tym komputerze.";
+  else if (serwer.dostepny) {
+    linia.textContent = `Modele: na serwerze ${serwer.adres}` + (serwer.urzadzenie ? ` (${serwer.urzadzenie}).` : ".");
+  } else {
+    linia.textContent = `Modele: na serwerze ${serwer.adres}, który nie odpowiada.`;
+  }
+  const awaria = wSieci && !serwer.dostepny;
+  const blok = document.getElementById("blok-serwer");
+  blok.hidden = !awaria;
+  if (awaria) document.getElementById("blok-serwer-tekst").textContent =
+    "Serwer modeli nie odpowiada. Skontaktuj się z administratorem.";
+}
+
 async function wczytajStan() {
   try {
     const odpowiedz = await fetch("/api/stan", { headers: NAGLOWKI });
     if (!odpowiedz.ok) return;
     const stan = await odpowiedz.json();
     limity = stan.limity;
+    stanInferencji = stan.inferencja || null;
+    rysujMiejsceModeli();
     document.getElementById("wersja").textContent = `v${stan.wersja}`;
     document.getElementById("podpowiedz-plik").textContent =
       `Obsługuję pliki .txt i .docx, maksymalnie ${limity.rozmiar_mb} MB. Możesz też przeciągnąć plik tutaj.`;
@@ -1671,6 +1761,8 @@ async function wczytajStan() {
     document.getElementById("wersja").textContent = "";
   }
 }
+
+let stanGotowy = Promise.resolve();
 
 inicjalizujZakladki();
 inicjalizujWejscie();
@@ -1682,7 +1774,7 @@ inicjalizujMapy();
 inicjalizujListy();
 inicjalizujAktualizacje();
 budujListeTypow();
-wczytajStan();
+stanGotowy = wczytajStan();
 odswiezPakiety();
 odswiezMapy();
 odswiezListy();
@@ -1691,6 +1783,11 @@ odswiezAktualizacje();
    (IT instaluje z katalogu albo drugie okno pobiera): lekki odpyt tylko,
    dopóki ekran jest widoczny. */
 setInterval(() => {
+  // serwer modeli nie odpowiadał: sprawdzaj, czy wrócił
+  if (stanInferencji !== null && !stanInferencji.dostepny) {
+    stanGotowy = wczytajStan();
+    stanGotowy.then(odswiezPakiety);
+  }
   if (odpytywaniePostepu) return;
   if (!document.getElementById("ekran-pakietow").hidden) odswiezPakiety();
 }, 2500);

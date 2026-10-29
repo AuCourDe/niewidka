@@ -74,7 +74,7 @@ body {
 
 .srodek {
   width: 100%;
-  max-width: 46rem;
+  max-width: 90rem;
   margin: 0 auto;
   padding: 0 1.25rem;
 }
@@ -87,13 +87,15 @@ body {
 }
 
 .gora-srodek {
-  max-width: 46rem;
+  /* nagłówek ok. 56 px: logo, zakładki, zdanie o prywatności w jednym wierszu */
+  max-width: 90rem;
   margin: 0 auto;
-  padding: 1.1rem 1.25rem 0.9rem;
-  /* K5c: logo w jednym wierszu z linią „Na tym urządzeniu…” */
+  padding: 0 1.25rem;
+  min-height: 3.5rem;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0 1.75rem;
 }
 
 .nazwa {
@@ -105,14 +107,14 @@ body {
 
 /* logo (znak czapki + napis) zamiast tekstowego h1; K5c: wysokość 48 px, żeby napis
    „Niewidka” w logo miał rozmiar dawnego tytułu (viewBox SVG przycięty do treści) */
-.nazwa img { display: block; width: auto; height: 48px; max-width: 100%; }
+.nazwa img { display: block; width: auto; height: 32px; max-width: 100%; }
 
 h1, h2, h3 { text-wrap: balance; }
 
 .tryb {
-  margin: 0;
+  margin: 0 0 0 auto;
   color: var(--atrament-slaby);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .tryb strong { color: var(--ok); }
@@ -121,9 +123,8 @@ h1, h2, h3 { text-wrap: balance; }
 
 .zakladki {
   display: flex;
-  gap: 1.75rem;
-  margin-top: 1.4rem;
-  border-bottom: 1px solid var(--linie);
+  gap: 1.5rem;
+  align-self: stretch;
 }
 
 .zakladka {
@@ -131,11 +132,10 @@ h1, h2, h3 { text-wrap: balance; }
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  padding: 0.55rem 0.1rem;
+  padding: 0.5rem 0.1rem 0.4rem;
   font: inherit;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: var(--atrament-slaby);
   cursor: pointer;
 }
@@ -149,7 +149,7 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* ---------- formularz ---------- */
 
-.panel { padding: 1.6rem 0 2.5rem; }
+.panel { padding: 1rem 0 1.25rem; }
 
 .pole-dokumentu {
   background: var(--kartka);
@@ -217,7 +217,7 @@ input[type="file"] {
 
 /* ---------- suwak jakości ---------- */
 
-.jakosc { margin: 1.5rem 0 1.4rem; }
+.jakosc { margin: 0; }
 
 input[type="range"] {
   width: 100%;
@@ -386,7 +386,7 @@ summary:focus-visible {
 .komunikat-ok { background: #EAF4EF; color: var(--ok); border: 1px solid #C4DED2; }
 .komunikat-ok h3 { color: var(--ok); }
 
-.wynik { margin-top: 1.6rem; }
+.wynik { margin-top: 0; }
 
 .wynik h2 { font-size: 1.2rem; margin: 0 0 0.9rem; }
 
@@ -577,13 +577,14 @@ mark.watpliwe {
 /* ---------- stopka ---------- */
 
 .stopka {
+  flex: none;
   margin-top: auto;
   border-top: 1px solid var(--linie);
   color: var(--atrament-slaby);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
 }
 
-.stopka .srodek { padding-top: 1rem; padding-bottom: 1.1rem; }
+.stopka .srodek { padding-top: 0.35rem; padding-bottom: 0.4rem; }
 .stopka p { margin: 0; }
 
 .zapowiedz-offscreen {
@@ -597,9 +598,8 @@ mark.watpliwe {
 
 @media (max-width: 480px) {
   .srodek, .gora-srodek { padding-left: 1rem; padding-right: 1rem; }
-  /* K5c: na wąskim ekranie logo 36 px, nad tekstem trybu (nie zmieszczą się w wierszu) */
-  .nazwa img { height: 36px; }
-  .gora-srodek { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+  .gora-srodek { gap: 0 1rem; }
+  .tryb { margin-left: 0; flex-basis: 100%; padding-bottom: 0.4rem; }
   .przycisk-glowny { width: 100%; }
   .lista-danych li { flex-direction: column; gap: 0.1rem; }
   .lista-danych li span:last-child { text-align: left; }
@@ -679,3 +679,262 @@ progress {
 
 .listy-stale { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin: 0.5rem 0; }
 .lista-stala { min-height: 7rem; }
+
+/* ======================================================================
+   Układ dwupanelowy (2026-10-29). Wysokość okna, płynne skalowanie:
+   lewy panel wejścia, prawy wynik. Od 900 px i 600 px wysokości strona
+   nie przewija się: przewija się podgląd (i ewentualnie lewy panel).
+   ====================================================================== */
+
+.glowna {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel:not([hidden]) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+
+.uklad {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.kolumna { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; min-height: 0; }
+
+/* lewy panel: pole tekstu z wyborem pliku w rogu, jakość, akcja, narzędzia korekty */
+#form-ukryj, #form-przywroc { display: flex; flex-direction: column; gap: 0.7rem; flex: 1 0 auto; }
+#form-przywroc { min-height: 24rem; }
+
+.pole-dokumentu {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  column-gap: 0.75rem;
+  row-gap: 0.4rem;
+  padding: 0.7rem 0.85rem 0.75rem;
+  min-height: 12rem;
+}
+#widok-tekstu { display: contents; }
+#widok-tekstu label { grid-area: 1 / 1; margin: 0; align-self: center; }
+#widok-tekstu textarea { grid-area: 2 / 1 / 3 / 3; min-height: 6rem; height: 100%; resize: none; }
+#widok-pliku { grid-area: 2 / 1 / 3 / 3; align-self: start; }
+.wybor-pliku { display: contents; }
+.wybor-pliku .przycisk-wtorny { grid-area: 1 / 2; padding: 0.3rem 0.85rem; font-size: 0.92rem; }
+.wybor-pliku .podpowiedz { grid-area: 3 / 1 / 4 / 3; margin: 0; font-size: 0.8rem; }
+
+#ukryj, #przywroc { width: 100%; }
+.opis-poziomu { margin-top: 0.25rem; }
+input[type="range"] { margin: 0.1rem 0; }
+
+.poprawki { margin: 0; flex: none; }
+.pole-poprawki { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.3rem 0.5rem; margin: 0; }
+.pole-poprawki label { grid-column: 1 / -1; margin: 0; font-size: 0.9rem; }
+.pole-poprawki input {
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  border: 1px solid var(--linie);
+  border-radius: 4px;
+  background: var(--papier);
+  color: inherit;
+}
+.twoje-poprawki { margin-top: 0.5rem; border-top: 1px solid var(--linie); padding-top: 0.35rem; font-size: 0.92rem; }
+.twoje-poprawki summary { cursor: pointer; font-weight: 700; color: #2C4560; }
+.twoje-poprawki .lista-poprawek { max-height: 9rem; overflow-y: auto; }
+.komunikat-poprawek { margin: 0; min-height: 0; font-size: 0.9rem; }
+.poprawki .komunikat { margin: 0 0 0.5rem; padding: 0.6rem 0.8rem; }
+
+/* prawy panel: stan pusty z krokami */
+.stan-pusty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  padding: 1.1rem 1.4rem 1.2rem;
+}
+.stan-pusty h2 { margin: 0 0 0.6rem; font-size: 1.2rem; }
+.kolumna-wynik:has(#wynik:not([hidden])) .stan-pusty,
+.kolumna-wynik:has(#wynik-przywroc:not([hidden])) .stan-pusty,
+.kolumna-wynik:has(#status-ukryj:not(:empty)) .stan-pusty { display: none; }
+
+.kroki { counter-reset: krok; list-style: none; margin: 0 0 0.9rem; padding: 0; display: grid; gap: 0.7rem; }
+.kroki li { counter-increment: krok; display: grid; grid-template-columns: 1.8rem minmax(0, 1fr); align-items: baseline; }
+.kroki li::before {
+  content: counter(krok);
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--tusz);
+  font-variant-numeric: tabular-nums;
+}
+.kroki-uwaga { margin: 0 0 0.9rem; color: var(--ostrzegaj); font-size: 0.92rem; }
+.stan-pusty .jak-to-dziala { margin-top: 0.5rem; }
+
+.status { margin-top: 0; }
+
+/* wynik: kolumna, w której podgląd bierze całą resztę wysokości */
+.wynik { display: flex; flex-direction: column; gap: 0.55rem; flex: 1 1 auto; min-height: 0; scroll-padding-bottom: 5rem; }
+.wynik h2 { margin: 0; font-size: 1.05rem; }
+
+.wynik .komunikat {
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.6rem;
+  font-size: 0.88rem;
+}
+.wynik .komunikat h3 { margin: 0; font-size: 0.88rem; }
+.wynik .komunikat p { margin: 0; }
+#komunikat-status { display: block; padding: 0; }
+#komunikat-status .komunikat p ~ p { flex-basis: 100%; }
+/* blokada kontroli i ostrzeżenia zostają w całości widoczne, w zwykłym układzie */
+.wynik #blok-decyzji, .wynik #blok-ostrzezenia { display: block; padding: 0.7rem 0.9rem; font-size: 0.95rem; }
+.wynik #blok-decyzji h3, .wynik #blok-ostrzezenia h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+.wynik #blok-decyzji p { margin: 0.3rem 0; }
+
+.pasek-podsumowania {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.7rem;
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+}
+.wynik .pasek-podsumowania h3 { margin: 0; font-size: 0.85rem; color: var(--atrament-slaby); white-space: nowrap; }
+.pastylki { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 auto; }
+.pastylki li {
+  background: #F1EFEA;
+  border: 1px solid var(--linie);
+  border-radius: 999px;
+  padding: 0 0.65rem;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+.szczegoly-ryzyka summary { cursor: pointer; font-weight: 700; font-size: 0.88rem; color: #2C4560; white-space: nowrap; }
+.szczegoly-tresc {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 6;
+  width: min(34rem, 100%);
+  background: var(--kartka);
+  border: 1px solid var(--linie);
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(35, 40, 45, 0.14);
+  padding: 0.3rem 0.9rem 0.5rem;
+  font-size: 0.92rem;
+}
+.szczegoly-tresc h3 { margin: 0.4rem 0 0.2rem; font-size: 0.95rem; }
+
+.podglad { flex: 1 1 14rem; min-height: 10rem; display: flex; flex-direction: column; }
+.wynik .podglad h3 { margin: 0; font-size: 0.9rem; color: var(--atrament-slaby); }
+.kartka { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 0.35rem; padding: 1.1rem 1.3rem; }
+.podglad .podpowiedz { flex: none; margin: 0.4rem 0 0; font-size: 0.8rem; }
+
+/* pasek akcji przyklejony na dole prawego panelu */
+.pasek-akcji {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.6rem 0 0;
+  border-top: 1px solid var(--linie);
+  background: var(--papier);
+}
+.pobrania { display: contents; }
+#pobierz-wynik, #pobierz-przywrocony { margin-left: auto; padding: 0.55rem 1.3rem; }
+.pasek-akcji .wazne {
+  order: 5;
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 0;
+  background: none;
+  font-size: 0.82rem;
+}
+.wynik .pobrania { margin: 0; }
+
+/* przywracanie: tekst wypełnia lewy panel */
+#form-przywroc .wyjasnienie { margin: 0; }
+#form-przywroc .pole-przywroc { margin: 0; }
+#form-przywroc .przelacznik { margin: 0; }
+#form-przywroc #tryb-tekst { display: flex; flex-direction: column; gap: 0.6rem; flex: 1 1 0; min-height: 0; }
+#form-przywroc #tryb-tekst > .pole-przywroc:first-child { flex: 1 1 0; display: flex; flex-direction: column; min-height: 8rem; }
+#tekst-przywroc { flex: 1 1 0; min-height: 5rem; resize: none; }
+#form-przywroc .przycisk-glowny { margin-top: 0; }
+.kolumna-wynik #wynik-przywroc h2 { font-size: 1.05rem; }
+.stan-pusty-przywroc h2 { font-size: 1.05rem; }
+.stan-pusty-przywroc .wyjasnienie { margin: 0; }
+
+/* ekran pierwszego uruchomienia: tekst po lewej, modele i licencje po prawej */
+.ekran-pakietow {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0.5rem 1.5rem;
+  padding: 0.9rem 0 1rem;
+  border-bottom: 1px solid var(--linie);
+}
+.ekran-pakietow h2 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+.ekran-pakietow-lista h3 { margin: 0; font-size: 1rem; }
+.ekran-pakietow-lista { margin-top: 0; gap: 0.6rem; align-content: start; }
+.pakiet-licencja { display: grid; gap: 0.15rem; }
+.pakiet-licencja p { margin: 0; font-size: 0.88rem; }
+.pakiet-licencja a { color: var(--tusz); text-decoration: underline; overflow-wrap: anywhere; }
+.pakiet-licencja a:hover { color: var(--tusz-nacisniety); }
+.pakiet-licencja .pakiet-licencja-uwaga { color: var(--atrament); font-weight: 700; }
+.linia-modeli { margin: 0.2rem 0 0; }
+
+/* Ustawienia: przewijają się wewnątrz panelu, treść w czytelnej szerokości */
+#panel-ustawienia:not([hidden]) { display: block; overflow-y: auto; flex: 1 1 0; }
+#panel-ustawienia > * { max-width: 52rem; margin-left: auto; margin-right: auto; }
+#panel-ustawienia > h2 { margin-top: 0; font-size: 1.2rem; }
+#panel-ustawienia .naglowek-map { margin-top: 1.6rem; }
+
+@media (min-width: 900px) {
+  .uklad {
+    grid-template-columns: minmax(23rem, 2fr) 3fr;
+    grid-template-rows: minmax(0, 1fr);
+    gap: clamp(1rem, 2vw, 1.75rem);
+  }
+  .glowna { overflow-y: auto; }
+  .panel:not([hidden]) { min-height: 30rem; }
+  .kolumna-wejscie { overflow-y: auto; padding: 0 0.25rem 0 0; }
+  .kolumna-wynik { overflow: hidden; }
+  .wynik { overflow-y: auto; }
+}
+
+@media (min-width: 900px) and (min-height: 600px) {
+  body { height: 100dvh; overflow: hidden; }
+}
+
+/* jedna kolumna: strona się przewija, podgląd ma rozsądną wysokość */
+@media (max-width: 899px), (max-height: 599px) {
+  .panel:not([hidden]) { flex: 0 0 auto; }
+  .glowna { padding-bottom: 1rem; }
+  .kartka { max-height: 60vh; flex: 0 1 auto; }
+  .podglad { flex: 0 0 auto; }
+  .stan-pusty { overflow: visible; flex: 0 0 auto; }
+  .szczegoly-tresc { position: static; width: auto; box-shadow: none; margin-top: 0.3rem; flex-basis: 100%; }
+  #widok-tekstu textarea { min-height: 9rem; }
+  #form-przywroc #tryb-tekst > .pole-przywroc:first-child { min-height: 0; }
+  #tekst-przywroc { min-height: 8rem; }
+  #panel-ustawienia:not([hidden]) { overflow: visible; }
+}

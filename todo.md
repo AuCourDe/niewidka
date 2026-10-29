@@ -254,8 +254,8 @@
   - [x] licencje: bardsai Apache 2.0 (komercyjnie tak), LFM2.5 LFM Open License v1.0 (komercyjnie tylko poniżej 10 mln USD przychodu) — docs/LICENCJE-MODELI.md, `814690c`
   - [~] katalog pakietów: adres HF i licencja w /api/pakiety (`814690c`); napis w interfejsie u agenta układu
 
-- [~] 13:00 (właściciel, zlecone agentowi) układ dwupanelowy okna Niewidki (brief /tmp/niew-zad/uklad-okna.md): zero przewijania strony od 1100x800, dwa panele, licencje modeli przy pakietach
-  - [ ] index.html/styl.css/apka.js: siatka dwupanelowa, pasek podsumowania, pasek akcji, stan pusty, nagłówek 56 px
-  - [ ] pakiety: adres HF, licencja, uwaga i „Przed pobraniem zapoznaj się z licencją modelu.” na ekranie pobierania i w Ustawieniach
-  - [ ] pomiar scrollHeight/innerHeight (1084x821, 1440x900, 800x900) przed i po ukryciu, zrzuty uklad-po-*.png
-  - [ ] testy: pytest, GUI 27/27, audyt web-design-guidelines
+- [x] 13:00 (właściciel, zlecone agentowi) układ dwupanelowy okna Niewidki (brief /tmp/niew-zad/uklad-okna.md): zero przewijania strony od 1100x800, dwa panele, licencje modeli przy pakietach
+  - [x] index.html/styl.css/apka.js (commit układ dwupanelowy): siatka dwupanelowa, pasek podsumowania, pasek akcji, stan pusty, nagłówek 56 px
+  - [x] pakiety (apka.js opisLicencji): adres HF, licencja, uwaga i „Przed pobraniem zapoznaj się z licencją modelu.” na ekranie pobierania i w Ustawieniach
+  - [x] pomiar scrollHeight/innerHeight (1084x821, 1440x900, 800x900) przed i po ukryciu, zrzuty uklad-po-*.png
+  - [x] testy: pytest 674 passed, GUI web 27/27, audyt web-design-guidelines
