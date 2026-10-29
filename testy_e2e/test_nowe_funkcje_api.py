@@ -1,5 +1,11 @@
 """Dymny test nowych funkcji API na żywym serwerze (fikcyjne dane)."""
-import io, re, sys, zipfile, httpx
+import io
+import re
+import sys
+import zipfile
+
+import httpx
+
 B = sys.argv[1]
 c = httpx.Client(base_url=B, timeout=120)
 t = re.search(r'name="niewidka-token" content="([^"]+)"', c.get("/").text).group(1)
