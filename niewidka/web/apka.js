@@ -474,11 +474,11 @@ const TYPY_Z_SUMA = ["PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"];
 const MAKS_POZYCJI = 200;
 const MAKS_ZNAKOW = 200;
 
-let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, zListy: [], miejsca: [], trwa: false };
+let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
 let zaznaczone = "";
 
 function nowePoprawki(zadanie) {
-  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, zListy: [], miejsca: [], trwa: false };
+  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
   document.getElementById("komunikat-poprawek").textContent = "";
   zamknijAkcjeZnacznika();
   ukryjPlywajacy();
@@ -499,6 +499,8 @@ function rysujPoprawki() {
     ...poprawki.ukryj.map((t, i) => ({ opis: `Ukryj wszędzie: „${t}”`, tablica: "ukryj", i })),
     ...poprawki.nieDane.map((z, i) => ({ opis: `To nie dane: ${z.replace("_", " ")}`, tablica: "nieDane", i })),
     ...poprawki.zostaw.map((t, i) => ({ opis: `To nie dane: „${t}”`, tablica: "zostaw", i })),
+    ...poprawki.naInne.map((z, i) => ({ opis: `Inne dane zamiast ${z.replace("_", " ")}`, tablica: "naInne", i })),
+    ...poprawki.odkryj.map((t, i) => ({ opis: `Odkryte tylko tu: „${t}”`, tablica: "odkryj", i })),
   ];
   document.getElementById("naglowek-poprawek").hidden = pozycje.length === 0;
   for (const pozycja of pozycje) {
@@ -541,12 +543,14 @@ async function przelicz(zmiana, dodanyFragment = null) {
       ukryj: poprawki.ukryj,
       nie_dane: poprawki.nieDane,
       zostaw: poprawki.zostaw,
+      na_inne: poprawki.naInne,
+      odkryj: poprawki.odkryj,
     });
     if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
     const czesci = await otworzZip(await odpowiedz.blob());
     if (mojaKolejna !== licznikZlecen) return;
     poprawki.wlasne = JSON.parse(odpowiedz.headers.get("x-niewidka-wlasne") || "{}");
-    poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "[]");
+    poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "{}");
     poprawki.miejsca = [];
     document.getElementById("wynik").hidden = false;
     pokazWynik(odpowiedz.headers, czesci);
@@ -554,7 +558,8 @@ async function przelicz(zmiana, dodanyFragment = null) {
     const ostatni = poprawki.ukryj.length - 1;
     if (dodanyFragment !== null && poprawki.ukryj[ostatni] === dodanyFragment
       && !Object.values(poprawki.wlasne).includes(ostatni)) {
-      komunikatPoprawek(`„${dodanyFragment}” było już ukryte albo nie ma go w tekście jako osobnego słowa. Tekst się nie zmienił.`);
+      komunikatPoprawek(`„${dodanyFragment}” jest już ukryte pod innym znacznikiem albo nie ma go w tekście `
+        + "jako osobnego słowa. Kliknij znacznik w podglądzie, żeby zmienić jego rodzaj albo zdjąć ukrycie.");
     } else {
       komunikatPoprawek("Tekst się zmienił. Skopiuj go ponownie.");
     }
@@ -562,7 +567,9 @@ async function przelicz(zmiana, dodanyFragment = null) {
     if (mojaKolejna !== licznikZlecen) return;
     if (blad.status === 410) {
       nowePoprawki(null);
-      komunikatPoprawek("Minął czas na poprawki tego zadania. Ukryj dokument ponownie.");
+      // podgląd zostaje z ostatnim wynikiem, który już ma wcześniejsze poprawki (przegląd Argona pkt 6)
+      komunikatPoprawek("Minął czas na poprawki. Tekst w podglądzie ma wszystkie wcześniejsze poprawki, "
+        + "ale tej ostatniej nie dodano. Żeby poprawiać dalej, ukryj dokument ponownie.");
       return;
     }
     if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany" && (blad.odpowiedz.miejsca || []).length) {
@@ -645,17 +652,27 @@ function pokazAkcjeZnacznika(znacznik) {
   const wyjasnienie = document.getElementById("akcja-znacznika-wyjasnienie");
   opis.textContent = `Znacznik ${znacznik.replace("_", " ")} (${(ETYKIETY[typ] || [typ])[0]}).`;
   przycisk.disabled = false;
+  // nazwa urzędu albo referatu uznana za osobę: zmiana rodzaju, żeby AI nie pisało „Pan [OSOBA_3]”
+  const inne = document.getElementById("akcja-znacznika-inne");
+  inne.hidden = typ === "INNE" || TYPY_Z_SUMA.includes(typ) || znacznik in poprawki.wlasne
+    || znacznik in poprawki.zListy;
+  inne.onclick = () => przelicz(() => {
+    if (!poprawki.naInne.includes(znacznik)) poprawki.naInne.push(znacznik);
+  });
   wyjasnienie.textContent = "";
   przycisk.removeAttribute("aria-describedby");
   if (znacznik in poprawki.wlasne) {
     przycisk.textContent = "Cofnij tę poprawkę";
     przycisk.onclick = () => przelicz(() => poprawki.ukryj.splice(poprawki.wlasne[znacznik], 1));
-  } else if (poprawki.zListy.includes(znacznik)) {
-    przycisk.textContent = "To nie dane osobowe";
-    przycisk.disabled = true;
-    wyjasnienie.textContent = "Ten fragment jest na liście „Zawsze ukrywaj”. Zmienisz to w Ustawieniach, "
-      + "w części Stałe listy.";
+  } else if (znacznik in poprawki.zListy) {
+    const fragment = poprawki.zListy[znacznik];
+    przycisk.textContent = "Odkryj tylko w tym dokumencie";
+    wyjasnienie.textContent = `„${fragment}” jest na liście „Zawsze ukrywaj”. Lista zostaje bez zmian, `
+      + "zmienisz ją w Ustawieniach, w części Stałe listy.";
     przycisk.setAttribute("aria-describedby", "akcja-znacznika-wyjasnienie");
+    przycisk.onclick = () => przelicz(() => {
+      if (!poprawki.odkryj.includes(fragment)) poprawki.odkryj.push(fragment);
+    });
   } else if (TYPY_Z_SUMA.includes(typ)) {
     przycisk.textContent = "To nie dane osobowe";
     przycisk.disabled = true;
@@ -921,7 +938,7 @@ function inicjalizujUkrywanie() {
       const czesci = await otworzZip(await odpowiedz.blob());
       document.getElementById("wynik").hidden = false;
       nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
-      poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "[]");
+      poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "{}");
       pokazWynik(odpowiedz.headers, czesci);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
@@ -1144,6 +1161,11 @@ async function zapiszListy(zawsze, nigdy) {
 }
 
 async function dodajDoListy(ktora, fragment) {
+  const admin = listyStale.administrator;
+  if (admin.nigdy.includes(fragment) || admin.zawsze.includes(fragment)) {
+    komunikatPoprawek(`„${fragment}” jest już na liście administratora. Jego lista ma pierwszeństwo.`);
+    return;
+  }
   if (listyStale[ktora].includes(fragment)) {
     komunikatPoprawek(`„${fragment}” już jest na liście „Zawsze ukrywaj”.`);
     return;

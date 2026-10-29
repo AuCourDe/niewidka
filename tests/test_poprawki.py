@@ -267,7 +267,7 @@ async def test_brak_tresci_w_dzienniku_i_logach(konfig, caplog):
     zdarzenia = [json.loads(w) for w in dziennik.splitlines()]
     poprawiono = [z for z in zdarzenia if z["zdarzenie"] == "poprawiono"]
     assert len(poprawiono) == 1
-    assert poprawiono[0]["statystyki"] == {"ukryj": 1, "nie_dane": 1, "zostaw": 0}
+    assert poprawiono[0]["statystyki"] == {"ukryj": 1, "nie_dane": 1, "zostaw": 0, "na_inne": 0, "odkryj": 0}
     for tajemnica in ("Dalej", "dalej", "Tajne", "Maria", "Nowak", "44051401359", "firma-example"):
         assert tajemnica not in dziennik
         assert tajemnica not in caplog.text
@@ -370,3 +370,22 @@ def test_ui_dostepnosc_poprawek():
     assert "Tekst się zmienił. Skopiuj go ponownie." in js
     assert "if (mojaKolejna !== licznikZlecen) return;" in js  # odpowiedzi starszych żądań ignorowane
     assert '"PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"' in js  # bez „To nie dane” dla sum
+
+
+@pytest.mark.anyio
+async def test_na_inne_zmienia_rodzaj_bez_przenumerowania(konfig):
+    app = create_app(konfig, detektor=DetektorZLicznikiem())
+    async with _klient(app) as klient:
+        _, zadanie = await _ukryj(klient, app)
+        odpowiedz = await klient.post(
+            "/api/popraw", json={"zadanie": zadanie, "na_inne": ["OSOBA_2"]}, headers=_naglowki(app)
+        )
+        assert odpowiedz.status_code == 200, odpowiedz.text
+        tekst = _tekst_wyniku(odpowiedz)
+        assert "[OSOBA_2" not in tekst and "[INNE_1" in tekst  # cała grupa Marii Lis, z formami
+        assert "[OSOBA_1" in tekst and "[OSOBA_3" in tekst  # pozostałe numery bez zmian
+        assert "Maria Lis" not in tekst
+        pesel = await klient.post(
+            "/api/popraw", json={"zadanie": zadanie, "na_inne": ["PESEL_1"]}, headers=_naglowki(app)
+        )
+        assert pesel.status_code == 422

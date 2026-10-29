@@ -401,23 +401,26 @@ def create_app(
         konfig.listy_plik, konfig.listy_zawsze, konfig.listy_nigdy, konfig.listy_tylko_administrator
     )
 
-    def _popraw_z_listami(detekcje, ukryj_uzytkownika=(), nie_dane=(), zostaw=()):
+    def _popraw_z_listami(detekcje, ukryj_uzytkownika=(), nie_dane=(), zostaw=(), na_inne=(), odkryj=()):
         """`popraw` z listami stałymi: „Zawsze ukrywaj” idzie przed listą użytkownika (stałe
         numery znaczników), „Nigdy nie ukrywaj” jak „To nie dane”; jawne „Ukryj wszędzie”
         użytkownika wygrywa z „Nigdy”. Zwraca też `wlasne` przeliczone na pozycje listy
-        użytkownika i znaczniki powstałe z listy „Zawsze”."""
+        użytkownika i znaczniki powstałe z listy „Zawsze” (znacznik → pozycja listy).
+        `odkryj`: pozycje „Zawsze” wyłączone tylko w tym dokumencie (przegląd Argona pkt 5)."""
         listy = app.state.listy.razem()
+        zawsze = [f for f in listy.zawsze if f not in odkryj]
         nie_dane_razem = list(nie_dane) + [z for z in listy.znaczniki_nigdy(detekcje) if z not in nie_dane]
         wynik, mapa, raport, wlasne = popraw(
             detekcje,
-            listy.zawsze + list(ukryj_uzytkownika),
+            zawsze + list(ukryj_uzytkownika),
             nie_dane_razem,
             list(zostaw) + [f for f in listy.nigdy if f not in zostaw],
+            na_inne,
             kontrola_blokada=konfig.kontrola_blokada,
             wykrywaj_date=konfig.wykrywaj_date,
         )
-        n = len(listy.zawsze)
-        z_listy = sorted(z for z, i in wlasne.items() if i < n)
+        n = len(zawsze)
+        z_listy = {z: zawsze[i] for z, i in sorted(wlasne.items()) if i < n}
         wlasne = {z: i - n for z, i in wlasne.items() if i >= n}
         return wynik, mapa, raport, wlasne, z_listy
     app.state.magazyn = MagazynMap(
@@ -921,6 +924,8 @@ def create_app(
         lista_ukryj = sprawdz_liste("ukryj", tresc.get("ukryj"))
         lista_nie_dane = sprawdz_liste("nie_dane", tresc.get("nie_dane"))
         lista_zostaw = sprawdz_liste("zostaw", tresc.get("zostaw"))
+        lista_na_inne = sprawdz_liste("na_inne", tresc.get("na_inne"))
+        lista_odkryj = sprawdz_liste("odkryj", tresc.get("odkryj"))
         zadanie = tresc["zadanie"]
         detekcje = app.state.poprawki.pobierz(zadanie)
         if detekcje is None:
@@ -929,7 +934,7 @@ def create_app(
         def praca():
             klucz = pobierz_klucz(konfig)
             wynik, mapa, raport, wlasne, z_listy = _popraw_z_listami(
-                detekcje, lista_ukryj, lista_nie_dane, lista_zostaw
+                detekcje, lista_ukryj, lista_nie_dane, lista_zostaw, lista_na_inne, lista_odkryj
             )
             return wynik, mapa, raport, zaszyfruj(mapa, klucz), wlasne, z_listy
 
@@ -943,7 +948,13 @@ def create_app(
                 "poprawiono",
                 mapa.identyfikator,
                 mapa.poziom,
-                {"ukryj": len(lista_ukryj), "nie_dane": len(lista_nie_dane), "zostaw": len(lista_zostaw)},
+                {
+                    "ukryj": len(lista_ukryj),
+                    "nie_dane": len(lista_nie_dane),
+                    "zostaw": len(lista_zostaw),
+                    "na_inne": len(lista_na_inne),
+                    "odkryj": len(lista_odkryj),
+                },
             )
         except ValueError:
             pass

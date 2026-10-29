@@ -66,7 +66,7 @@ async def test_listy_dzialaja_przy_ukryciu_i_poprawce(konfig_list):
         assert "zimny" not in tekst and "[INNE_1]" in tekst  # zawsze ukrywaj, typ INNE
         assert "Maria Lis" in tekst  # nigdy nie ukrywaj zdejmuje osobę
         assert "44051401359" not in tekst
-        assert json.loads(odpowiedz.headers["x-niewidka-z-listy"]) == ["INNE_1"]
+        assert json.loads(odpowiedz.headers["x-niewidka-z-listy"]) == {"INNE_1": "zimny"}
         # poprawka użytkownika: listy dalej obowiązują, a numery własnych liczą się od zera
         poprawka = await _popraw(klient, app, zadanie, ukryj=["dalej"])
         tekst = _tekst_wyniku(poprawka)
@@ -102,3 +102,19 @@ async def test_lista_administratora_tylko_do_odczytu(konfig_list):
         assert zapis.status_code == 403
         odpowiedz, _ = await _ukryj(klient, app, TEKST)
         assert "zimny" not in _tekst_wyniku(odpowiedz)
+
+
+@pytest.mark.anyio
+async def test_odkryj_pozycje_listy_tylko_w_tym_dokumencie(konfig_list):
+    app = create_app(konfig_list, detektor=DetektorZLicznikiem())
+    async with _klient(app) as klient:
+        await klient.put("/api/listy", json={"zawsze": ["zimny"], "nigdy": []}, headers=_naglowki(app))
+        _, zadanie = await _ukryj(klient, app)
+        odpowiedz = await klient.post(
+            "/api/popraw", json={"zadanie": zadanie, "odkryj": ["zimny"]}, headers=_naglowki(app)
+        )
+        assert "zimny" in _tekst_wyniku(odpowiedz)
+        assert "x-niewidka-z-listy" not in odpowiedz.headers
+        # lista stała bez zmian: kolejne ukrycie dalej ukrywa
+        ponownie, _ = await _ukryj(klient, app)
+        assert "zimny" not in _tekst_wyniku(ponownie)

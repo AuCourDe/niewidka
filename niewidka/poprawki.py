@@ -153,6 +153,7 @@ def popraw(
     ukryj: Iterable[str],
     nie_dane: Iterable[str],
     zostaw: Iterable[str] = (),
+    na_inne: Iterable[str] = (),
     *,
     kontrola_blokada: bool = True,
     wykrywaj_date: bool = True,
@@ -162,10 +163,12 @@ def popraw(
     `ukryj`: fragmenty do ukrycia wszędzie (całe słowa, każda odmiana). `nie_dane`: znaczniki
     zdejmowane w całości (wszystkie wystąpienia tej osoby/wartości w tym wyniku); „ukryj”
     wygrywa. `zostaw`: miejsca wątpliwe z kontroli uznane za nie-dane. Typy z sumą kontrolną
-    nie schodzą (BladPoprawki). Zwraca (wynik, mapa, raport, wlasne), gdzie `wlasne` to
+    nie schodzą (BladPoprawki). `na_inne`: znaczniki, które zmieniają rodzaj na INNE (np. nazwa
+    referatu uznana przez model za osobę); dostają nowy numer INNE, pozostałe numery bez zmian
+    (luka w numeracji jest celowa). Zwraca (wynik, mapa, raport, wlasne), gdzie `wlasne` to
     znacznik → numer pozycji `ukryj`, z której powstał.
     """
-    ukryj, nie_dane, zostaw = list(ukryj), list(nie_dane), list(zostaw)
+    ukryj, nie_dane, zostaw, na_inne = list(ukryj), list(nie_dane), list(zostaw), list(na_inne)
     adapter = adapter_formatu(detekcje.format)
     dok = adapter.wczytaj(
         detekcje.dane,
@@ -186,6 +189,12 @@ def popraw(
                 "dla numerów z sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) "
                 "nie ma opcji „To nie dane”"
             )
+
+    for znacznik in na_inne:
+        if not _ZNACZNIK.fullmatch(znacznik) or znacznik not in typy_znacznikow:
+            raise BladPoprawki("nieznany znacznik w polu na_inne")
+        if typy_znacznikow[znacznik] in TYPY_Z_SUMA or typy_znacznikow[znacznik] is TypEncji.INNE:
+            raise BladPoprawki("tego znacznika nie można oznaczyć jako inne dane")
 
     # zakresy z listy „ukryj” w każdym segmencie, osobno dla każdej pozycji
     trafienia = [
@@ -243,6 +252,23 @@ def popraw(
             nowe_encje[s].append(
                 Encja(Zakres(start, koniec, typ, 1.0, "poprawka"), tekst, oznaczenie, None, formy[tekst])
             )
+
+    # zmiana rodzaju na INNE po „ukryj”, więc numery fragmentów użytkownika się nie przesuwają
+    nowe_oznaczenia: dict[str, str] = {}
+    for znacznik in na_inne:
+        if any(e.oznaczenie == znacznik for encje in nowe_encje for e in encje):
+            najwyzszy[TypEncji.INNE.value] = najwyzszy.get(TypEncji.INNE.value, 0) + 1
+            nowe_oznaczenia[znacznik] = f"{TypEncji.INNE.value}_{najwyzszy[TypEncji.INNE.value]}"
+    if nowe_oznaczenia:
+        nowe_encje = [
+            [
+                replace(e, zakres=replace(e.zakres, typ=TypEncji.INNE), oznaczenie=nowe_oznaczenia[e.oznaczenie])
+                if e.oznaczenie in nowe_oznaczenia
+                else e
+                for e in encje
+            ]
+            for encje in nowe_encje
+        ]
 
     wynik, mapa, statystyki, wpisy = zloz_wynik(adapter, dok, nowe_encje, detekcje.poziom)
 
