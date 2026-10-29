@@ -1,0 +1,30 @@
+# Niewidka: ustawienia aplikacji użytkownika (niewidka.toml), sekcja serwera modeli.
+#
+# Bez tej sekcji (albo z pustym adresem) aplikacja liczy modele lokalnie, jak zawsze.
+# Z adresem wysyła do serwera wyłącznie tekst do wykrycia, a mapy, klucz i kontrola
+# wyniku zostają na tym komputerze. Dzięki temu nie trzeba pobierać pakietów modeli.
+# Administrator dostarcza adres, plik tokenu i (jeśli trzeba) plik CA.
+#
+# Każdą opcję można nadpisać zmienną środowiskową NIEWIDKA_INFERENCJA_<NAZWA>,
+# np. NIEWIDKA_INFERENCJA_ADRES.
+
+[inferencja]
+# Adres serwera modeli w sieci lokalnej. Puste = modele lokalne (domyślnie).
+# Przykład: adres = "https://niewidka-serwer.urzad.local:8443"
+# adres = "https://niewidka-serwer.urzad.local:8443"
+
+# Plik z tokenem od administratora (sekret, uprawnienia 0600, nie wysyłaj go dalej).
+# Na Windowsie podaj pełną ścieżkę, np. "C:\\Niewidka\\token".
+# token_plik = "/home/uzytkownik/.config/niewidka/token"
+
+# Certyfikat urzędu certyfikacji (CA), jeśli serwer używa certyfikatu wewnętrznego
+# (plik PEM od administratora). Puste = zaufane urzędy systemu.
+# ca_plik = "/home/uzytkownik/.config/niewidka/ca.pem"
+
+# Ile sekund czekać na odpowiedź serwera, zanim pokażemy komunikat, że nie odpowiada.
+# Domyślnie: 60
+timeout_s = 60
+
+# Zgoda na połączenie bez szyfrowania (http://) z serwerem poza tym komputerem.
+# Tylko dla sieci wydzielonej albo testu, ustawia to administrator. Domyślnie: false
+zezwol_bez_tls = false

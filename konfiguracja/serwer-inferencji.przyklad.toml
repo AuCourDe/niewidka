@@ -1,0 +1,83 @@
+# Niewidka: centralny serwer modeli w sieci lokalnej (plik dla administratora)
+#
+# Jak uruchomić w 3 krokach:
+#   1. Skopiuj ten plik jako serwer-inferencji.toml i ustaw ścieżki poniżej
+#      (token_plik, katalog z modelami, certyfikat).
+#   2. Wygeneruj token i rozdaj plik użytkownikom:
+#        python -m niewidka.serwer_inferencji nowy-token /etc/niewidka/token
+#   3. Uruchom serwer:
+#        python -m niewidka.serwer_inferencji --konfig serwer-inferencji.toml
+# Serwer widzi tylko tekst, który przetwarza (w pamięci, bez zapisu na dysk).
+# Mapy i klucze zostają na komputerach użytkowników. Instrukcja: docs/SERWER-INFERENCJI.md
+#
+# Każdą opcję można nadpisać zmienną środowiskową NIEWIDKA_SERWER_<NAZWA>,
+# np. NIEWIDKA_SERWER_PORT=9000 albo NIEWIDKA_SERWER_URZADZENIE=cpu.
+
+[siec]
+# Adres, na którym serwer nasłuchuje.
+#   "127.0.0.1"  tylko ten komputer (dobre do prób).
+#   "0.0.0.0"    wszystkie interfejsy, czyli dostęp z sieci lokalnej (wymaga TLS, patrz niżej).
+# Domyślnie: "127.0.0.1"
+host = "0.0.0.0"
+
+# Port serwera. Domyślnie: 8443
+port = 8443
+
+# Certyfikat i klucz prywatny TLS (pliki PEM). Podaje się je razem.
+# Poza loopbackiem serwer bez nich NIE wystartuje. Certyfikat z wewnętrznego urzędu
+# certyfikacji jest w porządku, użytkownicy wskażą wtedy jego CA w swoim pliku klienta.
+# Przykład: cert_plik = "/etc/niewidka/serwer.pem"
+cert_plik = "/etc/niewidka/serwer.pem"
+klucz_plik = "/etc/niewidka/serwer-klucz.pem"
+
+# Zgoda na pracę BEZ szyfrowania w sieci lokalnej (true/false). Token i teksty
+# przechodzą wtedy jawnie przez sieć. Tylko dla sieci wydzielonej albo testu.
+# Domyślnie: false
+zezwol_bez_tls = false
+
+[dostep]
+# Plik z tokenem dostępu (sekret). Utwórz go poleceniem:
+#   python -m niewidka.serwer_inferencji nowy-token <ścieżka>
+# Plik ma mieć uprawnienia 0600 (tylko właściciel). Bez tego pliku serwer nie startuje.
+# Wartości tokenu nie wpisuje się tutaj, tylko w pliku.
+token_plik = "/etc/niewidka/token"
+
+[modele]
+# Katalog z pobranymi modelami (ten sam układ co u użytkownika: model.onnx, tokenizer itd.).
+# Puste albo brak = domyślny katalog modeli Niewidki na tym komputerze.
+# Przykład: katalog = "/srv/niewidka/modele"
+katalog = "/srv/niewidka/modele"
+
+# Poziomy jakości, które serwer udostępnia: 1 (najszybszy), 2, 3 (najdokładniejszy).
+# Przykład: poziomy = [1, 2]. Domyślnie: wszystkie trzy.
+poziomy = [1, 2, 3]
+
+# Na czym liczyć modele:
+#   "auto"  najlepsze, co jest dostępne (karta graficzna, a gdy jej brak, procesor)
+#   "cpu"   zawsze procesor
+#   "gpu"   karta graficzna; gdy jej nie ma, serwer nie wystartuje i powie dlaczego
+# Do GPU potrzebny jest pakiet onnxruntime-gpu (NVIDIA CUDA) albo onnxruntime-directml (Windows).
+# Domyślnie: "auto"
+urzadzenie = "auto"
+
+# Liczba wątków obliczeń na procesorze. 0 = decyduje biblioteka (zwykle wszystkie rdzenie).
+# Gdy na serwerze działają też inne usługi, ustaw np. 4. Domyślnie: 0
+watki = 0
+
+# Ile tekstów serwer przetwarza jednocześnie. Więcej = szybciej dla wielu osób,
+# ale więcej pamięci (każda praca zajmuje wątki). Zacznij od 2 na 8 rdzeniach.
+# Domyślnie: 1
+rownolegle = 1
+
+# Czy poziom 3 ma korzystać z pakietu Rozszerzonego (adresy IP, karty, SWIFT, loginy).
+# Wymaga, żeby pakiet był pobrany w katalogu modeli. Domyślnie: false
+pakiet_rozszerzony = false
+
+[limity]
+# Największy tekst w jednym zapytaniu, w megabajtach. Większe dostają błąd 413.
+# Domyślnie: 1
+max_tekst_mb = 1
+
+# Po ilu sekundach przerwać oczekiwanie na wynik (użytkownik dostaje komunikat o ponowieniu).
+# Domyślnie: 120
+timeout_s = 120

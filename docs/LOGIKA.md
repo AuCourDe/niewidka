@@ -157,6 +157,17 @@ się programem wkleja ścieżkę do folderu od IT (wykaz z podpisem i pliki); ob
 sama weryfikacja. Program bez klucza publicznego wydawcy (np. przed wydaniem) działa na
 wykazie wbudowanym, a aktualizacje są niedostępne z czytelnym komunikatem.
 
+## Centralny serwer modeli (docs/SERWER-INFERENCJI.md)
+
+Gdy w konfiguracji aplikacji jest `[inferencja] adres`, `_detektor_dla` zwraca `ZdalnyDetektor`
+(niewidka/zdalny.py) zamiast modeli lokalnych: tekst segmentu idzie przez HTTPS z tokenem do
+`niewidka.serwer_inferencji`, który zwraca wyłącznie zakresy (start, koniec, typ, pewność). Mapy,
+klucz, kontrola wyniku, poprawki i listy zostają na komputerze użytkownika, a typ DATA filtruje
+`wykrywaj_date` po stronie użytkownika. Poziomy dostępne w `/api/stan` podaje wtedy serwer, a ukrywanie
+nie wymaga lokalnych pakietów (brak 409). Błąd sieci lub serwera = 503 bez wyniku (fail-closed).
+Serwer wyjątkowo nasłuchuje w sieci lokalnej (wyjątek od K4b pkt 14), bo nie odszyfrowuje map:
+wymaga tokenu (brak pliku = brak startu) i TLS poza loopbackiem.
+
 ## Bezpieczeństwo
 
 - Token sesji w stronie, wymagany w każdym żądaniu API.
