@@ -750,3 +750,18 @@ async def test_strona_glowna_nie_wydaje_tokenu_obcemu_hostowi(konfig):
         odpowiedz = await k.get("/")
     assert odpowiedz.status_code == 403
     assert app.state.token not in odpowiedz.text
+
+
+@pytest.mark.anyio
+async def test_uszkodzony_docx_daje_422_nie_500(konfig):
+    # testy GUI 2026-10-29 (S-WSP-37): tekst w pliku .docx kończył się 500
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("zepsuty.docx", b"to nie jest archiwum zip")},
+            headers=_naglowki(app),
+        )
+    assert odpowiedz.status_code == 422
+    assert "DOCX" in odpowiedz.json()["blad"]

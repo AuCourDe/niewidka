@@ -1,0 +1,685 @@
+{
+  "baza": "http://127.0.0.1:8871",
+  "poziomy": [
+    1,
+    2,
+    3
+  ],
+  "start": "2026-10-29 00:40:21",
+  "stan_serwera": {
+    "wersja": "0.1.0",
+    "modele": [
+      "reguly",
+      "onnx:bardsai"
+    ],
+    "poziom": 1,
+    "poziomy": [
+      1,
+      2,
+      3
+    ],
+    "poziomy_dostepne": [
+      1,
+      2,
+      3
+    ],
+    "r95": {
+      "1": {
+        "ADRES": 0.1707,
+        "DATA": 0.3123,
+        "DOKUMENT": 0.4507,
+        "EMAIL": 0.3482,
+        "IBAN": 0.393,
+        "NIP": 0.3482,
+        "OSOBA": 0.0736,
+        "PESEL": 0.3482,
+        "REGON": 0.3482,
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      },
+      "2": {
+        "ADRES": 0.1707,
+        "DATA": 0.3123,
+        "DOKUMENT": 0.4507,
+        "EMAIL": 0.3482,
+        "IBAN": 0.393,
+        "NIP": 0.3482,
+        "OSOBA": 0.0599,
+        "PESEL": 0.3482,
+        "REGON": 0.3482,
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      },
+      "3": {
+        "ADRES": 0.1707,
+        "DATA": 0.3123,
+        "DOKUMENT": 0.4507,
+        "EMAIL": 0.3482,
+        "IBAN": 0.393,
+        "NIP": 0.3482,
+        "OSOBA": 0.0599,
+        "PESEL": 0.3482,
+        "REGON": 0.3482,
+        "TELEFON": 0.3123,
+        "contact.ip_address": 1.0,
+        "financial.credit_card": 1.0,
+        "financial.swift_bic": 1.0,
+        "healthcare.condition": 1.0,
+        "healthcare.medical_record": 1.0,
+        "healthcare.medication": 1.0,
+        "legal.case_number": 1.0,
+        "online.url": 1.0,
+        "online.username": 1.0,
+        "org.company_name": 1.0,
+        "special.political": 1.0,
+        "special.religion": 1.0
+      }
+    },
+    "limity": {
+      "rozmiar_mb": 25,
+      "rozpakowane_mb": 200,
+      "tekst_mb": 1,
+      "kolejka": 4,
+      "zlecenia": 8,
+      "timeout_s": 120
+    },
+    "kolejka": {
+      "czekajacy": 0,
+      "maks": 4
+    }
+  },
+  "T1": {
+    "GET /api/pakiety bez tokenu": {
+      "oczekiwane": 403,
+      "kod": 403,
+      "ok": true,
+      "blad": "brak albo zły token sesji"
+    },
+    "POST /api/ukryj z obcym Origin": {
+      "oczekiwane": 403,
+      "kod": 403,
+      "ok": true,
+      "blad": "niedozwolony Origin"
+    },
+    "POST /api/ukryj z obcym Host": {
+      "oczekiwane": 403,
+      "kod": 403,
+      "ok": true,
+      "blad": "niedozwolony Host"
+    }
+  },
+  "T2_T3": [
+    {
+      "dokument": "01-wezwanie.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 2.44,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "af9f0b3a1142dcced5fdad069aa63441",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 9,
+        "PESEL": 1,
+        "TELEFON": 1,
+        "EMAIL": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "referat.obywatelski@urzad-poludnie.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "01-wezwanie.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 2.57,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "3b3445c73e5dec3f8dff46400caa536c",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 9,
+        "PESEL": 1,
+        "TELEFON": 1,
+        "EMAIL": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "referat.obywatelski@urzad-poludnie.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "01-wezwanie.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 5.16,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "4b4e92d3c1935e66ac4e075aeb033e95",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 9,
+        "PESEL": 1,
+        "TELEFON": 1,
+        "EMAIL": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "referat.obywatelski@urzad-poludnie.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "01-wezwanie.docx",
+      "poziom": 1,
+      "czas_ukryj_s": 1.68,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "627b2fc41138ffcc3838d97cd874fafb",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 9,
+        "PESEL": 1,
+        "TELEFON": 1,
+        "EMAIL": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "referat.obywatelski@urzad-poludnie.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.01,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "01-wezwanie.docx",
+      "poziom": 2,
+      "czas_ukryj_s": 1.49,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "01-wezwanie.docx",
+      "poziom": 3,
+      "czas_ukryj_s": 13.53,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "02-umowa-najmu.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 1.38,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 2
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "02-umowa-najmu.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 1.41,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 2
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "02-umowa-najmu.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 6.45,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "3d1e3a12823eced3122fd81fcfc34079",
+      "statystyki": {
+        "DATA": 3,
+        "OSOBA": 6,
+        "ADRES": 3,
+        "PESEL": 2,
+        "NIP": 1,
+        "REGON": 1,
+        "IBAN": 1,
+        "EMAIL": 2,
+        "TELEFON": 2
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "biuro@zawadzki-herbert-nieruchomosci.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "03-skarga-bank.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 1.34,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "03-skarga-bank.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 1.38,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "03-skarga-bank.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 6.46,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "6e4b10a70fa4440952abf61e096f977a",
+      "statystyki": {
+        "DATA": 9,
+        "ADRES": 2,
+        "IBAN": 2,
+        "OSOBA": 4,
+        "DOKUMENT": 1,
+        "PESEL": 1,
+        "EMAIL": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "04-protokol-wspolnota.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 1.31,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "04-protokol-wspolnota.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 2.51,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 2
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "04-protokol-wspolnota.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 13.06,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "05-mail-hr.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 2.56,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "103cea92339c3469ad95b99cccd9d5f6",
+      "statystyki": {
+        "OSOBA": 5,
+        "EMAIL": 2,
+        "DATA": 4,
+        "ADRES": 3,
+        "PESEL": 1,
+        "TELEFON": 2,
+        "NIP": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "rekrutacja@techfirma-przykladowa.pl",
+        "5242176538"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "05-mail-hr.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 2.5,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "40c69e2c13172fcf1f32ea6670aa15e1",
+      "statystyki": {
+        "OSOBA": 5,
+        "EMAIL": 2,
+        "DATA": 4,
+        "ADRES": 3,
+        "PESEL": 1,
+        "TELEFON": 2,
+        "NIP": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "rekrutacja@techfirma-przykladowa.pl",
+        "5242176538"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "05-mail-hr.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 5.02,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "4890fc04ca8321c295dbd92cd9c21671",
+      "statystyki": {
+        "OSOBA": 5,
+        "EMAIL": 2,
+        "DATA": 4,
+        "ADRES": 3,
+        "PESEL": 1,
+        "TELEFON": 2,
+        "NIP": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "rekrutacja@techfirma-przykladowa.pl",
+        "5242176538"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "06-notatka-policja.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 1.37,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "522177a9e0a1991d94e693c5238d37b0",
+      "statystyki": {
+        "DATA": 5,
+        "ADRES": 3,
+        "OSOBA": 2,
+        "PESEL": 2,
+        "DOKUMENT": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [
+        "Piotr Wrona"
+      ],
+      "nadmiar": [],
+      "status": "wyciek",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "06-notatka-policja.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 1.33,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "1955476064c3b814c00d39d5dfa8d783",
+      "statystyki": {
+        "DATA": 5,
+        "ADRES": 3,
+        "OSOBA": 2,
+        "PESEL": 2,
+        "DOKUMENT": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [
+        "Piotr Wrona"
+      ],
+      "nadmiar": [],
+      "status": "wyciek",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "06-notatka-policja.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 4.58,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "4ed791dc86c1113f17eca6fa6694c4ea",
+      "statystyki": {
+        "DATA": 5,
+        "ADRES": 3,
+        "OSOBA": 3,
+        "PESEL": 2,
+        "DOKUMENT": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "07-zaswiadczenie-lekarskie.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 2.48,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "85e2788fad52be999aa5414ad0559250",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 5,
+        "PESEL": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "07-zaswiadczenie-lekarskie.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 2.47,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "7aa71f06bc7f94b3b7addba454944cdb",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 5,
+        "PESEL": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "07-zaswiadczenie-lekarskie.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 5.08,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "f40f5c22bcf45fdcebd7433395a298d3",
+      "statystyki": {
+        "ADRES": 2,
+        "DATA": 6,
+        "OSOBA": 5,
+        "PESEL": 1,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    },
+    {
+      "dokument": "08-pelnomocnictwo.txt",
+      "poziom": 1,
+      "czas_ukryj_s": 1.3,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "08-pelnomocnictwo.txt",
+      "poziom": 2,
+      "czas_ukryj_s": 1.23,
+      "kod_ukryj": 422,
+      "status": "zablokowany",
+      "typy_blokady": {
+        "ORYGINAL": 1
+      },
+      "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany"
+    },
+    {
+      "dokument": "08-pelnomocnictwo.txt",
+      "poziom": 3,
+      "czas_ukryj_s": 4.99,
+      "kod_ukryj": 200,
+      "status_naglowek": "ukonczony",
+      "identyfikator": "0dffc7b095c7fa856da945ebb2b2d609",
+      "statystyki": {
+        "DATA": 1,
+        "OSOBA": 5,
+        "ADRES": 4,
+        "PESEL": 2,
+        "DOKUMENT": 1,
+        "NIP": 1,
+        "EMAIL": 2,
+        "TELEFON": 1
+      },
+      "dopisek_ok": true,
+      "wycieki": [],
+      "nadmiar": [
+        "biuro@krupa-partnerzy.example.pl"
+      ],
+      "status": "ok",
+      "czas_przywroc_s": 0.0,
+      "rozbieznosci": [],
+      "przywrocenie": true
+    }
+  ],
+  "T4": {
+    "status": "ok",
+    "wynik": "01-wezwanie (poziom 1) + mapa z 02-umowa-najmu -> HTTP 422",
+    "kod": 422,
+    "blad": "wynik nie zawiera identyfikatora tej mapy — dokument i mapa pochodzą z różnych zadań"
+  },
+  "T5": {
+    "nieobsługiwany format (.exe)": {
+      "kod": 415,
+      "ok": true,
+      "blad": "nieznany format pliku; obsługiwane: docx, txt"
+    },
+    "pusty tekst": {
+      "kod": 422,
+      "ok": true,
+      "blad": "podaj dokładnie jedno: plik albo tekst"
+    }
+  },
+  "podsumowanie": {
+    "komorki": 27,
+    "ok": 14,
+    "wycieki": 2,
+    "zablokowane": 11,
+    "bledy": 0,
+    "nadmiar_fragmentow": 12,
+    "T1_zaliczone": 3,
+    "sukces": false,
+    "koniec": "2026-10-29 00:41:58"
+  }
+}

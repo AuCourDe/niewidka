@@ -261,6 +261,43 @@ def test_znaczniki_w_tresci_wejscia_odrzucone():
         ukryj(b"Przyklad [PESEL_1]. PESEL 44051401359.", "txt", 1, detektor=RegulyDetektor())
 
 
+def test_oryginal_z_mapy_ukryty_takze_tam_gdzie_model_go_przeoczyl():
+    """Testy API 2026-10-29: „Anna Nowak" ukryta w jednym miejscu, w drugim model jej
+    nie widział → skan surowy zgłaszał ORYGINAL i cały wynik był blokowany."""
+
+    class RazTak:
+        nazwa = "atrapa-raz"
+        typy = frozenset({TypEncji.OSOBA})
+
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            i = tekst.find("Wynajmująca: Anna Nowak")
+            if i < 0:
+                return []
+            s = i + len("Wynajmująca: ")
+            return [Zakres(s, s + len("Anna Nowak"), TypEncji.OSOBA, 0.99, self.nazwa)]
+
+    tekst = "Wynajmująca: Anna Nowak.\nPodpis: Anna Nowak".encode()
+    wynik, _, raport = ukryj(tekst, "txt", 1, detektor=RazTak())
+    assert raport.status == "ukonczony", raport.ostrzezenia
+    assert b"Anna Nowak" not in wynik
+
+
+def test_inne_formy_znanej_osoby_ukryte_na_kazdym_poziomie():
+    """Testy API 2026-10-29: „Marek Zawadzki-Herbert" ukryty, a „Markowi
+    Zawadzkiemu-Herbertowi" i „z Beatą Sokołowską" zostawały jawne."""
+    tekst = (
+        "Najemca: Marek Zawadzki-Herbert. Obecna Beata Sokołowska z lokalu 7.\n"
+        "Klucze przekazano Markowi Zawadzkiemu-Herbertowi. Rozmawiano z Beatą Sokołowską.\n"
+        "Adres: ul. Polna 3, 05-100 Nowy Dwór. Pan Nowak nieobecny."
+    ).encode()
+    detektor = DetektorOsob(("Marek Zawadzki-Herbert", "Beata Sokołowska", "Nowak"))
+    wynik, _, raport = ukryj(tekst, "txt", 1, detektor=detektor)
+    assert raport.status == "ukonczony"
+    for jawne in (b"Markowi", b"Zawadzkiemu", b"Herbertowi", "Beatą".encode(), "Sokołowską".encode()):
+        assert jawne not in wynik, jawne
+    assert "Nowy Dwór".encode() in wynik  # „Nowak" nie łapie „Nowy"
+
+
 def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
     """K3b: PESEL schowany w części, której adapter nie parsuje i nie czyści
     (media), omija wykrywanie i zamianę — kontrola z oryginałami mapy go zgłasza.

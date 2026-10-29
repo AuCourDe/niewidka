@@ -419,6 +419,14 @@ def create_app(
         # K4b pkt 15: bez pola input i bez odbicia wartości wejściowych
         return JSONResponse({"blad": "nieprawidłowe dane żądania"}, status_code=422)
 
+    @app.exception_handler(zipfile.BadZipFile)
+    async def _zly_docx(request: Request, blad: zipfile.BadZipFile):
+        # testy GUI 2026-10-29 (S-WSP-37): uszkodzony .docx dawał 500
+        return JSONResponse(
+            {"blad": "plik nie jest poprawnym dokumentem DOCX (uszkodzony albo to inny format)"},
+            status_code=422,
+        )
+
     @app.exception_handler(BladMapy)
     async def _blad_mapy(request: Request, blad: BladMapy):
         return JSONResponse({"blad": str(blad)}, status_code=422)

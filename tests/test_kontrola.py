@@ -292,3 +292,19 @@ class TestWydajnoscKontroli:
 
         assert raport.status == "ukonczony", f"wynik zablokowany: {raport.ostrzezenia}"
         assert czas < 10.0, f"ukrycie DOCX na poziomie 3 trwa {czas:.1f} s (limit 10 s)"
+
+
+def test_nazwa_typu_danych_to_nie_wyciek():
+    """Testy API 2026-10-29: model w kontroli brał samo „PESEL" (etykieta przed
+    zamaskowanym numerem) za osobę; pętla dokładała je i wynik był blokowany."""
+    from niewidka.model import TypEncji, Zakres
+
+    class Etykiety:
+        nazwa = "atrapa-etykiety"
+        typy = frozenset({TypEncji.OSOBA})
+
+        def znajdz(self, tekst: str):
+            i = tekst.find("PESEL")
+            return [Zakres(i, i + 5, TypEncji.OSOBA, 0.9, self.nazwa)] if i >= 0 else []
+
+    assert kontroluj(b"Numer PESEL [PESEL_1] podano.", "w.txt", Etykiety()) == []

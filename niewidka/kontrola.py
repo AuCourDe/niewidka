@@ -29,6 +29,7 @@ from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
 from niewidka.znaczniki import DOPISEK
 
+_NAZWY_TYPOW = frozenset(typ.value for typ in TypEncji)
 WZORZEC_DOPISKU = re.compile(re.escape(DOPISEK) + r" Identyfikator mapy: [a-p]+\.")
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ def kontroluj(
             lambda m: " " * (m.end() - m.start()), tekst_bez_znacznikow
         )
         for zakres in detektor.znajdz(tekst_bez_znacznikow):
+            if tekst_bez_znacznikow[zakres.start : zakres.koniec].strip().upper() in _NAZWY_TYPOW:
+                continue  # etykieta „PESEL"/„NIP" przed zamaskowanym numerem, nie dane
             uwagi.append(
                 Ostrzezenie(
                     zakres.typ.value,

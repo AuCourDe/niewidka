@@ -33,6 +33,7 @@ from niewidka.mapa import (
     rozbieznosci_wpisow,
 )
 from niewidka.model import Encja, TypEncji, Zakres
+from niewidka.osoby import _TYTUŁY as _TYTULY_OSOB
 from niewidka.osoby import pogrupuj
 from niewidka.scalanie import scal
 from niewidka.znaczniki import dopisek, nadaj_oznaczenia, zakoduj_identyfikator, znacznik_encji
@@ -84,6 +85,62 @@ def _koniec_osoby(tekst: str, koniec: int) -> int:
             break
         koniec = slowo.end()
     return koniec
+
+
+_SLOWO_Z_WIELKIEJ = re.compile(r"[^\W\d_][\w'’\-]*")
+
+
+def _wspolny_poczatek(a: str, b: str) -> int:
+    n = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+    return n
+
+
+def _czlon_pasuje(znany: str, kandydat: str) -> bool:
+    """Ta sama forma podstawowa po wspólnym początku: Zawadzki/Zawadzkiemu,
+    Marek/Markowi (ruchome „e"), Anna/Annie. Krótki początek nie wystarcza,
+    żeby „Nowak" nie łapało „Nowy"."""
+    warianty = {znany}
+    if len(znany) >= 4 and znany[-2] == "e" and znany[-1] in "kc":
+        warianty.add(znany[:-2] + znany[-1])  # Marek → Mark-owi, Jacek → Jack-a
+    for wzor in warianty:
+        p = _wspolny_poczatek(wzor, kandydat)
+        if len(wzor) <= 4:  # Anna/Annie, Jan/Jana: próg od długości ZNANEJ formy
+            if p >= max(3, len(wzor) - 1):
+                return True
+        elif p >= 4 and p >= len(wzor) - 3:
+            return True
+    return False
+
+
+def _formy_znanych_osob(teksty: list[str], zajete: list[list[Zakres]], osoby: list[str]) -> set[str]:
+    """Inne formy osób już wykrytych w dokumencie (testy API 2026-10-29: „Marek
+    Zawadzki-Herbert" ukryty, „Markowi Zawadzkiemu-Herbertowi" jawny). Osoba wykryta
+    raz ma zniknąć w każdej odmianie, na każdym poziomie."""
+    znane = {
+        slowo.lower()
+        for osoba in osoby
+        for slowo in _SLOWO_Z_WIELKIEJ.findall(osoba)
+        if len(slowo) >= 3 and slowo.lower().strip(".") not in _TYTULY_OSOB
+    }
+    wynik: set[str] = set()
+    for tekst, zakresy in zip(teksty, zajete):
+        for m in _SLOWO_Z_WIELKIEJ.finditer(tekst):
+            slowo = m.group()
+            if len(slowo) < 3 or not slowo[0].isupper() or slowo.lower() in _TYTULY_OSOB:
+                continue
+            if any(z.start < m.end() and m.start() < z.koniec for z in zakresy):
+                continue
+            czlony = slowo.lower().split("-")
+            for znany in znane:
+                zczlony = znany.split("-")
+                if len(zczlony) == len(czlony) and all(map(_czlon_pasuje, zczlony, czlony)):
+                    wynik.add(slowo)
+                    break
+    return wynik
 
 
 class _ZDopelnieniem:
@@ -201,6 +258,7 @@ def ukryj(
         dok = adapter.wczytaj(
             dane, polityka_obrazow=polityka_obrazow, max_rozpakowane=max_rozpakowane_bajtow
         )
+        teksty_wejscia = [segment.tekst for segment in dok.segmenty]
 
         segmenty_encji = [
             [
@@ -253,11 +311,28 @@ def ukryj(
             oryginaly=sorted(oryginaly),
             max_rozpakowane=max_rozpakowane_bajtow,
         )
-        nowe = {
-            o.fragment.strip(): TypEncji(o.typ)
-            for o in ostrzezenia
-            if o.typ in TYPY_ENCJI and o.fragment.strip() and o.fragment.strip() not in fragmenty
+        # ORYGINAL = wartość z mapy, którą model przeoczył w innym miejscu: ukrywamy ją
+        # wszędzie z typem z mapy (testy API 2026-10-29). Zostaje tylko tam, gdzie adapter
+        # nie czyta (style, metadane) — wtedy kolejne przejście nic nie wnosi i jest blokada.
+        typ_oryginalu = {
+            forma: TypEncji(wpis.typ) for wpis in wpisy.values() for forma in wpis.formy.values()
         }
+        nowe: dict[str, TypEncji] = {}
+        for o in ostrzezenia:
+            fragment = o.fragment.strip()
+            if not fragment or fragment in fragmenty:
+                continue
+            if o.typ in TYPY_ENCJI:
+                nowe[fragment] = TypEncji(o.typ)
+            elif o.typ == "ORYGINAL" and fragment in typ_oryginalu:
+                nowe[fragment] = typ_oryginalu[fragment]
+        for forma in _formy_znanych_osob(
+            teksty_wejscia,
+            [[e.zakres for e in encje] for encje in segmenty_encji],
+            [e.tekst for e in wszystkie if e.zakres.typ is TypEncji.OSOBA],
+        ):
+            if forma not in fragmenty:
+                nowe[forma] = TypEncji.OSOBA
         if not nowe:
             break
         fragmenty.update(nowe)
