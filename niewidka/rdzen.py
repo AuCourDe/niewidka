@@ -54,6 +54,26 @@ class Raport:
     uwagi: list[str] = field(default_factory=list)  # nieblokujące (K4b pkt 2: usunięte obrazy)
     r95: dict[str, float | None] = field(default_factory=dict)
     status: str = "ukonczony"  # "zablokowany", gdy kontrola znalazła nowe znaleziska
+    # wykrycia ostatniego przebiegu do poprawek w podglądzie (tylko RAM, nigdy w odpowiedzi)
+    detekcje: Detekcje | None = field(default=None, repr=False, compare=False)
+
+
+@dataclass
+class Detekcje:
+    """Wykrycia ostatniego przebiegu `ukryj` (zakresy, typy, grupy osób, numeracja):
+    z nich `poprawki.popraw` liczy nowy wynik BEZ ponownego uruchamiania modelu
+    (docs/MAPY-I-AKTUALIZACJE.md §4, §8 pkt 4). Zawierają oryginał dokumentu, więc
+    żyją wyłącznie w pamięci procesu (`poprawki.PamiecWykryc`), nigdy na dysku ani w logach."""
+
+    dane: bytes
+    format: str
+    poziom: int
+    polityka_obrazow: str
+    max_rozpakowane_bajtow: int | None
+    encje: list[list[Encja]]  # per segment dokumentu, z oznaczeniami i wariantami
+    # znaleziska kontroli z segmentów tekstu (model + reguły) w wyniku bazowym: poprawka
+    # nie uruchamia modelu, więc to one pilnują, że każde miejsce dostanie decyzję
+    ostrzezenia_tekstu: list[Ostrzezenie] = field(default_factory=list)
 
 
 class _BezDaty:
@@ -220,6 +240,57 @@ def _sprawdz_rozpakowane(dane: bytes, limit_bajtow: int | None) -> None:
         raise ArchiwumZaDuze(f"rozpakowana treść archiwum {suma} B przekracza limit {limit_bajtow} B")
 
 
+def uwagi_obrazow(dok) -> list[str]:
+    """Nieblokujące uwagi o obrazach (K4b pkt 2), wspólne dla `ukryj` i poprawek."""
+    uwagi: list[str] = []
+    obrazy = (dok.zasoby or {}).get("obrazy", {})
+    if obrazy.get("usuniete"):
+        uwagi.append(
+            f"OBRAZ USUNIĘTY ({obrazy['usuniete']} szt.): bez OCR treść obrazu nie daje się sprawdzić"
+        )
+    if obrazy.get("pozostale"):
+        uwagi.append(
+            f"OBRAZ BEZ OCR ({obrazy['pozostale']} szt.): treść obrazu pozostała w wyniku i nie daje się sprawdzić"
+        )
+    return uwagi
+
+
+def zloz_wynik(
+    adapter, dok, segmenty_encji: list[list[Encja]], poziom: int
+) -> tuple[bytes, Mapa, dict[str, int], dict[str, Wpis]]:
+    """Znaczniki w dokumencie + nowa mapa z wykryć (encje z oznaczeniami). Wspólne dla
+    `ukryj` i `poprawki.popraw`, więc oba składają wynik i mapę tak samo."""
+    statystyki: dict[str, int] = {}
+    wystapienia: list[Wystapienie] = []
+    wpisy: dict[str, Wpis] = {}
+    for segment, encje in zip(dok.segmenty, segmenty_encji):
+        if not encje:
+            continue
+        posortowane = sorted(encje, key=lambda e: e.zakres.start)
+        adapter.wstaw_znaczniki(
+            segment, [(e.zakres.start, e.zakres.koniec, znacznik_encji(e)) for e in posortowane]
+        )
+        for encja in posortowane:
+            typ = encja.zakres.typ.value
+            statystyki[typ] = statystyki.get(typ, 0) + 1
+            wariant = encja.wariant or WARIANT_DOMYSLNY
+            wystapienia.append(Wystapienie(len(wystapienia), encja.oznaczenie, wariant, encja.tekst))
+            wpis = wpisy.setdefault(encja.oznaczenie, Wpis(typ, encja.oznaczenie, {}))
+            wpis.formy.setdefault(wariant, encja.tekst)
+
+    mapa = Mapa(
+        # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
+        # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
+        identyfikator=secrets.token_hex(16),
+        utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
+        poziom=poziom,
+        wpisy=list(wpisy.values()),
+        wystapienia=wystapienia,
+    )
+    # id w treści wiąże mapę z dokumentem
+    return adapter.zapisz(dok, dopisek(mapa.identyfikator)), mapa, statystyki, wpisy
+
+
 def ukryj(
     dane: bytes,
     format: str,
@@ -277,35 +348,8 @@ def ukryj(
         pogrupuj(wszystkie)
         nadaj_oznaczenia(wszystkie)
 
-        statystyki: dict[str, int] = {}
-        wystapienia: list[Wystapienie] = []
-        wpisy: dict[str, Wpis] = {}
-        for segment, encje in zip(dok.segmenty, segmenty_encji):
-            if not encje:
-                continue
-            posortowane = sorted(encje, key=lambda e: e.zakres.start)
-            adapter.wstaw_znaczniki(
-                segment, [(e.zakres.start, e.zakres.koniec, znacznik_encji(e)) for e in posortowane]
-            )
-            for encja in posortowane:
-                typ = encja.zakres.typ.value
-                statystyki[typ] = statystyki.get(typ, 0) + 1
-                wariant = encja.wariant or WARIANT_DOMYSLNY
-                wystapienia.append(Wystapienie(len(wystapienia), encja.oznaczenie, wariant, encja.tekst))
-                wpis = wpisy.setdefault(encja.oznaczenie, Wpis(typ, encja.oznaczenie, {}))
-                wpis.formy.setdefault(wariant, encja.tekst)
-
-        mapa = Mapa(
-            # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
-            # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
-            identyfikator=secrets.token_hex(16),
-            utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
-            poziom=poziom,
-            wpisy=list(wpisy.values()),
-            wystapienia=wystapienia,
-        )
-        # id w treści wiąże mapę z dokumentem
-        wynik = adapter.zapisz(dok, dopisek(mapa.identyfikator))
+        wynik, mapa, statystyki, wpisy = zloz_wynik(adapter, dok, segmenty_encji, poziom)
+        wystapienia = mapa.wystapienia
         # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
         oryginaly |= {wyst.oryginal for wyst in wystapienia} | {
             forma for wpis in wpisy.values() for forma in wpis.formy.values()
@@ -342,16 +386,7 @@ def ukryj(
         if not nowe:
             break
         fragmenty.update(nowe)
-    uwagi: list[str] = []
-    obrazy = (dok.zasoby or {}).get("obrazy", {})
-    if obrazy.get("usuniete"):
-        uwagi.append(
-            f"OBRAZ USUNIĘTY ({obrazy['usuniete']} szt.): bez OCR treść obrazu nie daje się sprawdzić"
-        )
-    if obrazy.get("pozostale"):
-        uwagi.append(
-            f"OBRAZ BEZ OCR ({obrazy['pozostale']} szt.): treść obrazu pozostała w wyniku i nie daje się sprawdzić"
-        )
+    uwagi = uwagi_obrazow(dok)
     raport = Raport(
         identyfikator=mapa.identyfikator,
         poziom=poziom,
@@ -360,6 +395,15 @@ def ukryj(
         uwagi=uwagi,
         r95={typ: r95_z_kalibracji(poziom, typ) for typ in statystyki},
         status="zablokowany" if ostrzezenia and kontrola_blokada else "ukonczony",
+        detekcje=Detekcje(
+            dane=dane,
+            format=format,
+            poziom=poziom,
+            polityka_obrazow=polityka_obrazow,
+            max_rozpakowane_bajtow=max_rozpakowane_bajtow,
+            encje=segmenty_encji,
+            ostrzezenia_tekstu=[o for o in ostrzezenia if o.segment >= 0],
+        ),
     )
     return wynik, mapa, raport
 

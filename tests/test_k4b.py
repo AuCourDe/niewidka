@@ -110,8 +110,12 @@ async def test_pkt1_blokada_422_bez_dokumentu(konfig):
     assert odpowiedz.status_code == 422
     tresc = odpowiedz.json()
     assert tresc["status"] == "zablokowany"
-    assert tresc["typy"] == {"PESEL": 1}  # typy + liczniki, zero fragmentów
-    assert PESEL not in odpowiedz.text  # żadnych danych w odpowiedzi
+    assert tresc["typy"] == {"PESEL": 1}
+    # zlecenie 2026-10-29 (poprawki w podglądzie): blokada niesie miejsca do decyzji,
+    # fragment tylko w polu `miejsca` odpowiedzi do interfejsu, w niczym innym
+    assert [m["typ"] for m in tresc["miejsca"]] == ["PESEL"]
+    assert tresc["podglad"] is None  # DOCX nie ma podglądu tekstu
+    assert PESEL not in odpowiedz.text
     assert not odpowiedz.content.startswith(b"PK")  # żaden dokument nie wyleciał
 
 

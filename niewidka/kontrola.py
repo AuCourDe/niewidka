@@ -38,6 +38,7 @@ class Ostrzezenie:
     fragment: str
     segment: int  # numer segmentu w wyniku; -1 = znalezisko skanu surowego
     czesc: str = ""  # część archiwum ze znaleziskiem (skan surowy)
+    start: int = -1  # offset fragmentu w segmencie wyniku (-1 = nieznany, skan surowy)
 
 
 def _parser() -> etree.XMLParser:
@@ -51,6 +52,7 @@ def kontroluj(
     detektor: Detektor,
     oryginaly: list[str] | tuple[str, ...] = (),
     max_rozpakowane: int | None = None,
+    pelne_slowa: frozenset[str] = frozenset(),
 ) -> list[Ostrzezenie]:
     adapter = adapter_dla(nazwa_pliku)
     dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane)
@@ -76,17 +78,29 @@ def kontroluj(
                     zakres.typ.value,
                     tekst_bez_znacznikow[zakres.start : zakres.koniec],
                     numer,
+                    start=zakres.start,
                 )
             )
     # K5b: skan surowy WYŁĄCZNIE na regułach + oryginałach z mapy — model ONNX na
     # każdej części XML to były minuty (219 s na wzorcu, timeout API 120 s) i fałszywe
     # blokady z metadanych; model działa na treści czytanej adapterem, wyżej.
-    uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane))
+    uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane, pelne_slowa))
     return uwagi
 
 
+def _caly_wyraz(oryginal: str, zawartosc: bytes) -> bool:
+    """Oryginał jako całe słowo (granice słów z polskimi literami): „Lis” nie jest
+    wyciekiem w „Listopad”. Dla fragmentów dodanych przez użytkownika (poprawki)."""
+    wzorzec = rf"(?<![^\W_]){re.escape(oryginal)}(?![^\W_])"
+    return re.search(wzorzec, zawartosc.decode("utf-8", errors="ignore")) is not None
+
+
 def _skan_surowy(
-    dane: bytes, detektor: Detektor, oryginaly, max_rozpakowane: int | None = None
+    dane: bytes,
+    detektor: Detektor,
+    oryginaly,
+    max_rozpakowane: int | None = None,
+    pelne_slowa: frozenset[str] = frozenset(),
 ) -> list[Ostrzezenie]:
     """Skan każdej części niezależnie od adaptera: XML wartość po wartości,
     reszta bajt po bajcie (tylko oryginały z mapy). Dedup per (typ, fragment,
@@ -109,7 +123,7 @@ def _skan_surowy(
                 Ostrzezenie("NAZWA_CZESCI", nazwa[zakres.start : zakres.koniec], -1, nazwa)
             )
         for oryginal, bajty in znaki_oryginalow.items():
-            if bajty in zawartosc:
+            if (_caly_wyraz(oryginal, zawartosc) if oryginal in pelne_slowa else bajty in zawartosc):
                 uwagi.append(Ostrzezenie("ORYGINAL", oryginal, -1, nazwa))
         if not _xml(nazwa):
             continue

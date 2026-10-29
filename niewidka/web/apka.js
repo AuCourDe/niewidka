@@ -198,17 +198,37 @@ const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 // go nie przywróci (przegląd Codex 2026-10-29, P1)
 let tekstPodgladu = "";
 
-function wypelnijPodglad(tekst, idMiejsca) {
+function wypelnijPodglad(tekst, idMiejsca, klikalne = false, watpliwe = []) {
   const miejsce = document.getElementById(idMiejsca);
   miejsce.textContent = "";
   let tresc = tekst;
-  if (tresc.startsWith(POCZATEK_DOPISEKU)) tresc = pokazDopisek(miejsce, tresc);
-  pokazZaslepki(miejsce, tresc);
+  let przesuniecie = 0;
+  if (tresc.startsWith(POCZATEK_DOPISEKU)) {
+    tresc = pokazDopisek(miejsce, tresc);
+    przesuniecie = tekst.length - tresc.length;
+  }
+  /* miejsca wątpliwe z blokady: zaznaczone <mark> wg pozycji w pełnym tekście */
+  let od = 0;
+  const posortowane = watpliwe
+    .filter((m) => m.pozycja >= przesuniecie)
+    .sort((a, b) => a.pozycja - b.pozycja);
+  for (const miejsceWatpliwe of posortowane) {
+    const start = miejsceWatpliwe.pozycja - przesuniecie;
+    if (start < od) continue;
+    const koniec = start + miejsceWatpliwe.fragment.length;
+    pokazZaslepki(miejsce, tresc.slice(od, start), klikalne);
+    const znak = document.createElement("mark");
+    znak.className = "watpliwe";
+    znak.textContent = tresc.slice(start, koniec);
+    miejsce.append(znak);
+    od = koniec;
+  }
+  pokazZaslepki(miejsce, tresc.slice(od), klikalne);
 }
 
-function pokazPodglad(tekst) {
+function pokazPodglad(tekst, watpliwe = []) {
   tekstPodgladu = tekst;
-  wypelnijPodglad(tekst, "podglad-tekstu");
+  wypelnijPodglad(tekst, "podglad-tekstu", true, watpliwe);
 }
 
 function pokazPodgladPrzywrocony(tekst) {
@@ -247,13 +267,24 @@ function pokazDopisek(miejsce, tresc) {
   return koniecLinii === -1 ? "" : tresc.slice(koniecLinii + 1);
 }
 
-function pokazZaslepki(miejsce, tekst) {
+function pokazZaslepki(miejsce, tekst, klikalne = false) {
   let koniec = 0;
   for (const trafienie of tekst.matchAll(WZORZEC_ZNACZNIKA)) {
     miejsce.append(tekst.slice(koniec, trafienie.index));
-    const zaslepka = document.createElement("span");
-    zaslepka.className = "zaslepka";
-    zaslepka.textContent = `${trafienie[1]} ${trafienie[2]}`;
+    const opis = `${trafienie[1]} ${trafienie[2]}`;
+    let zaslepka;
+    if (klikalne) {
+      /* plakietka jako przycisk: klawiatura (Tab, Enter) i czytnik ekranu */
+      zaslepka = document.createElement("button");
+      zaslepka.type = "button";
+      zaslepka.className = "zaslepka zaslepka-przycisk";
+      zaslepka.dataset.znacznik = `${trafienie[1]}_${trafienie[2]}`;
+      zaslepka.setAttribute("aria-label", `Znacznik ${opis}. Enter pokazuje możliwe poprawki.`);
+    } else {
+      zaslepka = document.createElement("span");
+      zaslepka.className = "zaslepka";
+    }
+    zaslepka.textContent = opis;
     miejsce.append(zaslepka);
     koniec = trafienie.index + trafienie[0].length;
   }
@@ -309,6 +340,9 @@ function pokazBlokade(statusId, typy) {
 }
 
 function pokazWynik(naglowki, czesci) {
+  document.getElementById("naglowek-wyniku").textContent = "Gotowe: dokument z ukrytymi danymi";
+  document.getElementById("blok-decyzji").hidden = true;
+  document.getElementById("kopiuj").disabled = false;
   const identyfikator = naglowki.get("x-niewidka-identyfikator");
   const statystyki = JSON.parse(naglowki.get("x-niewidka-statystyki") || "{}");
   const r95 = JSON.parse(naglowki.get("x-niewidka-r95") || "{}");
@@ -430,6 +464,284 @@ function pokazWynik(naglowki, czesci) {
   zapowiedz("Dane ukryte, wynik gotowy");
 }
 
+/* ---------- poprawki w podglądzie ----------
+   „Ukryj wszędzie” (zaznaczony fragment) i „To nie dane” (kliknięty znacznik) wołają
+   POST /api/popraw: serwer liczy wynik z zapamiętanych wykryć, bez ponownego modelu.
+   Za każdym razem wysyłamy pełne listy, więc cofnięcie to przeliczenie bez pozycji.
+   Fragmenty żyją tylko w tej stronie i w odpowiedziach tego komputera. */
+
+const TYPY_Z_SUMA = ["PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"];
+const MAKS_POZYCJI = 200;
+const MAKS_ZNAKOW = 200;
+
+let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, miejsca: [], trwa: false };
+let zaznaczone = "";
+
+function nowePoprawki(zadanie) {
+  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, miejsca: [], trwa: false };
+  document.getElementById("komunikat-poprawek").textContent = "";
+  zamknijAkcjeZnacznika();
+  ukryjPlywajacy();
+  rysujPoprawki();
+}
+
+function komunikatPoprawek(tresc) {
+  document.getElementById("komunikat-poprawek").textContent = tresc;
+  zapowiedz(tresc);
+}
+
+function rysujPoprawki() {
+  const blok = document.getElementById("blok-poprawek");
+  blok.hidden = !poprawki.zadanie;
+  const lista = document.getElementById("lista-poprawek");
+  lista.innerHTML = "";
+  const pozycje = [
+    ...poprawki.ukryj.map((t, i) => ({ opis: `Ukryj wszędzie: „${t}”`, tablica: "ukryj", i })),
+    ...poprawki.nieDane.map((z, i) => ({ opis: `To nie dane: ${z.replace("_", " ")}`, tablica: "nieDane", i })),
+    ...poprawki.zostaw.map((t, i) => ({ opis: `To nie dane: „${t}”`, tablica: "zostaw", i })),
+  ];
+  document.getElementById("naglowek-poprawek").hidden = pozycje.length === 0;
+  for (const pozycja of pozycje) {
+    const wiersz = document.createElement("li");
+    const opis = document.createElement("span");
+    opis.textContent = pozycja.opis;
+    const cofnij = document.createElement("button");
+    cofnij.type = "button";
+    cofnij.className = "linkowy";
+    cofnij.textContent = "Cofnij";
+    cofnij.setAttribute("aria-label", `Cofnij poprawkę. ${pozycja.opis}`);
+    cofnij.addEventListener("click", () => przelicz(() => poprawki[pozycja.tablica].splice(pozycja.i, 1)));
+    wiersz.append(opis, cofnij);
+    lista.append(wiersz);
+  }
+}
+
+async function przelicz(zmiana) {
+  if (!poprawki.zadanie || poprawki.trwa) return;
+  const kopia = JSON.parse(JSON.stringify(poprawki));
+  zmiana();
+  poprawki.trwa = true;
+  rysujPoprawki();
+  zamknijAkcjeZnacznika();
+  ukryjPlywajacy();
+  const mojaKolejna = ++licznikZlecen;
+  komunikatPoprawek("Przeliczam wynik. Model nie jest uruchamiany ponownie.");
+  try {
+    const odpowiedz = await wyslij("/api/popraw", {
+      zadanie: poprawki.zadanie,
+      ukryj: poprawki.ukryj,
+      nie_dane: poprawki.nieDane,
+      zostaw: poprawki.zostaw,
+    });
+    if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
+    const czesci = await otworzZip(await odpowiedz.blob());
+    if (mojaKolejna !== licznikZlecen) return;
+    poprawki.wlasne = JSON.parse(odpowiedz.headers.get("x-niewidka-wlasne") || "{}");
+    poprawki.miejsca = [];
+    document.getElementById("wynik").hidden = false;
+    pokazWynik(odpowiedz.headers, czesci);
+    komunikatPoprawek("Tekst się zmienił. Skopiuj go ponownie.");
+  } catch (blad) {
+    if (mojaKolejna !== licznikZlecen) return;
+    if (blad.status === 410) {
+      nowePoprawki(null);
+      komunikatPoprawek("Minął czas na poprawki tego zadania. Ukryj dokument ponownie.");
+      return;
+    }
+    if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany" && (blad.odpowiedz.miejsca || []).length) {
+      pokazBlokadeZMiejscami(blad.odpowiedz);
+      komunikatPoprawek("Tekst się zmienił, ale kontrola nadal ma wątpliwości. Zdecyduj o każdym miejscu.");
+    } else {
+      poprawki = { ...kopia, trwa: false };
+      rysujPoprawki();
+      komunikatPoprawek(`Nie udało się zastosować poprawki. ${blad.blad || blad.message || ""}`.trim());
+    }
+  } finally {
+    if (mojaKolejna === licznikZlecen) poprawki.trwa = false;
+  }
+}
+
+function dodajUkryj(fragment) {
+  const tekst = fragment.replace(/\s+/g, " ").trim();
+  if (!tekst || !/[\p{L}\p{N}]/u.test(tekst)) {
+    komunikatPoprawek("Zaznacz słowo albo fragment, w którym są litery lub cyfry.");
+    return;
+  }
+  if (tekst.length > MAKS_ZNAKOW) {
+    komunikatPoprawek(`Zaznaczenie jest za długie: najwyżej ${MAKS_ZNAKOW} znaków.`);
+    return;
+  }
+  if (poprawki.ukryj.length >= MAKS_POZYCJI) {
+    komunikatPoprawek(`Za dużo poprawek: najwyżej ${MAKS_POZYCJI}.`);
+    return;
+  }
+  if (poprawki.ukryj.includes(tekst)) {
+    komunikatPoprawek("Ten fragment już ukryto.");
+    return;
+  }
+  przelicz(() => poprawki.ukryj.push(tekst));
+}
+
+/* pływający przycisk przy zaznaczeniu (mysz) */
+function ukryjPlywajacy() {
+  const przycisk = document.getElementById("ukryj-zaznaczone");
+  przycisk.hidden = true;
+  zaznaczone = "";
+}
+
+function sprawdzZaznaczenie() {
+  const zaznaczenie = window.getSelection();
+  const podglad = document.getElementById("podglad-tekstu");
+  if (!zaznaczenie || zaznaczenie.isCollapsed || !podglad.contains(zaznaczenie.anchorNode)
+    || !podglad.contains(zaznaczenie.focusNode)) {
+    if (document.activeElement !== document.getElementById("ukryj-zaznaczone")) ukryjPlywajacy();
+    return;
+  }
+  const tekst = zaznaczenie.toString().replace(/\s+/g, " ").trim();
+  // zaznaczenie obejmujące plakietkę znacznika nie jest fragmentem oryginału
+  if (!tekst || zaznaczenie.getRangeAt(0).cloneContents().querySelector(".zaslepka")) {
+    ukryjPlywajacy();
+    return;
+  }
+  zaznaczone = tekst;
+  const prostokat = zaznaczenie.getRangeAt(0).getBoundingClientRect();
+  const przycisk = document.getElementById("ukryj-zaznaczone");
+  przycisk.hidden = false;
+  przycisk.style.top = `${Math.max(8, prostokat.bottom + 6)}px`;
+  przycisk.style.left = `${Math.max(8, Math.min(prostokat.left, window.innerWidth - 180))}px`;
+}
+
+/* kliknięta plakietka: „To nie dane osobowe” albo cofnięcie własnej poprawki */
+let wybranyZnacznik = null;
+
+function zamknijAkcjeZnacznika() {
+  wybranyZnacznik = null;
+  document.getElementById("akcja-znacznika").hidden = true;
+}
+
+function pokazAkcjeZnacznika(znacznik) {
+  wybranyZnacznik = znacznik;
+  const typ = znacznik.slice(0, znacznik.lastIndexOf("_"));
+  const panel = document.getElementById("akcja-znacznika");
+  const opis = document.getElementById("akcja-znacznika-opis");
+  const przycisk = document.getElementById("akcja-znacznika-przycisk");
+  const wyjasnienie = document.getElementById("akcja-znacznika-wyjasnienie");
+  opis.textContent = `Znacznik ${znacznik.replace("_", " ")} (${(ETYKIETY[typ] || [typ])[0]}).`;
+  przycisk.disabled = false;
+  wyjasnienie.textContent = "";
+  przycisk.removeAttribute("aria-describedby");
+  if (znacznik in poprawki.wlasne) {
+    przycisk.textContent = "Cofnij tę poprawkę";
+    przycisk.onclick = () => przelicz(() => poprawki.ukryj.splice(poprawki.wlasne[znacznik], 1));
+  } else if (TYPY_Z_SUMA.includes(typ)) {
+    przycisk.textContent = "To nie dane osobowe";
+    przycisk.disabled = true;
+    wyjasnienie.textContent = "Tego znacznika nie można zdjąć. Numery z sumą kontrolną (PESEL, NIP, REGON, "
+      + "numer konta, karta, dowód) program rozpoznaje pewnie, więc to na pewno dane.";
+    przycisk.setAttribute("aria-describedby", "akcja-znacznika-wyjasnienie");
+  } else {
+    przycisk.textContent = "To nie dane osobowe";
+    przycisk.onclick = () => przelicz(() => {
+      if (!poprawki.nieDane.includes(znacznik)) poprawki.nieDane.push(znacznik);
+    });
+  }
+  panel.hidden = false;
+  przycisk.focus();
+}
+
+/* blokada kontroli: podgląd z zaznaczonymi miejscami i decyzja przy każdym */
+function pokazBlokadeZMiejscami(odpowiedz) {
+  const miejsca = odpowiedz.miejsca || [];
+  if (!odpowiedz.zadanie || miejsca.length === 0) {
+    document.getElementById("wynik").hidden = true;
+    pokazBlokade("status-ukryj", odpowiedz.typy);
+    return;
+  }
+  poprawki.zadanie = odpowiedz.zadanie;
+  poprawki.miejsca = miejsca;
+  wynikPaczka = null;
+  document.getElementById("wynik").hidden = false;
+  document.getElementById("naglowek-wyniku").textContent = "Kontrola zatrzymała wynik: zdecyduj o każdym miejscu";
+  for (const id of ["komunikat-status", "blok-zamienione", "blok-ostrzezenia", "blok-pobrania", "mapa-zapisana"]) {
+    document.getElementById(id).hidden = true;
+  }
+  const blokPodgladu = document.getElementById("blok-podglad");
+  blokPodgladu.hidden = odpowiedz.podglad == null;
+  if (odpowiedz.podglad != null) pokazPodglad(odpowiedz.podglad, miejsca);
+  document.getElementById("kopiuj").disabled = true; // Kopiuj aktywne dopiero po decyzji o wszystkich miejscach
+
+  const blok = document.getElementById("blok-decyzji");
+  blok.hidden = false;
+  const lista = document.getElementById("lista-decyzji");
+  lista.innerHTML = "";
+  for (const miejsce of miejsca) {
+    const wiersz = document.createElement("li");
+    const opis = document.createElement("span");
+    opis.textContent = `${(ETYKIETY[miejsce.typ] || [miejsce.typ])[0]}: „${miejsce.fragment}”`
+      + (miejsce.pozycja >= 0 ? ` (znak ${miejsce.pozycja + 1})` : " (poza podglądem)");
+    const ukryj = document.createElement("button");
+    ukryj.type = "button";
+    ukryj.className = "przycisk-wtorny";
+    ukryj.textContent = "Ukryj";
+    ukryj.addEventListener("click", () => przelicz(() => {
+      if (!poprawki.ukryj.includes(miejsce.fragment)) poprawki.ukryj.push(miejsce.fragment);
+    }));
+    const nieDane = document.createElement("button");
+    nieDane.type = "button";
+    nieDane.className = "przycisk-wtorny";
+    nieDane.textContent = "To nie dane";
+    if (TYPY_Z_SUMA.includes(miejsce.typ)) {
+      nieDane.disabled = true;
+      nieDane.title = "Numer z sumą kontrolną jest na pewno daną osobową. Możesz go tylko ukryć.";
+    }
+    nieDane.addEventListener("click", () => przelicz(() => {
+      if (!poprawki.zostaw.includes(miejsce.fragment)) poprawki.zostaw.push(miejsce.fragment);
+    }));
+    wiersz.append(opis, ukryj, nieDane);
+    lista.append(wiersz);
+  }
+  rysujPoprawki();
+  zapowiedz("Kontrola zatrzymała wynik. Zdecyduj o każdym zaznaczonym miejscu.");
+}
+
+function inicjalizujPoprawki() {
+  document.getElementById("podglad-tekstu").addEventListener("click", (zdarzenie) => {
+    const przycisk = zdarzenie.target.closest("button[data-znacznik]");
+    if (przycisk) pokazAkcjeZnacznika(przycisk.dataset.znacznik);
+  });
+  document.getElementById("akcja-znacznika-zamknij").addEventListener("click", zamknijAkcjeZnacznika);
+  const plywajacy = document.getElementById("ukryj-zaznaczone");
+  // mousedown nie odbiera fokusu ani zaznaczenia, więc zaznaczony tekst zostaje do kliknięcia
+  plywajacy.addEventListener("mousedown", (zdarzenie) => zdarzenie.preventDefault());
+  plywajacy.addEventListener("click", () => {
+    const tekst = zaznaczone;
+    ukryjPlywajacy();
+    window.getSelection().removeAllRanges();
+    dodajUkryj(tekst);
+  });
+  document.addEventListener("selectionchange", sprawdzZaznaczenie);
+  document.addEventListener("keydown", (zdarzenie) => {
+    if (zdarzenie.key === "Escape") {
+      ukryjPlywajacy();
+      zamknijAkcjeZnacznika();
+    }
+  });
+  // to samo z klawiatury, bez zaznaczania myszą
+  const pole = document.getElementById("pole-ukryj-wszedzie");
+  const dodaj = () => {
+    const tekst = pole.value;
+    pole.value = "";
+    dodajUkryj(tekst);
+  };
+  document.getElementById("przycisk-ukryj-wszedzie").addEventListener("click", dodaj);
+  pole.addEventListener("keydown", (zdarzenie) => {
+    if (zdarzenie.key === "Enter") {
+      zdarzenie.preventDefault();
+      dodaj();
+    }
+  });
+}
+
 /* ---------- zakładki ---------- */
 
 function ustawZakladke(wybrana) {
@@ -522,7 +834,11 @@ function ustawTrwa(pole, trwa) {
 async function wyslij(url, dane) {
   let odpowiedz;
   try {
-    odpowiedz = await fetch(url, { method: "POST", headers: NAGLOWKI, body: dane });
+    // FormData (ukryj, przywróć) albo zwykły obiekt jako JSON (popraw)
+    const opcje = dane instanceof FormData
+      ? { headers: NAGLOWKI, body: dane }
+      : { headers: { ...NAGLOWKI, "Content-Type": "application/json" }, body: JSON.stringify(dane) };
+    odpowiedz = await fetch(url, { method: "POST", ...opcje });
   } catch {
     throw new Error("Brak połączenia z programem. Uruchom go ponownie i spróbuj jeszcze raz.");
   }
@@ -581,13 +897,15 @@ function inicjalizujUkrywanie() {
       if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
       const czesci = await otworzZip(await odpowiedz.blob());
       document.getElementById("wynik").hidden = false;
+      nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
       pokazWynik(odpowiedz.headers, czesci);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
       if (mojaKolejna !== licznikZlecen) return;
       if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany") {
-        document.getElementById("wynik").hidden = true;
-        pokazBlokade("status-ukryj", blad.odpowiedz.typy);
+        document.getElementById("status-ukryj").innerHTML = "";
+        nowePoprawki(blad.odpowiedz.zadanie || null);
+        pokazBlokadeZMiejscami(blad.odpowiedz);
       } else {
         komunikatOdpowiedzi("status-ukryj", blad.status, blad.blad || blad.message, blad.odpowiedz);
         if (blad.status === 409) odswiezPakiety();
@@ -1019,6 +1337,7 @@ async function wczytajStan() {
 inicjalizujZakladki();
 inicjalizujWejscie();
 inicjalizujUkrywanie();
+inicjalizujPoprawki();
 inicjalizujPrzywracanie();
 inicjalizujPakiety();
 inicjalizujMapy();

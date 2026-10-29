@@ -907,6 +907,90 @@ Kroki: 1. `GET /api/mapy`, `DELETE /api/mapy/<id>`, `DELETE /api/mapy` bez nagł
 Oczekiwany stan końcowy: wszystkie 403; z poprawnym tokenem 200. Zły identyfikator w DELETE to 422, nie 500.
 Rodzaj: negatywny
 
+## 15. Poprawki w podglądzie: „Ukryj wszędzie” i „To nie dane”
+
+Scenariusze z `docs/MAPY-I-AKTUALIZACJE.md` §4 i §8 (wiersze 4-6), §9 (wiersz 3). Automat GUI: `testy_e2e/gui_poprawki.py`; API: `tests/test_poprawki.py`.
+
+### S-WSP-94: zaznaczenie słowa i „Ukryj wszędzie”
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §4
+Warunki wstępne: wynik ukrywania z podglądem tekstu (TXT), w tekście słowo bez znacznika występuje kilka razy, także w innej odmianie.
+Kroki: 1. Zaznacz to słowo myszą w podglądzie. 2. Kliknij pływający przycisk „Ukryj wszędzie”.
+Oczekiwany stan końcowy: wszystkie wystąpienia (w każdej odmianie) zastąpione jednym znacznikiem `INNE n`, słowa zawierające je jako przedrostek (np. „Listopad” dla „Lis”) bez zmian; numery wcześniejszych znaczników te same; pod podglądem komunikat „Tekst się zmienił. Skopiuj go ponownie.”; na liście „Twoje poprawki” jedna pozycja z „Cofnij”; ukrywanie nie trwa dłużej niż odświeżenie widoku (model nie jest uruchamiany ponownie).
+Rodzaj: pozytywny
+
+### S-WSP-95: „Ukryj wszędzie” z klawiatury
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §4 (dostępność)
+Kroki: 1. Przejdź klawiszem Tab do pola „Ukryj wszędzie słowo lub fragment”. 2. Wpisz słowo i naciśnij Enter.
+Oczekiwany stan końcowy: jak w S-WSP-94; fokus zostaje w polu; czytnik ekranu ogłasza komunikat o zmianie tekstu.
+Rodzaj: pozytywny
+
+### S-WSP-96: „To nie dane osobowe” zdejmuje całą grupę
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §4, §9 pkt 3
+Warunki wstępne: w wyniku osoba z kilkoma wystąpieniami i odmianami (`OSOBA_2`), a po niej kolejna osoba (`OSOBA_3`).
+Kroki: 1. Tabem albo myszą wybierz plakietkę `OSOBA 2` i naciśnij Enter. 2. Wybierz „To nie dane osobowe”.
+Oczekiwany stan końcowy: wszystkie wystąpienia tej osoby jawne, `OSOBA 3` nadal ma numer 3, kontrola nie blokuje wyniku i nie dokłada zdjętego z powrotem; w „Twoich poprawkach” pozycja „To nie dane: OSOBA 2” z „Cofnij”.
+Rodzaj: pozytywny
+
+### S-WSP-97: typ z sumą kontrolną nie ma „To nie dane”
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §9 pkt 3
+Kroki: 1. Wybierz plakietkę `PESEL 1`. 2. Wyślij `POST /api/popraw` z `nie_dane: ["PESEL_1"]`.
+Oczekiwany stan końcowy: w GUI przycisk „To nie dane osobowe” wyłączony i opisany zdaniem o numerach z sumą kontrolną; w API 422 bez treści numeru. To samo dla NIP, REGON, IBAN, KARTA, DOKUMENT.
+Rodzaj: negatywny
+
+### S-WSP-98: „Ukryj” wygrywa z „To nie dane”
+Warstwa: API
+Źródło: MAPY-I-AKTUALIZACJE §9 pkt 3
+Kroki: 1. `POST /api/popraw` z `nie_dane: ["OSOBA_1"]` i `ukryj` z nazwiskiem tej osoby.
+Oczekiwany stan końcowy: `OSOBA_1` zostaje zasłonięta.
+Rodzaj: brzegowy
+
+### S-WSP-99: cofnięcie poprawki
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §4
+Kroki: 1. Zrób dwie poprawki. 2. Kliknij „Cofnij” przy pierwszej.
+Oczekiwany stan końcowy: wynik przeliczony bez pierwszej poprawki, druga zostaje; komunikat „Tekst się zmienił. Skopiuj go ponownie.”; stara mapa nadal na liście zapisanych map.
+Rodzaj: pozytywny
+
+### S-WSP-100: pamięć poprawek wygasa
+Warstwa: oba
+Źródło: MAPY-I-AKTUALIZACJE §8 pkt 4
+Kroki: 1. Ukryj tekst. 2. Odczekaj dłużej niż ustawiony czas pamięci (domyślnie 15 minut) albo ukryj pięć innych dokumentów. 3. Zrób poprawkę.
+Oczekiwany stan końcowy: komunikat „Minął czas na poprawki tego zadania. Ukryj dokument ponownie.” (API: 410); wcześniejszy wynik nadal da się skopiować.
+Rodzaj: brzegowy
+
+### S-WSP-101: limity poprawek
+Warstwa: API
+Źródło: MAPY-I-AKTUALIZACJE §8 pkt 4
+Kroki: 1. `POST /api/popraw` z 201 pozycjami w `ukryj`. 2. To samo z pozycją 201-znakową. 3. Z `nie_dane` o nieznanym znaczniku.
+Oczekiwany stan końcowy: za każdym razem 422 bez cytowania przysłanych fragmentów.
+Rodzaj: negatywny
+
+### S-WSP-102: blokada kontroli z miejscami do decyzji
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §4
+Warunki wstępne: dokument, w którym kontrola zostawia miejsce wątpliwe (np. DOCX z nazwiskiem w części, której adapter nie czyta, albo model zgłasza fragment przy znaczniku).
+Kroki: 1. Ukryj dokument. 2. Obejrzyj ekran. 3. Przy miejscu wybierz „To nie dane” (albo „Ukryj”).
+Oczekiwany stan końcowy: zamiast pustego ekranu nagłówek „Kontrola zatrzymała wynik: zdecyduj o każdym miejscu”, lista miejsc z przyciskami „Ukryj” i „To nie dane”, w podglądzie (TXT) miejsca zaznaczone; „Kopiuj” i pobieranie nieaktywne; po decyzji o wszystkich miejscach wynik się odblokowuje. Dla typu z sumą „To nie dane” wyłączone. Fragmenty nie występują w logach ani w dzienniku.
+Rodzaj: negatywny
+
+### S-WSP-103: brak treści w dzienniku i logach po poprawce
+Warstwa: API
+Źródło: MAPY-I-AKTUALIZACJE §8 pkt 4, §9 pkt 10
+Kroki: 1. Zrób poprawki z konkretnymi słowami (także odrzucone 422). 2. Przejrzyj `dziennik.jsonl` i logi serwera.
+Oczekiwany stan końcowy: wpis `poprawiono` z samymi liczbami (`ukryj`, `nie_dane`, `zostaw`); żadnego z użytych słów, znaczników ani danych osobowych w dzienniku i logach.
+Rodzaj: negatywny
+
+### S-WSP-104: „Jak to działa” opisuje mapy, metody i aktualizacje
+Warstwa: GUI
+Źródło: MAPY-I-AKTUALIZACJE §6
+Kroki: 1. Rozwiń „Jak to działa” (W skrócie i Szczegóły techniczne).
+Oczekiwany stan końcowy: „W skrócie” mówi, że mapa zapisuje się sama i znika po okresie ustawionym przez administratora, że odpowiedź wkleja się na zakładce Przywróć, a plik mapy można pobrać do akt; osobny akapit wymienia reguły z sumami kontrolnymi, model osób, słownik imion GUS i (z pakietem Rozszerzonym) drugi model, razem dwa modele językowe; punkty o ponownym sprawdzeniu, poprawkach, przechowywaniu map i aktualizacjach modeli; w całym opisie brak półpauz i pauz.
+Rodzaj: pozytywny
+
 ---
 
 ## Tabela scenariuszy
@@ -1006,6 +1090,17 @@ Rodzaj: negatywny
 | S-WSP-91 | GUI | WSP | brzegowy |
 | S-OKNO-92 | GUI | OKNO | pozytywny |
 | S-WEB-93 | API | WEB | negatywny |
+| S-WSP-94 | GUI | WSP | pozytywny |
+| S-WSP-95 | GUI | WSP | pozytywny |
+| S-WSP-96 | GUI | WSP | pozytywny |
+| S-WSP-97 | oba | WSP | negatywny |
+| S-WSP-98 | API | WSP | brzegowy |
+| S-WSP-99 | GUI | WSP | pozytywny |
+| S-WSP-100 | oba | WSP | brzegowy |
+| S-WSP-101 | API | WSP | negatywny |
+| S-WSP-102 | GUI | WSP | negatywny |
+| S-WSP-103 | API | WSP | negatywny |
+| S-WSP-104 | GUI | WSP | pozytywny |
 
 ## Pytania `NIEJASNE` do rozstrzygnięcia
 
