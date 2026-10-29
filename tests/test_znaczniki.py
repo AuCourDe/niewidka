@@ -30,6 +30,20 @@ def test_numeracja_per_typ_a_osoby_wspolnie():
     assert encje[0].wariant is None and encje[3].wariant is None
 
 
+def test_ta_sama_wartosc_ten_sam_znacznik():
+    """Powtórzony PESEL albo telefon to jedna wartość: jeden znacznik, inaczej chmurowe AI
+    widzi trzy różne numery (zrzut okna 2026-10-29: PESEL_1, PESEL_2, PESEL_3)."""
+    encje = [
+        _encja(TypEncji.PESEL, "44051401359", 0),
+        _encja(TypEncji.TELEFON, "600 100 200", 20),
+        _encja(TypEncji.PESEL, "44051401359", 40),
+        _encja(TypEncji.TELEFON, "600  100 200", 60),
+        _encja(TypEncji.PESEL, "55010101234", 80),
+    ]
+    nadaj_oznaczenia(encje)
+    assert [e.oznaczenie for e in encje] == ["PESEL_1", "TELEFON_1", "PESEL_1", "TELEFON_1", "PESEL_2"]
+
+
 def test_ta_sama_forma_dzieli_wariant():
     encje = [
         _encja(TypEncji.OSOBA, "Jan Kowalski", 0, klucz="jan|kowalsk"),

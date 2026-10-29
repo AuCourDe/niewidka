@@ -47,7 +47,8 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
     """Ustawia encja.oznaczenie i encja.wariant; encje muszą być w kolejności dokumentu.
 
     OSOBY o tym samym klucz_grupy dzielą numer; bez klucza każda dostaje
-    własny. Każda unikalna forma powierzchniowa osoby ma stabilny numer
+    własny. Pozostałe typy: ta sama wartość (tekst bez różnic w odstępach)
+    dzieli numer, więc powtórzony PESEL to wciąż jeden [PESEL_1]. Każda unikalna forma powierzchniowa osoby ma stabilny numer
     wariantu Fk (nadawany wg pierwszego wystąpienia; ta sama forma = to samo
     Fk). Pozostałe typy bez wariantu.
     """
@@ -56,7 +57,11 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
     formy: dict[str, dict[str, str]] = {}  # identyfikator grupy -> forma -> "Fk"
     for pozycja, encja in enumerate(encje):
         typ = encja.zakres.typ.value
-        identyfikator = f"{typ}\x00{encja.klucz_grupy or f'#{pozycja}'}"
+        if encja.zakres.typ is TypEncji.OSOBA:
+            grupa = encja.klucz_grupy or f"#{pozycja}"
+        else:
+            grupa = encja.klucz_grupy or "=" + " ".join(encja.tekst.split())
+        identyfikator = f"{typ}\x00{grupa}"
         if identyfikator not in numery:
             liczniki[typ] = liczniki.get(typ, 0) + 1
             numery[identyfikator] = f"{typ}_{liczniki[typ]}"
