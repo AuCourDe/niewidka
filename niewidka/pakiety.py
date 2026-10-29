@@ -24,6 +24,7 @@ import stat
 import sys
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -85,17 +86,23 @@ def wczytaj_pakiety(plik: Path = KATALOG_PAKIETOW) -> list[Pakiet]:
     ]
 
 
-def katalog_modeli(env: dict[str, str] | None = None) -> Path:
-    """Katalog wag: env wygrywa; domyślnie profil użytkownika (nie katalog
-    programu — paczka instalacyjna nie zawiera wag i tam ich nie pisze)."""
+def katalog_danych(env: Mapping[str, str] | None = None) -> Path:
+    """Dane programu w profilu użytkownika, nie w katalogu programu: aktualizacja
+    (podmiana folderu) ich nie kasuje, a Program Files bywa tylko do odczytu."""
+    env = os.environ if env is None else env
+    if sys.platform == "win32":
+        baza = Path(env.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    else:
+        baza = Path(env.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return baza / "Niewidka"
+
+
+def katalog_modeli(env: Mapping[str, str] | None = None) -> Path:
+    """Katalog wag: env wygrywa; domyślnie katalog danych użytkownika."""
     env = os.environ if env is None else env
     if env.get("NIEWIDKA_MODELE_KATALOG"):
         return Path(env["NIEWIDKA_MODELE_KATALOG"])
-    if sys.platform == "win32":
-        baza = Path(env.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
-        return baza / "Niewidka" / "modele"
-    baza = Path(env.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-    return baza / "Niewidka" / "modele"
+    return katalog_danych(env) / "modele"
 
 
 def wczytaj_bajty_pakietu(

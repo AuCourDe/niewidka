@@ -11,6 +11,7 @@ import re
 import socket
 import sys
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import keyring
@@ -109,13 +110,17 @@ def test_rozwiaz_port_env_ma_pierwszenstwo(monkeypatch):
     assert 1024 <= okno.rozwiaz_port() <= 65535
 
 
-def test_przygotuj_srodowisko_wagi_obok_exe(monkeypatch, tmp_path):
+def test_przygotuj_srodowisko_dane_poza_katalogiem_programu(monkeypatch, tmp_path):
+    # podmiana folderu programu przy aktualizacji nie może skasować wag ani rejestru map
+    program = tmp_path / "program"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(tmp_path / "Niewidka.exe"))
-    env: dict[str, str] = {}
+    monkeypatch.setattr(sys, "executable", str(program / "Niewidka.exe"))
+    env = {"LOCALAPPDATA": str(tmp_path / "profil"), "XDG_DATA_HOME": str(tmp_path / "profil")}
     okno.przygotuj_srodowisko(env)
-    assert env["NIEWIDKA_MODELE_KATALOG"] == str(tmp_path / "modele")
-    assert env["NIEWIDKA_REJESTR_MAP"] == str(tmp_path / "wydane-mapy.jsonl")
+    dane = tmp_path / "profil" / "Niewidka"
+    assert env["NIEWIDKA_MODELE_KATALOG"] == str(dane / "modele")
+    assert env["NIEWIDKA_REJESTR_MAP"] == str(dane / "wydane-mapy.jsonl")
+    assert program not in Path(env["NIEWIDKA_REJESTR_MAP"]).parents
 
 
 def test_przygotuj_srodowisko_jawne_env_wygywa(monkeypatch, tmp_path):

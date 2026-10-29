@@ -29,6 +29,7 @@ import uvicorn
 from niewidka.api import create_app
 from niewidka.klucze import BrakKlucza, KluczJuzIstnieje, pobierz_klucz, utworz_klucz_w_keyringu
 from niewidka.konfig import Konfig, wczytaj_konfig
+from niewidka.pakiety import katalog_danych, katalog_modeli
 
 CZAS_NA_START_S = 30
 SZEROKOSC_OKNA = 1100
@@ -131,12 +132,12 @@ def katalog_aplikacji() -> Path:
 
 
 def przygotuj_srodowisko(env: MutableMapping[str, str] | None = None) -> None:
-    """Launcher: wagi domyślnie w <katalog aplikacji>/modele; jawne env wygrywa
-    (setdefault), konfig TOML też może wskazać inne miejsce."""
+    """Launcher: wagi i rejestr map w katalogu danych użytkownika, nie obok exe
+    (aktualizacja podmienia folder programu); jawne env wygrywa (setdefault)."""
     env = os.environ if env is None else env
-    env.setdefault("NIEWIDKA_MODELE_KATALOG", str(katalog_aplikacji() / "modele"))
+    env.setdefault("NIEWIDKA_MODELE_KATALOG", str(katalog_modeli(env)))
     # mapa ma się przywracać po zamknięciu i ponownym otwarciu okna (2026-10-29)
-    env.setdefault("NIEWIDKA_REJESTR_MAP", str(katalog_aplikacji() / "wydane-mapy.jsonl"))
+    env.setdefault("NIEWIDKA_REJESTR_MAP", str(katalog_danych(env) / "wydane-mapy.jsonl"))
 
 
 def port_wolny() -> int:
