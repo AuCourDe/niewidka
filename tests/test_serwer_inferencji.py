@@ -9,11 +9,13 @@ from __future__ import annotations
 import base64
 import io
 import logging
+import os
 import socket
 import stat
 import threading
 import time
 import zipfile
+from pathlib import Path
 
 import httpx
 import pytest
@@ -67,6 +69,7 @@ def _klient(app) -> httpx.AsyncClient:
 # --- token ------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(os.name != "posix", reason="uprawnienia 0600 sprawdzane tylko na POSIX (jak klucze.py)")
 def test_nowy_token_ma_uprawnienia_0600_i_nie_nadpisuje(tmp_path):
     plik = tmp_path / "t"
     assert si.main(["nowy-token", str(plik)]) == 0
@@ -83,6 +86,7 @@ def test_start_bez_pliku_tokenu_odmawia(tmp_path):
         create_app(KonfigSerwera(), detektor=DetektorZLicznikiem())
 
 
+@pytest.mark.skipif(os.name != "posix", reason="uprawnienia 0600 sprawdzane tylko na POSIX (jak klucze.py)")
 def test_token_z_zbyt_otwartymi_uprawnieniami_odrzucony(token_plik):
     token_plik.chmod(0o644)
     with pytest.raises(BladKonfiguracji, match="uprawnienia"):
@@ -266,7 +270,7 @@ def test_konfig_z_pliku_i_env(tmp_path):
     k = wczytaj_konfig_serwera(plik, env={"NIEWIDKA_SERWER_PORT": "9100"})
     assert (k.host, k.port, k.zezwol_bez_tls) == ("0.0.0.0", 9100, True)
     assert (k.poziomy, k.urzadzenie, k.watki, k.rownolegle, k.max_tekst_mb) == ((1, 3), "gpu", 4, 2, 3)
-    assert str(k.token_plik) == "/etc/niewidka/token"
+    assert k.token_plik == Path("/etc/niewidka/token")  # Path: na Windows separator to \\
     with pytest.raises(BladKonfiguracji, match="urzadzenie"):
         wczytaj_konfig_serwera(plik, env={"NIEWIDKA_SERWER_URZADZENIE": "tpu"})
     with pytest.raises(BladKonfiguracji, match="poziomy"):
@@ -349,7 +353,7 @@ def test_konfig_klienta_z_toml_i_env(tmp_path):
     )
     k = wczytaj_konfig(plik, env={"NIEWIDKA_INFERENCJA_TIMEOUT_S": "7"})
     assert k.inferencja_adres == "https://s.local:8443" and k.inferencja_timeout_s == 7
-    assert str(k.inferencja_token_plik) == "/t" and str(k.inferencja_ca_plik) == "/ca.pem"
+    assert k.inferencja_token_plik == Path("/t") and k.inferencja_ca_plik == Path("/ca.pem")
     assert wczytaj_konfig(plik, env={"NIEWIDKA_INFERENCJA_ADRES": ""}).inferencja_adres is None
 
 
