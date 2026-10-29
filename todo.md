@@ -236,4 +236,5 @@
   - [x] okno.py: przygotuj_srodowisko ustawia NIEWIDKA_MAPY_KATALOG (setdefault) — `dc7d220`
   - [x] web: zakładka Przywróć (wklejenie odpowiedzi + lista Zadanie z GET /api/mapy), zdanie o zapisanej mapie na ekranie wyniku, sekcja Zapisane mapy w Ustawieniach, bez półpauz — `97074c1`, naprawy z żywego GUI `222ef87` (zrzut /tmp/niew/przywroc-wynik.png)
   - [x] testy RED→GREEN (tests/test_magazyn.py 31, test_konfig 6, test_okno 2, test_web 5); izolacja katalogu danych (LOCALAPPDATA/XDG_DATA_HOME → tmp) w test_magazyn.py; LOGIKA.md + SCENARIUSZE.md S-WSP-84..S-WEB-93 — `8c3f221`
-  - [x] bramka: pełny pytest 604 passed, 1 xfailed (baza 560, zero regresji) + ruff czysty; raport /tmp/niew/raport-mapy.md
+  - [x] bramka: pełny pytest 612 passed, 1 xfailed (baza 560, zero regresji) + ruff czysty; raport /tmp/niew/raport-mapy.md
+  - [x] dopilnowane z szyny (sekcja 9: wiersze 2, 5, 9, 10) — `14bd51b`: dziennik z użytkownikiem, wersją programu i pakietów, wynikiem operacji i łańcuchem SHA-256 (zweryfikuj_lancuch + testy edycji/usunięcia); zapis mapy przed odpowiedzią, nagłówek 'blad' + komunikat UI, licznik żądań; dokumentacja 'ten program odmówi' i zdanie dla administratora (30 dni domyślne, nie wymóg RODO)
