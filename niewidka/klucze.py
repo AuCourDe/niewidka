@@ -47,7 +47,8 @@ def _z_pliku(sciezka: Path) -> bytes:
         tryb = stat.S_IMODE(sciezka.stat().st_mode)
         if tryb & 0o077 and os.name == "posix":  # 0600 wymagane tylko na POSIX (Windows: tylko bit R/O)
             raise BrakKlucza(f"plik klucza ma uprawnienia {oct(tryb)}, wymagane 0600")
-        zdekodowane = base64.b64decode(sciezka.read_bytes(), validate=True)
+        # plik przygotowany przez IT (base64, echo) zwykle kończy się znakiem nowej linii
+        zdekodowane = base64.b64decode(sciezka.read_bytes().strip(), validate=True)
     except BrakKlucza:
         raise
     except OSError as blad:

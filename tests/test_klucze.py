@@ -40,6 +40,12 @@ def test_klucz_z_pliku_ok(tmp_path: Path):
     )
 
 
+def test_klucz_z_pliku_z_nowa_linia(tmp_path: Path):
+    # plik z `base64` / `echo` kończy się "\n" (e2e 2026-10-29: 500 na każdym ukryciu)
+    konfig = Konfig(klucz_plik=_plik_klucza(tmp_path, zawartosc=base64.b64encode(KLUCZ) + b"\r\n"))
+    assert pobierz_klucz(konfig, z_keyringa=lambda usluga: None) == KLUCZ
+
+
 def test_keyring_gdy_brak_pliku():
     konfig = Konfig(klucz_plik=None)
     assert pobierz_klucz(konfig, z_keyringa=lambda usluga: base64.b64encode(KLUCZ).decode()) == KLUCZ
