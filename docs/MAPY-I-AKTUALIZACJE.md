@@ -98,3 +98,20 @@ Czyli **dwa modele językowe plus reguły i słownik**. Trzeciego modelu dziś n
   dziennik bez danych, przywracanie przez tekst w trzech wariantach wskazania mapy, `pomin`/`dodatkowe`,
   podpis katalogu (dobry, zły, stara wersja), próbka kontrolna odrzucająca gorszy model, cofnięcie wersji.
 - Testy GUI (web i okno EXE) według `docs/testy/SCENARIUSZE.md`, uzupełnionego o nowe scenariusze.
+
+## 8. Poprawki po przeglądzie Argona (2026-10-29, przed kodem)
+
+Każdą uwagę oceniłem względem kodu. Przyjęte zmieniają punkty 1-5:
+
+| # | Uwaga Argona | Decyzja |
+|---|---|---|
+| 1 | Wspólny magazyn w webie wielodostępnym: pracownik A przywraca mapą pracownika B | Dziś nie dotyczy: serwer nasłuchuje wyłącznie na loopbacku (`konfig.py` odrzuca inny host). Warunek przed wersją sieciową: uwierzytelnienie i magazyn per użytkownik (już na liście „na później”). |
+| 2 | Bez dopisku program podpowiada ostatnią mapę, a znaczniki `[OSOBA_1]` pasują do wielu map, więc ciche złe przywrócenie | **Przyjęte.** Bez dopisku kandydatami są tylko mapy, które zawierają WSZYSTKIE znaczniki z tekstu. Dokładnie jeden kandydat = wybrany z wyraźną informacją „Przywrócono z mapy z dnia … godz. …”. Więcej kandydatów = brak domyślnego wyboru, użytkownik musi wskazać. Zero kandydatów = komunikat. |
+| 3 | Retencja skreśla pobrane mapy z rejestru, więc archiwum sprawy przestaje działać | **Przyjęte.** Retencja dotyczy magazynu programu. Pobrana kopia działa dalej i podlega przechowywaniu organizacji. Opcja `[mapy] uniewaznij_pobrane = true` (domyślnie false) skreśla także pobrane kopie. Ręczne „Usuń” działa tak samo. |
+| 4 | Każda poprawka uruchamia modele od nowa (10 s na poziomie 3) i przenumerowuje znaczniki | **Przyjęte.** Serwer trzyma wykrycia ostatniego ukrycia w pamięci (najwyżej 4 zadania, 15 minut, tylko w RAM). Poprawka liczy wynik z zapamiętanych wykryć bez modelu. Numery znaczników nie są przesuwane. Po poprawce interfejs mówi „Skopiuj tekst ponownie”. |
+| 5 | `pomin`/`dodatkowe` porównują dokładny tekst, a polska odmiana go zmienia | **Przyjęte.** Dopasowanie przez ten sam mechanizm odmian co grupowanie osób (`osoby.py`). |
+| 6 | `dodatkowe` „Lis” psuje „Listopad” | **Przyjęte.** Wyłącznie całe słowa (granice słów z polskimi literami). |
+| 7 | Uszkodzony podpis zapisanego katalogu cicho cofa do katalogu wbudowanego | **Przyjęte w części.** Cofnięcie zostaje (fail-closed), ale nie po cichu: stan „błąd integralności katalogu”, aktualizacje zablokowane, komunikat w Ustawieniach. |
+| 8 | Próbka „nowy wykrywa wszystko, co stary” blokuje poprawki fałszywych alarmów | **Przyjęte.** Próbka ma `musi_wykryc` i `nie_moze_wykryc`. Nowa wersja jest oceniana względem pliku, nie względem starej wersji. |
+| 9 | Wyścig zapisów JSONL; nadpisywanie zerami przed usunięciem | **Wyścig przyjęty:** jedna blokada procesu na rejestr, dziennik i magazyn. **Zera odrzucone:** na SSD nie działają, a plik to szyfrogram, który bez klucza z magazynu systemowego nic nie daje. |
+| 10 | Stary wybór z listy + nowy tekst z dopiskiem dają 422 | **Przyjęte.** Dopisek wygrywa z wyborem z listy. Interfejs po wklejeniu przestawia wybór sam. |
