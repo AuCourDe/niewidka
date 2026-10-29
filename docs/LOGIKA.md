@@ -69,14 +69,20 @@ systemowego nic nie daje. Dziennik `dziennik.jsonl` zapisuje czas, zdarzenie (`u
 `przywrocono`, `usunieto`, `wygasla`), 12-znakowy skrót identyfikatora, poziom i liczby per typ,
 nigdy treści ani nazw plików.
 
-- **Retencja**: `[mapy] retencja_dni` albo `NIEWIDKA_MAPY_RETENCJA_DNI`, domyślnie 30; `0` wyłącza
-  automatyczny zapis (zostaje pobranie pliku, jak dawniej); ujemna wartość odrzucana przy starcie.
-  Usuwanie po terminie działa przy starcie programu i przy każdym ukryj/przywróć/liście; program
-  wyłączony nie sprząta.
+- **Retencja**: `[mapy] retencja_dni` albo `NIEWIDKA_MAPY_RETENCJA_DNI`, domyślnie 30 (wartość
+  domyślna, nie wymóg RODO - okres ustawia organizacja); `0` wyłącza automatyczny zapis (zostaje
+  pobranie pliku, jak dawniej); ujemna wartość odrzucana przy starcie. Dla administratora:
+  sprzątanie po terminie działa przy starcie programu i przy każdym ukryj/przywróć/liście;
+  program wyłączony nie sprząta, ale sprząta przy następnym uruchomieniu, zanim cokolwiek
+  przywrócimy.
 - **Pobrane kopie**: retencja i ręczne „Usuń” dotyczą magazynu programu; pobrany plik `.nwidka`
   działa dalej i podlega przechowywaniu organizacji. Dopiero opcja `[mapy] uniewaznij_pobrane`
-  skreśla mapę z rejestru wydanych map, więc pobrane kopie przestają działać.
+  skreśla mapę z rejestru wydanych map: ten program odmówi jej przywrócenia (to wykreślenie
+  z rejestru, nie unieważnienie kryptograficzne - kopia razem z kluczem pozostaje
+  odszyfrowywalna narzędziami mającymi klucz).
 - **Blokada**: jedna blokada procesu obejmuje magazyn, dziennik i rejestr wydanych map.
+- **Dziennik podpisany łańcuchem**: każdy wpis ma skrót SHA-256 poprzedniej linii, więc edycja
+  albo usunięcie wpisu jest wykrywalne (`zweryfikuj_lancuch` w `niewidka/magazyn.py`).
 
 ## Przywracanie przez wklejenie (zakładka „Przywróć”)
 

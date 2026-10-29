@@ -637,3 +637,104 @@ async def test_przywroc_wiele_kandydatow_lista_dotyczy_kandydatow(konfig_api):
     assert przywroc.status_code == 422
     kandydaci = przywroc.json()["kandydaci"]
     assert len(kandydaci) == 2  # trzecia mapa (inny zestaw znaczników) nie jest kandydatem
+
+
+# --- sekcja 9 wiersz 10: dziennik z kontekstem środowiska i łańcuchem SHA-256 ---
+
+
+def test_dziennik_ma_uzytkownika_wersje_wynik_i_lancuch(magazyn):
+    magazyn.zapisz(zaszyfruj(mapa(ID_A), KLUCZ), mapa(ID_A), {"OSOBA": 1})
+    magazyn.zapisz(zaszyfruj(mapa(ID_B), KLUCZ), mapa(ID_B), {"PESEL": 2})
+    wpisy = [
+        json.loads(w)
+        for w in (magazyn.katalog / "dziennik.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    for wpis in wpisy:
+        assert wpis["uzytkownik"]  # getpass.getuser()
+        assert wpis["wersja"]  # wersja programu
+        assert wpis["wynik"] == "ok"
+    assert "poprzedni" in wpisy[0] and wpisy[0]["poprzedni"] == ""  # pierwszy wpis bez poprzednika
+    from niewidka.magazyn import zweryfikuj_lancuch
+
+    spojny, problemy = zweryfikuj_lancuch(magazyn.katalog / "dziennik.jsonl")
+    assert spojny, problemy
+
+
+def test_weryfikacja_lancucha_wykrywa_edycje_i_usuniecie(magazyn):
+    from niewidka.magazyn import zweryfikuj_lancuch
+
+    magazyn.zapisz(zaszyfruj(mapa(ID_A), KLUCZ), mapa(ID_A), {"OSOBA": 1})
+    magazyn.usun(ID_A)
+    plik = magazyn.katalog / "dziennik.jsonl"
+    assert zweryfikuj_lancuch(plik)[0]
+    oryginal = plik.read_text(encoding="utf-8")
+    linie = oryginal.splitlines()
+    # edycja treści pierwszej linii (np. zmiana zdarzenia) psuje łańcuch następnika
+    plik.write_text(
+        linie[0].replace("utworzono", "przywrocono") + "\n" + linie[1] + "\n", encoding="utf-8"
+    )
+    spojny, problemy = zweryfikuj_lancuch(plik)
+    assert not spojny and any("linia 2" in p for p in problemy)
+    # usunięcie PIERWSZEGO z dwóch wierszy: następnik wskazuje skrót skasowanej linii
+    plik.write_text(linie[1] + "\n", encoding="utf-8")
+    spojny, problemy = zweryfikuj_lancuch(plik)
+    assert not spojny and any("linia 1" in p for p in problemy)
+    # po przywróceniu treści łańcuch znów spójny
+    plik.write_text(oryginal, encoding="utf-8")
+    assert zweryfikuj_lancuch(plik)[0]
+
+
+def test_kontekst_z_pakietami_trafia_do_dziennika(tmp_path, zegar):
+    from niewidka.magazyn import MagazynMap
+
+    manifesty = tmp_path / "wagi" / "podstawowy"
+    manifesty.mkdir(parents=True)
+    (manifesty / "manifest.json").write_text(
+        json.dumps({"pakiet": "podstawowy", "wersja": "7"}), encoding="utf-8"
+    )
+    magazyn = MagazynMap(
+        tmp_path / "mapy",
+        retencja_dni=30,
+        zegar=zegar,
+        kontekst=lambda: {"uzytkownik": "tester", "wersja": "1.2.3", "pakiety": {"podstawowy": "7"}},
+    )
+    magazyn.zapisz(zaszyfruj(mapa(), KLUCZ), mapa(), {"OSOBA": 1})
+    wpis = json.loads(
+        (magazyn.katalog / "dziennik.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert wpis["uzytkownik"] == "tester"
+    assert wpis["wersja"] == "1.2.3"
+    assert wpis["pakiety"] == {"podstawowy": "7"}
+
+
+@pytest.mark.anyio
+async def test_blad_zapisu_magazynu_wynik_wydany_z_naglowkiem_blad(konfig_api, klucz_plik, tmp_path):
+    # sekcja 9 pkt 5: mapa zapisywana przed odpowiedzią; błąd zapisu nie zabija
+    # ukrywania - wynik wraca, nagłówek mówi „blad", UI każe pobrać mapę
+    przeszkoda = tmp_path / "magazyn"
+    przeszkoda.write_text("to plik, nie katalog", encoding="utf-8")  # mkdir padnie
+    konfig = replace(konfig_api, mapy_katalog=przeszkoda)
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, _czesci = await _ukryj(klient, app)
+    assert odpowiedz.status_code == 200
+    assert odpowiedz.headers.get("x-niewidka-mapa-zapisana") == "blad"
+
+
+@pytest.mark.anyio
+async def test_dziennik_api_ma_kontekst_srodowiska(konfig_api):
+    # sekcja 9 pkt 10 przez API: użytkownik, wersja programu, pole pakietów
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        await _ukryj(klient, app)
+    wpis = json.loads(
+        app.state.magazyn.katalog.joinpath("dziennik.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert wpis["uzytkownik"]
+    assert wpis["wersja"]
+    assert "pakiety" in wpis
+    from niewidka.magazyn import zweryfikuj_lancuch
+
+    assert zweryfikuj_lancuch(app.state.magazyn.katalog / "dziennik.jsonl")[0]

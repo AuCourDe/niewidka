@@ -41,7 +41,7 @@ from niewidka.jakosc import opisy_ryzyka, r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
-from niewidka.magazyn import MagazynMap
+from niewidka.magazyn import MagazynMap, kontekst_domyslny, wersje_pakietow
 from niewidka.mapa import WZORZEC_ZNACZNIKA, BladMapy, Mapa, odszyfruj, zaszyfruj
 from niewidka.pakiety import (
     BladPakietu,
@@ -360,7 +360,16 @@ def create_app(
     _wczytaj_rejestr_map(konfig.rejestr_map, app.state.szyfrogramy, app.state.identyfikatory)
     # magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2); sprzątanie wygasłych
     # przy starcie, zanim cokolwiek przywrócimy (SIMPLIFICATION: bez zegara w tle)
-    app.state.magazyn = MagazynMap(konfig.mapy_katalog, retencja_dni=konfig.mapy_retencja_dni)
+    def _kontekst_dziennika() -> dict:
+        """Audyt z kontekstem środowiska (§9 pkt 10): użytkownik, wersja programu,
+        wersje pakietów modeli z manifestów (jeśli manifesty je podają)."""
+        pola = kontekst_domyslny()
+        pola["pakiety"] = wersje_pakietow(konfig.modele_katalog)
+        return pola
+
+    app.state.magazyn = MagazynMap(
+        konfig.mapy_katalog, retencja_dni=konfig.mapy_retencja_dni, kontekst=_kontekst_dziennika
+    )
 
     def _skresl_z_rejestru(identyfikatory: set[str] | list[str]) -> None:
         """Przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu,
@@ -667,17 +676,20 @@ def create_app(
         if raport.status == "zablokowany":
             raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
         _posprzataj()  # sprzątanie wygasłych przy każdym wywołaniu (§2)
-        wygasa = None
+        mapa_zapisana = None  # datetime wygaśnięcia albo "blad" (§9 pkt 5)
         with app.state.magazyn.blokada:  # jedna blokada: magazyn + dziennik + rejestr (pkt 9)
             app.state.identyfikatory.add(mapa.identyfikator)
             skrot = hashlib.sha256(mapa_paczka).hexdigest()
             app.state.szyfrogramy[skrot] = mapa.identyfikator
             _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
             try:
-                wygasa = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
-            except (OSError, BladMapy) as blad:  # magazyn niedostępny: ukrywanie działa, mapa tylko do pobrania
+                # zapis PRZED odpowiedzią (§9 pkt 5): błąd nie zabija ukrywania,
+                # wynik wraca z nagłówkiem „blad", a UI każe pobrać mapę
+                mapa_zapisana = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
+            except (OSError, BladMapy) as blad:
                 logger.warning("magazyn map niezapisany: %s", type(blad).__name__)
                 app.state.identyfikatory.discard(mapa.identyfikator)
+                mapa_zapisana = "blad"
 
         # K4b pkt 7: pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
         # tylko krótki skrót (nazwa pliku nie musi być niepodrabialna)
@@ -697,8 +709,10 @@ def create_app(
             # docs/MAPY-I-AKTUALIZACJE.md §3: obecny tylko, gdy mapa trafiła do magazynu
             "content-disposition": 'attachment; filename="wynik.zip"',
         }
-        if wygasa is not None:
-            naglowki["x-niewidka-mapa-zapisana"] = wygasa.isoformat()
+        if mapa_zapisana is not None:
+            naglowki["x-niewidka-mapa-zapisana"] = (
+                mapa_zapisana if isinstance(mapa_zapisana, str) else mapa_zapisana.isoformat()
+            )
         return Response(paczka.getvalue(), media_type="application/zip", headers=naglowki)
 
     def _metadane_listy() -> list[dict]:

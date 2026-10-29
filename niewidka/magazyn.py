@@ -17,6 +17,8 @@ rejestru nie potłukły się z równoległym sprzątaniem albo usuwaniem.
 
 from __future__ import annotations
 
+import getpass
+import hashlib
 import json
 import re
 import threading
@@ -24,6 +26,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from niewidka import __version__
 from niewidka.mapa import BladMapy, Mapa, naglowek
 from niewidka.pakiety import opublikuj_bez_hasza
 
@@ -32,6 +35,63 @@ from niewidka.pakiety import opublikuj_bez_hasza
 _WZORZEC_ID = re.compile(r"[a-f0-9]{32}")
 
 DOMYSLNY_ZEGAR: Callable[[], datetime] = lambda: datetime.now().astimezone()
+
+
+def kontekst_domyslny() -> dict:
+    """Pola środowiska audytu: użytkownik systemu i wersja programu (§9 pkt 10)."""
+    return {"uzytkownik": getpass.getuser(), "wersja": __version__}
+
+
+def wersje_pakietow(katalog_wag: Path | str | None) -> dict[str, str] | None:
+    """Wersje pakietów modeli z manifestów w katalogu wag; None, gdy manifesty ich
+    nie podają (starsze katalogi) albo katalogu nie ma (§9 pkt 10, sekcja 5)."""
+    if not katalog_wag:
+        return None
+    katalog = Path(katalog_wag)
+    if not katalog.is_dir():
+        return None
+    wynik: dict[str, str] = {}
+    for manifest in sorted(katalog.glob("*/manifest.json")) + [katalog / "manifest.json"]:
+        try:
+            dane = json.loads(manifest.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        if "wersja" in dane:
+            wynik[str(dane.get("pakiet") or manifest.parent.name)] = str(dane["wersja"])
+    return wynik or None
+
+
+def _skrot_poprzedniej_linii(sciezka: Path) -> str:
+    """SHA-256 ostatniej niepustej linii dziennika; pusty string, gdy pliku nie ma
+    (pierwszy wpis łańcucha)."""
+    if not sciezka.is_file():
+        return ""
+    linie = [l for l in sciezka.read_text(encoding="utf-8").splitlines() if l.strip()]
+    return hashlib.sha256(linie[-1].encode("utf-8")).hexdigest() if linie else ""
+
+
+def zweryfikuj_lancuch(sciezka: Path) -> tuple[bool, list[str]]:
+    """Weryfikacja łańcucha dziennika (§9 pkt 10): każdy wpis wskazuje skrót
+    SHA-256 poprzedniej linii, więc edycja treści albo usunięcie wiersza zepsuje
+    następnik. Zwraca (spójny, problemy) z numerami linii - bez treści wpisów."""
+    problemy: list[str] = []
+    if not Path(sciezka).is_file():
+        return True, problemy
+    poprzednia = ""
+    for numer, linia in enumerate(Path(sciezka).read_text(encoding="utf-8").splitlines(), start=1):
+        if not linia.strip():
+            continue
+        try:
+            zgloszony = str(json.loads(linia).get("poprzedni"))
+        except ValueError:
+            problemy.append(f"linia {numer}: nie jest poprawnym JSON")
+            poprzednia = linia
+            continue
+        oczekiwany = hashlib.sha256(poprzednia.encode("utf-8")).hexdigest() if poprzednia else ""
+        if zgloszony != oczekiwany:
+            problemy.append(f"linia {numer}: zerwany łańcuch skrótów")
+        poprzednia = linia
+    return not problemy, problemy
 
 
 def sprawdz_id(identyfikator: str) -> str:
@@ -49,10 +109,14 @@ class MagazynMap:
         katalog: Path,
         retencja_dni: int = 30,
         zegar: Callable[[], datetime] | None = None,
+        kontekst: Callable[[], dict] | None = None,
     ):
         self.katalog = Path(katalog)
         self.retencja_dni = int(retencja_dni)
         self.zegar = zegar or DOMYSLNY_ZEGAR
+        # pola środowiska audytu (użytkownik, wersja programu, wersje pakietów);
+        # API podaje wersję z manifestami wag, domyślnie sam użytkownik i program
+        self.kontekst = kontekst or kontekst_domyslny
         # RLock: API trzyma blokadę wokół sekwencji metod (sprzątanie + zapis +
         # rejestr), a metody magazynu blokują też pojedynczo - ten sam wątek wejdzie
         self.blokada = threading.RLock()
@@ -171,13 +235,20 @@ class MagazynMap:
         statystyki: dict[str, int] | None,
         teraz: datetime,
     ) -> None:
-        """Wiersz audytu BEZ danych osobowych: skrót id zamiast treści mapy."""
+        """Wiersz audytu BEZ danych osobowych: skrót id zamiast treści mapy, do tego
+        kontekst środowiska i łańcuch skrótów SHA-256 (edycja jest wykrywalna,
+        §9 pkt 10)."""
         wpis = {
             "czas": teraz.isoformat(timespec="seconds"),
             "zdarzenie": zdarzenie,
             "skrot_id": identyfikator[:12],
+            "uzytkownik": self.kontekst().get("uzytkownik"),
+            "wersja": self.kontekst().get("wersja"),
+            "pakiety": self.kontekst().get("pakiety"),
             "poziom": poziom,
+            "wynik": "ok",
             "statystyki": statystyki,
+            "poprzedni": _skrot_poprzedniej_linii(self.katalog / "dziennik.jsonl"),
         }
         self.katalog.mkdir(parents=True, exist_ok=True)
         with (self.katalog / "dziennik.jsonl").open("a", encoding="utf-8") as dziennik:

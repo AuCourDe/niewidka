@@ -402,12 +402,21 @@ function pokazWynik(naglowki, czesci) {
 
   document.getElementById("blok-pobrania").hidden = false;
 
-  /* docs/MAPY-I-AKTUALIZACJE.md §1: mapa zapisuje się sama; nagłówek jest tylko
-     wtedy, gdy program faktycznie zapisał (retencja > 0). Pobieranie mapy zostaje
-     jako opcja, np. do akt sprawy. */
+  /* docs/MAPY-I-AKTUALIZACJE.md §1: mapa zapisuje się sama; nagłówek jest wtedy,
+     gdy program próbował: z datą wygaśnięcia albo „blad", gdy zapisać się nie dało
+     (§9 pkt 5: wynik i tak wydany, ale mapę trzeba pobrać). */
   const blokMapy = document.getElementById("mapa-zapisana");
   const zapisanaDo = naglowki.get("x-niewidka-mapa-zapisana");
-  if (zapisanaDo) {
+  if (zapisanaDo === "blad") {
+    blokMapy.className = "komunikat komunikat-ostrzezenie";
+    blokMapy.innerHTML = "";
+    const opis = document.createElement("p");
+    opis.textContent = "Nie udało się zapisać mapy na tym komputerze. "
+      + "Pobierz mapę, bo nie została zapisana.";
+    blokMapy.append(opis);
+    blokMapy.hidden = false;
+  } else if (zapisanaDo) {
+    blokMapy.className = "komunikat komunikat-ok";
     blokMapy.innerHTML = "";
     const opis = document.createElement("p");
     opis.textContent = `Mapa zapisana na tym komputerze do ${doDaty(zapisanaDo)}. `
@@ -501,6 +510,9 @@ function inicjalizujWejscie() {
 // trwające zlecenie blokuje „Ukryj" także przy odświeżaniu pakietów w tle
 // (Codex 2026-10-29: polling postępu odblokowywał przycisk w trakcie ukrywania)
 let trwaZlecenie = false;
+// sekcja 9 pkt 5: numerowane żądania - odpowiedź starszego zlecenia nie renderuje
+// się, gdy użytkownik zdążył już wysłać nowsze
+let licznikZlecen = 0;
 
 function ustawTrwa(pole, trwa) {
   trwaZlecenie = trwa;
@@ -562,14 +574,17 @@ function inicjalizujUkrywanie() {
     else dane.set("tekst", tekst);
 
     ustawTrwa(formularz, true);
+    const mojaKolejna = ++licznikZlecen;
     komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument. To może potrwać kilkadziesiąt sekund.");
     try {
       const odpowiedz = await wyslij("/api/ukryj", dane);
+      if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
       const czesci = await otworzZip(await odpowiedz.blob());
       document.getElementById("wynik").hidden = false;
       pokazWynik(odpowiedz.headers, czesci);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
+      if (mojaKolejna !== licznikZlecen) return;
       if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany") {
         document.getElementById("wynik").hidden = true;
         pokazBlokade("status-ukryj", blad.odpowiedz.typy);
@@ -578,7 +593,7 @@ function inicjalizujUkrywanie() {
         if (blad.status === 409) odswiezPakiety();
       }
     } finally {
-      ustawTrwa(formularz, false);
+      if (mojaKolejna === licznikZlecen) ustawTrwa(formularz, false);
     }
   });
 
@@ -650,9 +665,11 @@ function inicjalizujPrzywracanie() {
     }
 
     ustawTrwa(formularz, true);
+    const mojaKolejna = ++licznikZlecen;
     komunikat("status-przywroc", "komunikat-ok", null, "Przywracam dane…");
     try {
       const odpowiedz = await wyslij("/api/przywroc", dane);
+      if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
       const blob = await odpowiedz.blob();
       // wklejony tekst wraca jako text/plain, bez content-disposition (tylko plik go ma)
       const nazwaPliku = (odpowiedz.headers.get("content-disposition") || "").match(/filename="(.*)"/);
@@ -703,6 +720,7 @@ function inicjalizujPrzywracanie() {
       document.getElementById("status-przywroc").innerHTML = "";
       zapowiedz("Dane przywrócone");
     } catch (blad) {
+      if (mojaKolejna !== licznikZlecen) return;
       if (blad.odpowiedz && blad.odpowiedz.kod === "wybierz_mape") {
         /* docs/MAPY-I-AKTUALIZACJE.md §3: komunikat prowadzi do listy zadań */
         komunikat("status-przywroc", "komunikat-ostrzezenie", "Wskaż mapę", `${blad.blad} Wybierz zadanie z listy.`);
@@ -711,7 +729,7 @@ function inicjalizujPrzywracanie() {
         komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message);
       }
     } finally {
-      ustawTrwa(formularz, false);
+      if (mojaKolejna === licznikZlecen) ustawTrwa(formularz, false);
     }
   });
 

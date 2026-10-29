@@ -267,3 +267,14 @@ async def test_przywrocony_tekst_w_podgladzie_z_kopiowaniem(klient):
     assert 'id="podglad-przywroconego"' in strona
     assert "tekstPrzywroconego" in apka, "surowy tekst pod podglądem do kopiowania"
     assert 'id="pobierz-przywrocony"' in strona, "pobranie zostaje (plik i tekst)"
+
+
+@pytest.mark.anyio
+async def test_mapa_niezapisana_i_licznik_zlecen(klient):
+    """sekcja 9 pkt 5: błąd zapisu mapy = wynik wydany z nagłówkiem „blad” i
+    komunikatem „Pobierz mapę”; odpowiedzi starszych żądań są odrzucane."""
+    apka = (await klient.get("/apka.js")).text
+    assert "Pobierz mapę, bo nie została zapisana." in apka
+    assert '"blad"' in apka or "'blad'" in apka
+    assert "licznikZlecen" in apka
+    assert "mojaKolejna !== licznikZlecen" in apka, "spóźniona odpowiedź nie renderuje się"
