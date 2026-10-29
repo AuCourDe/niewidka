@@ -11,7 +11,7 @@ from narzedzia.generator_dokumentow import zapisz_podstawowy, zapisz_z_makrem
 from niewidka.detektory import BladDetektora, RegulyDetektor
 from niewidka.formaty import ElementNieobslugiwany, NieznanyFormat, adapter_formatu
 from niewidka.konfig import Konfig
-from niewidka.mapa import odszyfruj, zaszyfruj
+from niewidka.mapa import BladMapy, odszyfruj, zaszyfruj
 from niewidka.model import TypEncji, Zakres
 from niewidka.rdzen import (
     ArchiwumZaDuze,
@@ -123,6 +123,23 @@ def test_przywroc_znacznik_bez_wpisu_i_wpis_niewykorzystany():
     typy = {(r.typ, r.opis) for r in rozbieznosci}
     assert ("znacznik_bez_wpisu", "[OSOBA_9_F1]") in typy
     assert ("wpis_niewykorzystany", "PESEL_1") in typy
+
+
+def test_przywroc_odpowiedz_ai_bez_dopisku_z_ostrzezeniem():
+    # odpowiedź czatu AI zwykle nie powtarza dopisku z identyfikatorem mapy (Argon, 2026-10-29)
+    wynik, mapa, _ = ukryj(TEKST, "txt", 1, detektor=RegulyDetektor())
+    _, tresc = wynik.decode().split("\n", 1)
+    odpowiedz_ai = f"Oto odpowiedź na pismo. Numer {tresc.strip()}".encode()
+    przywrocony, rozbieznosci = przywroc(odpowiedz_ai, "txt", mapa)
+    assert b"44051401359" in przywrocony
+    assert [r.typ for r in rozbieznosci] == ["brak_identyfikatora"]
+
+
+def test_przywroc_odrzuca_dopisek_innej_mapy():
+    _, mapa, _ = ukryj(TEKST, "txt", 1, detektor=RegulyDetektor())
+    wynik_innego, _, _ = ukryj(TEKST, "txt", 1, detektor=RegulyDetektor())
+    with pytest.raises(BladMapy):
+        przywroc(wynik_innego, "txt", mapa)
 
 
 def test_ukryj_nieznany_format():

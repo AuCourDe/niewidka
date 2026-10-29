@@ -358,6 +358,9 @@ def ukryj(
     return wynik, mapa, raport
 
 
+_ID_W_DOPISKU = re.compile(r"Identyfikator mapy: ([a-p]+)")
+
+
 def przywroc(
     dane: bytes, format: str, mapa: Mapa, *, max_rozpakowane_bajtow: int | None = None
 ) -> tuple[bytes, list[Rozbieznosc]]:
@@ -370,15 +373,21 @@ def przywroc(
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
     dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane_bajtow)
-    # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem — identyfikator zapisany
-    # w dopisku wyniku (jako litery, bez cyfr) musi równać się identyfikatorowi mapy
-    if not any(
-        zakoduj_identyfikator(mapa.identyfikator) in segment.tekst for segment in dok.segmenty
-    ):
-        raise BladMapy(
-            "wynik nie zawiera identyfikatora tej mapy — dokument i mapa pochodzą z różnych zadań"
-        )
+    # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem. Dopisek z identyfikatorem
+    # innej mapy = odmowa. Brak dopisku to zwykła odpowiedź czatu AI (nie powtarza go),
+    # więc przywracamy, ale z ostrzeżeniem, że zgodności mapy nie da się sprawdzić.
+    znalezione = {m.group(1) for s in dok.segmenty for m in _ID_W_DOPISKU.finditer(s.tekst)}
     rozbieznosci: list[Rozbieznosc] = []
+    if znalezione and zakoduj_identyfikator(mapa.identyfikator) not in znalezione:
+        raise BladMapy("tekst pochodzi z innego zadania niż ta mapa (inny identyfikator mapy)")
+    if not znalezione:
+        rozbieznosci.append(
+            Rozbieznosc(
+                "brak_identyfikatora",
+                "W tekście nie ma identyfikatora mapy, więc program nie sprawdzi, czy mapa"
+                " pasuje. Upewnij się, że to mapa z tego samego zadania",
+            )
+        )
     uzyte: set[str] = set()
     for segment in dok.segmenty:
         zamiany, braki, uzyte_w_segmencie = przygotuj_zamiany(segment.tekst, mapa)
