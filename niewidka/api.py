@@ -26,9 +26,16 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartParser
 
 from niewidka import __version__
+from niewidka.aktualizacje import (
+    TRYBY_AKTUALIZACJI,
+    BladAktualizacji,
+    MenedzerAktualizacji,
+    TrybNarzucony,
+)
 from niewidka.archiwum import BladArchiwum
 from niewidka.formaty import (
     ElementNieobslugiwany,
@@ -50,6 +57,7 @@ from niewidka.pakiety import (
     katalog_modeli,
     opublikuj_bez_hasza,
     wczytaj_pakiety,
+    wczytaj_wersje_katalogu,
     zrodlo,
 )
 from niewidka.poprawki import BladPoprawki, PamiecWykryc, popraw, sprawdz_liste
@@ -412,12 +420,21 @@ def create_app(
     _posprzataj()  # program wyłączony nie sprząta; sprząta przy starcie, zanim cokolwiek przywrócimy
     if menedzer_pakietow is None:
         menedzer_pakietow = MenedzerPakietow(
-            wczytaj_pakiety(), konfig.modele_katalog, zrodlo()
+            wczytaj_pakiety(), konfig.modele_katalog or katalog_modeli(), zrodlo()
         )
     # K7c pkt 1: zmiana pakietów (pobranie/usunięcie/instalacja) unieważnia cache
     # detektorów — inaczej zainstalowany pakiet Rozszerzony nie wchodzi do detekcji
     menedzer_pakietow.ustaw_zwrot_zmiany(app.state.detektory.clear)
     app.state.pakiety = menedzer_pakietow
+
+    app.state.aktualizacje = MenedzerAktualizacji(
+        katalog_modeli_sciezka=konfig.modele_katalog or katalog_modeli(),
+        katalog_danych_sciezka=katalog_danych(),
+        zrodlo_url=zrodlo(),
+        menedzer_pakietow=menedzer_pakietow,
+        konfig_tryb=konfig.aktualizacje_tryb,
+    )
+    app.state.aktualizacje.sprawdz_przy_starcie()
 
     def _detektor_dla(poziom: int):
         """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
@@ -459,7 +476,7 @@ def create_app(
         """Token sesji + Host/Origin dla POST-ów i DELETE-ów /api/ oraz GET-ów
         pakietów/stanu/map (K7c pkt 5: status pakietów bywa nośnikiem sekreta
         z lustra); limity przed buforowaniem treści."""
-        strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy")
+        strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy", "/api/aktualizacje")
         # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
         # (Codex 2026-10-29: GET / z obcym Host oddawał token — DNS rebinding)
         if (request.headers.get("host") or "").split(":")[0] not in hosty:
@@ -600,6 +617,14 @@ def create_app(
         # do katalogu wag; komunikat bez treści plików
         return JSONResponse({"blad": str(blad)}, status_code=422)
 
+    @app.exception_handler(TrybNarzucony)
+    async def _tryb_narzucony(request: Request, blad: TrybNarzucony):
+        return JSONResponse({"blad": str(blad)}, status_code=409)
+
+    @app.exception_handler(BladAktualizacji)
+    async def _blad_aktualizacji(request: Request, blad: BladAktualizacji):
+        return JSONResponse({"blad": str(blad)}, status_code=422)
+
     @app.get("/api/pakiety")
     async def endpoint_pakiety() -> dict:
         """Stan pakietów + postęp bieżącej operacji (K7b); bez tokena: dane
@@ -650,6 +675,68 @@ def create_app(
         if not pakiety_stan.instaluj(identyfikator, Path(katalog)):
             raise HTTPException(status_code=409, detail="inna operacja na pakietach trwa")
         return JSONResponse({"stan": "instalowanie"}, status_code=202)
+
+    @app.get("/api/aktualizacje")
+    async def endpoint_aktualizacje() -> dict:
+        akt = app.state.aktualizacje
+        return {
+            "tryb": akt.tryb,
+            "narzucony": akt.narzucony,
+            "stan": akt.stan,
+            "blad": akt.blad,
+            "klucz_wydawcy": akt.ma_klucze,
+            "wersja_katalogu": wczytaj_wersje_katalogu(akt.katalog_aktywny_plik),
+            "ostatnie_sprawdzenie": akt.ostatnie_sprawdzenie,
+            "pakiety": akt.lista_pakietow(),
+            "postep": akt.postep,
+        }
+
+    @app.post("/api/aktualizacje")
+    async def endpoint_aktualizacje_akcja(request: Request) -> JSONResponse:
+        """sprawdz | instaluj (w tle, 202; z folder: offline, §5) | cofnij | tryb
+        (409, gdy tryb narzuca konfiguracja administratora)."""
+        try:
+            zlecenie = await request.json()
+        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
+            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        akcja = zlecenie.get("akcja")
+        akt = app.state.aktualizacje
+        if akcja not in ("sprawdz", "instaluj", "cofnij", "tryb"):
+            raise HTTPException(status_code=422, detail="nieznana akcja aktualizacji")
+
+        if akcja == "tryb":
+            nowy_tryb = zlecenie.get("tryb")
+            if not nowy_tryb:
+                raise HTTPException(status_code=422, detail="brak pola tryb")
+            if nowy_tryb not in TRYBY_AKTUALIZACJI:
+                raise HTTPException(status_code=422, detail="nieznany tryb aktualizacji")
+            akt.ustaw_tryb(nowy_tryb)
+            return JSONResponse({"stan": "zmieniono_tryb", "tryb": nowy_tryb})
+
+        if akcja == "sprawdz":
+            # pobieranie katalogu to żądanie sieciowe: bez blokowania pętli zdarzeń
+            await run_in_threadpool(akt.sprawdz_aktualizacje)
+            return JSONResponse({"stan": akt.stan, "blad": akt.blad})
+
+        if akcja == "instaluj":
+            pakiet_id = zlecenie.get("pakiet")
+            folder = zlecenie.get("folder")
+            if not pakiet_id and not folder:
+                raise HTTPException(
+                    status_code=422, detail="instaluj wymaga pakietu albo folderu z aktualizacją"
+                )
+            if not akt.instaluj_aktualizacje(pakiet_id, w_tle=True, folder=folder and Path(folder)):
+                raise HTTPException(status_code=409, detail="operacja aktualizacji już trwa")
+            return JSONResponse({"stan": "instalowanie", "pakiet": pakiet_id}, status_code=202)
+
+        if akcja == "cofnij":
+            pakiet_id = zlecenie.get("pakiet")
+            if not pakiet_id:
+                raise HTTPException(status_code=422, detail="cofnij wymaga podania pakietu")
+            akt.cofnij_aktualizacje(pakiet_id)
+            return JSONResponse({"stan": "cofnieto", "pakiet": pakiet_id})
+
+        raise HTTPException(status_code=422, detail="nieznana akcja")
 
     @app.exception_handler(BladKontroli)
     async def _blad_kontroli(request: Request, blad: BladKontroli):

@@ -55,6 +55,7 @@ class Konfig:
     # pamięć wykryć do poprawek w podglądzie (§8 pkt 4): tylko RAM, ostatnie zadania, krótko
     poprawki_maks_zadan: int = 4
     poprawki_ttl_s: int = 900
+    aktualizacje_tryb: str | None = None
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -100,6 +101,14 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
     klucze = toml.get("klucze", {})
     limity = toml.get("limity", {})
     kontrola = toml.get("kontrola", {})
+    aktualizacje = toml.get("aktualizacje", {})
+    aktualizacje_tryb = env.get("NIEWIDKA_AKTUALIZACJE", aktualizacje.get("tryb"))
+    if aktualizacje_tryb is not None:
+        dozwolone_tryby = ("reczne", "sprawdzaj", "automatyczne", "wylaczone")
+        if aktualizacje_tryb not in dozwolone_tryby:
+            raise ValueError(
+                f"NIEWIDKA_AKTUALIZACJE: nieznany tryb {aktualizacje_tryb!r}; dozwolone: {', '.join(dozwolone_tryby)}"
+            )
     obrazy = env.get("NIEWIDKA_OBRAZY", kontrola.get("obrazy", "usun"))
     if obrazy not in POLITYKI_OBRAZOW:
         raise ValueError(
@@ -155,4 +164,5 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
             env, "NIEWIDKA_POPRAWKI_MAKS_ZADAN", int(poprawki.get("maks_zadan", 4))
         ),
         poprawki_ttl_s=_jako_int(env, "NIEWIDKA_POPRAWKI_TTL_S", int(poprawki.get("ttl_s", 900))),
+        aktualizacje_tryb=aktualizacje_tryb,
     )

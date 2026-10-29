@@ -1318,6 +1318,219 @@ function inicjalizujPakiety() {
   });
 }
 
+/* ---------- aktualizacje modeli (docs/MAPY-I-AKTUALIZACJE.md §5) ---------- */
+
+let stanAktualizacji = null;
+let odpytywanieAktualizacji = null;
+
+const OPCJE_TRYBU_AKTUALIZACJI = [
+  ["reczne", "Ręcznie: sprawdza tylko przycisk Sprawdź teraz"],
+  ["sprawdzaj", "Sam, raz na dobę: pokaże informację o nowszej wersji"],
+  ["automatyczne", "Sam pobierze i zainstaluje nowszą wersję"],
+];
+
+function trwaOperacjaAktualizacji() {
+  const postep = stanAktualizacji && stanAktualizacji.postep;
+  return Boolean(postep && postep.pakiet);
+}
+
+async function odswiezAktualizacje() {
+  try {
+    const odpowiedz = await fetch("/api/aktualizacje", { headers: NAGLOWKI });
+    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
+    stanAktualizacji = await odpowiedz.json();
+  } catch {
+    return; // serwer nieodpowiada: nic nie zmieniamy
+  }
+  rysujAktualizacje();
+  return stanAktualizacji;
+}
+
+function rysujAktualizacje() {
+  const wybor = document.getElementById("aktualizacje-tryb");
+  wybor.innerHTML = "";
+  const opcje = [...OPCJE_TRYBU_AKTUALIZACJI];
+  if (stanAktualizacji.tryb === "wylaczone") {
+    opcje.push(["wylaczone", "Wyłączone (zwykle ustawia administrator)"]);
+  }
+  for (const [wartosc, opis] of opcje) {
+    const opcja = document.createElement("option");
+    opcja.value = wartosc;
+    opcja.textContent = opis;
+    if (wartosc === stanAktualizacji.tryb) opcja.selected = true;
+    wybor.append(opcja);
+  }
+  wybor.disabled = stanAktualizacji.narzucony || trwaOperacjaAktualizacji();
+  document.getElementById("aktualizacje-narzucony").hidden = !stanAktualizacji.narzucony;
+  document.getElementById("aktualizacje-sprawdz").disabled =
+    trwaOperacjaAktualizacji() || stanAktualizacji.tryb === "wylaczone" || !stanAktualizacji.klucz_wydawcy;
+  document.getElementById("aktualizacje-z-folderu").disabled = trwaOperacjaAktualizacji();
+  rysujStanAktualizacji();
+  rysujPakietyAktualizacji();
+  pokazPostepAktualizacji();
+}
+
+function rysujStanAktualizacji() {
+  const pole = document.getElementById("aktualizacje-stan");
+  pole.innerHTML = "";
+  const stan = stanAktualizacji.stan;
+  if (stan === "blad_integralnosci") {
+    komunikat(
+      "aktualizacje-stan",
+      "komunikat-ostrzezenie",
+      "Błąd integralności aktualizacji",
+      `${stanAktualizacji.blad || ""} Program używa wbudowanego wykazu wersji, aktualizacje są zablokowane.`.trim(),
+    );
+    return;
+  }
+  let tresc;
+  if (stan === "sprawdzanie") {
+    tresc = "Sprawdzam...";
+  } else if (stan === "dostepna_aktualizacja") {
+    const dostepne = stanAktualizacji.pakiety
+      .filter((p) => p.dostepna)
+      .map((p) => `${p.nazwa} (${sformatujRozmiar(p.rozmiar_aktualizacji)})`);
+    tresc = `Dostępna aktualizacja: ${dostepne.join(", ")}.`;
+  } else if (stan === "blad") {
+    tresc = `Nie udało się sprawdzić: ${stanAktualizacji.blad || "nieznany powód"}`;
+  } else {
+    tresc = "Masz najnowsze modele.";
+  }
+  if (!stanAktualizacji.klucz_wydawcy) {
+    tresc += " Sprawdzanie w internecie jest niedostępne: w programie nie ma klucza publicznego wydawcy.";
+  }
+  if (stanAktualizacji.ostatnie_sprawdzenie) {
+    tresc += ` Ostatnie sprawdzenie: ${kiedy(new Date(stanAktualizacji.ostatnie_sprawdzenie))}.`;
+  }
+  pole.textContent = tresc;
+}
+
+function rysujPakietyAktualizacji() {
+  const lista = document.getElementById("aktualizacje-pakiety");
+  lista.innerHTML = "";
+  for (const pakiet of stanAktualizacji.pakiety) {
+    if (!pakiet.dostepna && !pakiet.mozliwe_cofniecie) continue;
+    const wiersz = document.createElement("div");
+    wiersz.className = "pakiet-wiersz";
+    const naglowek = document.createElement("div");
+    naglowek.className = "pakiet-naglowek";
+    const nazwa = document.createElement("h3");
+    nazwa.textContent = pakiet.nazwa;
+    const wersje = document.createElement("span");
+    wersje.className = "pakiet-stan";
+    wersje.textContent = `zainstalowana wersja ${pakiet.wersja_zainstalowana}, dostępna ${pakiet.wersja_dostepna}`;
+    naglowek.append(nazwa, wersje);
+    const akcje = document.createElement("div");
+    akcje.className = "pakiet-akcje";
+    if (pakiet.dostepna) {
+      const zainstaluj = document.createElement("button");
+      zainstaluj.type = "button";
+      zainstaluj.className = "przycisk-glowny";
+      zainstaluj.textContent = `Zainstaluj (${sformatujRozmiar(pakiet.rozmiar_aktualizacji)})`;
+      zainstaluj.disabled = trwaOperacjaAktualizacji();
+      zainstaluj.addEventListener("click", () => akcjaAktualizacji({ akcja: "instaluj", pakiet: pakiet.id }));
+      akcje.append(zainstaluj);
+    }
+    if (pakiet.mozliwe_cofniecie) {
+      const wroc = document.createElement("button");
+      wroc.type = "button";
+      wroc.className = "przycisk-wtorny";
+      wroc.textContent = "Wróć do poprzedniej wersji";
+      wroc.disabled = trwaOperacjaAktualizacji();
+      wroc.addEventListener("click", () => {
+        if (!confirm(`Wrócić do poprzedniej wersji pakietu ${pakiet.nazwa}?`)) return;
+        akcjaAktualizacji({ akcja: "cofnij", pakiet: pakiet.id });
+      });
+      akcje.append(wroc);
+    }
+    wiersz.append(naglowek, akcje);
+    lista.append(wiersz);
+  }
+}
+
+function pokazPostepAktualizacji() {
+  const postep = stanAktualizacji && stanAktualizacji.postep;
+  const blok = document.getElementById("postep-aktualizacji");
+  const pasek = document.getElementById("postep-aktualizacji-pasek");
+  const status = document.getElementById("postep-aktualizacji-status");
+  if (!postep || (!postep.pakiet && !postep.blad)) {
+    blok.hidden = true;
+    return;
+  }
+  const procent = postep.razem > 0 ? Math.round((postep.pobrane / postep.razem) * 100) : 0;
+  blok.hidden = false;
+  pasek.value = procent;
+  status.textContent = postep.blad
+    ? `Nie udało się zainstalować: ${postep.blad}`
+    : `Instalowanie pakietu ${postep.pakiet}: ${procent}%`;
+}
+
+function pokazBladAktualizacji(blad) {
+  komunikat("aktualizacje-stan", "komunikat-blad", "Nie udało się", blad.blad || blad.message);
+}
+
+async function akcjaAktualizacji(dane) {
+  try {
+    await wyslij("/api/aktualizacje", JSON.stringify(dane));
+  } catch (blad) {
+    pokazBladAktualizacji(blad);
+    odswiezAktualizacje();
+    return;
+  }
+  if (dane.akcja === "instaluj") pollujAktualizacje();
+  if (dane.akcja === "cofnij") {
+    zapowiedz("Wrócono do poprzedniej wersji");
+    odswiezPakiety();
+  }
+  odswiezAktualizacje();
+}
+
+function pollujAktualizacje() {
+  if (odpytywanieAktualizacji) clearInterval(odpytywanieAktualizacji);
+  odpytywanieAktualizacji = setInterval(async () => {
+    const stan = await odswiezAktualizacje();
+    if (!stan) return; // chwilowy błąd odczytu: pytamy dalej
+    if (!stan.postep || !stan.postep.pakiet) {
+      clearInterval(odpytywanieAktualizacji);
+      odpytywanieAktualizacji = null;
+      zapowiedz(stan.postep && stan.postep.blad ? "Nie udało się zainstalować aktualizacji" : "Aktualizacja zakończona");
+      odswiezPakiety(); // zamiana wersji zmienia też stan pakietów i cache detektorów
+    }
+  }, 400);
+}
+
+function inicjalizujAktualizacje() {
+  document.getElementById("aktualizacje-sprawdz").addEventListener("click", async () => {
+    document.getElementById("aktualizacje-sprawdz").disabled = true;
+    try {
+      await wyslij("/api/aktualizacje", JSON.stringify({ akcja: "sprawdz" }));
+    } catch (blad) {
+      pokazBladAktualizacji(blad);
+    }
+    odswiezAktualizacje();
+  });
+  document.getElementById("aktualizacje-tryb").addEventListener("change", async (zdarzenie) => {
+    try {
+      await wyslij(
+        "/api/aktualizacje",
+        JSON.stringify({ akcja: "tryb", tryb: zdarzenie.currentTarget.value }),
+      );
+      zapowiedz("Zmieniono sposób sprawdzania aktualizacji");
+    } catch (blad) {
+      pokazBladAktualizacji(blad);
+    }
+    odswiezAktualizacje();
+  });
+  document.getElementById("aktualizacje-z-folderu").addEventListener("click", () => {
+    const folder = document.getElementById("aktualizacje-folder").value.trim();
+    if (!folder) {
+      pokazBladAktualizacji({ blad: "Podaj ścieżkę do folderu z aktualizacją." });
+      return;
+    }
+    akcjaAktualizacji({ akcja: "instaluj", folder });
+  });
+}
+
 /* ---------- start ---------- */
 
 async function wczytajStan() {
@@ -1341,10 +1554,12 @@ inicjalizujPoprawki();
 inicjalizujPrzywracanie();
 inicjalizujPakiety();
 inicjalizujMapy();
+inicjalizujAktualizacje();
 budujListeTypow();
 wczytajStan();
 odswiezPakiety();
 odswiezMapy();
+odswiezAktualizacje();
 /* Ekran pierwszego uruchomienia znika sam, gdy pakiet pojawi się z zewnątrz
    (IT instaluje z katalogu albo drugie okno pobiera): lekki odpyt tylko,
    dopóki ekran jest widoczny. */

@@ -647,6 +647,32 @@ progress {
 .postep-pakietu { margin-top: 1rem; }
 .postep-pakietu p { margin: 0 0 0.4rem; font-size: 0.92rem; color: var(--atrament-slaby); }
 
+/* --- Aktualizacje modeli (K7/akt): tryb, stan, instalacja z folderu --- */
+
+.aktualizacje-tryb { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
+.aktualizacje-tryb select {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--linie);
+  border-radius: 4px;
+  background: var(--papier);
+  color: inherit;
+  max-width: 100%;
+}
+#aktualizacje-stan { margin: 0; }
+#blok-aktualizacji-folder p { margin: 0; font-size: 0.92rem; color: var(--atrament-slaby); }
+.aktualizacje-folder-wiersz { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; }
+.pole-sciezki {
+  flex: 1 1 16rem;
+  font: inherit;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--linie);
+  border-radius: 4px;
+  background: var(--papier);
+  color: inherit;
+}
+.pole-sciezki::placeholder { color: var(--atrament-slaby); }
+
 @media (max-width: 480px) {
   .pakiet-naglowek { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
 }

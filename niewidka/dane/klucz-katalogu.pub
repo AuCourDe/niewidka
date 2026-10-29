@@ -1,0 +1,3 @@
+# Klucze publiczne Ed25519 wydawcy (po jednym w linii, base64 surowego klucza 32 bajty)
+# Właściwą parę generuje orkiestrator wydania za pomocą narzedzia/podpisz_katalog.py --generuj-pare
+# PLACEHOLDER_KLUCZA_PUBLICZNEGO

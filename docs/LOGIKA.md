@@ -132,6 +132,29 @@ Gdy w tekście nie ma dopisku (zwykła odpowiedź czatu AI go nie powtarza), pro
 
 Potem program zamienia znaczniki na oryginały, z właściwą formą fleksyjną dla wariantu F. Raport rozbieżności obejmuje znacznik bez wpisu w mapie i wpis niewykorzystany.
 
+## Aktualizacje modeli (Ustawienia, docs/MAPY-I-AKTUALIZACJE.md §5)
+
+Wydawca publikuje wykaz wersji (`katalog-pakietow.json`) z podpisem Ed25519; klucz publiczny
+jest w programie. Program przyjmuje wyłącznie wykaz z poprawnym podpisem i wersją wyższą
+od ostatnio przyjętej (cofanie wykazu jest wykrywane), przyjęty zapisuje u użytkownika
+i sprawdza podpis przy każdym starcie. Zły podpis przyjętego wykazu nie zatrzymuje programu:
+wraca wbudowany wykaz, ale Ustawienia pokazują „błąd integralności", a aktualizacje stają
+się zablokowane.
+
+Tryby do wyboru w Ustawieniach: ręcznie (tylko „Sprawdź teraz"), sam raz na dobę
+(domyślny: pokazuje „Dostępna aktualizacja"), sam pobierz i zainstaluj. Administrator może
+tryb narzucić konfiguracją (`[aktualizacje] tryb`, `NIEWIDKA_AKTUALIZACJE`, także
+`wylaczone`); wtedy wybór jest zablokowany z dopiskiem „Tryb ustawiony przez administratora".
+
+Instalacja: pobranie do katalogu przejściowego, sumy SHA-256, próba na próbce kontrolnej
+(fikcyjne zdania: nowa wersja musi wykryć to, co ma, i nie może dawać znanych fałszywych
+alarmów). Bez zaliczonej próby zamiany nie ma. Po zaliczeniu nowa wersja zastępuje starą,
+a poprzednia zostaje w `modele/.poprzednie/` z przyciskiem powrotu (zablokowanym, gdy
+wydawca zabronił wracania poniżej `min_wersja`). W sieci bez internetu osoba opiekująca
+się programem wkleja ścieżkę do folderu od IT (wykaz z podpisem i pliki); obowiązuje ta
+sama weryfikacja. Program bez klucza publicznego wydawcy (np. przed wydaniem) działa na
+wykazie wbudowanym, a aktualizacje są niedostępne z czytelnym komunikatem.
+
 ## Bezpieczeństwo
 
 - Token sesji w stronie, wymagany w każdym żądaniu API.
