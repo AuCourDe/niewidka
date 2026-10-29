@@ -12,3 +12,15 @@ Najważniejsze zalecenia (streszczenie):
 7. Najgorsze problemy dziś: zmarnowana szerokość i 2252 px wysokości; metryki testowe i ramki wypychają podgląd w dół; rozproszone akcje (Kopiuj nad podglądem, Ukryj wszędzie pod nim, Pobierz na samym dole).
 
 Decyzje: wdrażamy 1-7, z wyjątkami: blokada kontroli (STOP) zostaje widoczna w całości, bo to bezpieczeństwo; ryzyko pominięcia zostaje dostępne w „Szczegółach” (wymóg właściciela „wzór na pewność”).
+
+## Druga runda (zrzuty po zmianie, `C:\Users\uzytkownik\Desktop\C\Niewidka - okno po zmianie układu.jpg`)
+
+1. Wąskie okno (800x900): po ukryciu wejście zajmuje 60% wysokości, podgląd ginie. Zwinąć wejście do paska „Edytuj tekst wejściowy”.
+2. Nagłówek „Gotowe…” i dwie zielone ramki zabierają ok. 130 px. Usunąć; informację o mapie dać szarym tekstem przy „Pobierz mapę”.
+3. Ustawienia: „gotowy” + pogrubione zdanie o licencji przy zainstalowanym pakiecie wygląda jak błąd. Plakietka „Zainstalowany”, przy zainstalowanym link „Zobacz licencję”, „Usuń” jako link „Usuń z dysku”.
+4. „Ukryj wszędzie” po lewej jest oderwane od podglądu. Przenieść pod podgląd, razem z instrukcją o plakietkach.
+5. „Jak to działa”: bez kodu [OSOBA_1] i bez niejasnej „odpowiedzi”; prostsze kroki.
+6. Po ukryciu „Ukryj dane” konkuruje z „Pobierz dokument”. Zmienić na drugorzędny „Ukryj ponownie”, główny dopiero po zmianie tekstu lub poziomu.
+7. Akapit o mapie pod przyciskami dubluje ramkę. Zostawić jedną krótką informację.
+
+Decyzja: wdrażamy 1-7; blokada STOP zostaje w całości (bezpieczeństwo); wynik „Kontrola jakości: zaliczona” zostaje jako krótka linia stanu, bo to sygnał bezpieczeństwa dla użytkownika.
