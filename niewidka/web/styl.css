@@ -462,6 +462,56 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+/* plakietka-przycisk w podglądzie (poprawki): wygląd jak zwykła zaślepka, ale z fokusem */
+button.zaslepka-przycisk { border: 0; cursor: pointer; line-height: inherit; }
+button.zaslepka-przycisk:hover { background: var(--tusz); }
+
+mark.watpliwe {
+  background: #F6E3A8;
+  color: var(--atrament);
+  outline: 2px solid #B8860B;
+  border-radius: 2px;
+}
+
+/* ---------- poprawki w podglądzie ---------- */
+
+.poprawki { margin-top: 1rem; }
+
+.pole-poprawki { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.6rem 0; }
+.pole-poprawki label { font-weight: 700; }
+.pole-poprawki input { flex: 1 1 14rem; min-width: 10rem; padding: 0.4rem 0.5rem; }
+
+.lista-poprawek,
+.lista-decyzji { list-style: none; padding: 0; margin: 0.4rem 0; }
+
+.lista-poprawek li,
+.lista-decyzji li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.lista-poprawek li span:first-child,
+.lista-decyzji li span:first-child { flex: 1 1 14rem; }
+
+.komunikat-poprawek { min-height: 1.4em; font-weight: 700; }
+
+.plywajacy {
+  position: fixed;
+  z-index: 20;
+  background: var(--tusz);
+  color: #FFFFFF;
+  border: 0;
+  border-radius: 3px;
+  padding: 0.4rem 0.8rem;
+  box-shadow: 0 4px 14px rgba(35, 40, 45, 0.3);
+  cursor: pointer;
+}
+
+.plywajacy:hover { background: var(--tusz-nacisniety); }
+
 /* ---------- pobieranie ---------- */
 
 .pobrania { margin-top: 1.3rem; }

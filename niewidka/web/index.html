@@ -156,7 +156,15 @@
     <div id="status-ukryj" class="status" aria-live="polite"></div>
 
     <section id="wynik" class="wynik" hidden>
-      <h2>Gotowe: dokument z ukrytymi danymi</h2>
+      <h2 id="naglowek-wyniku">Gotowe: dokument z ukrytymi danymi</h2>
+
+      <div id="blok-decyzji" class="komunikat komunikat-blad" hidden>
+        <h3>STOP: kontrola ma wątpliwości</h3>
+        <p>Program nie jest pewien tych miejsc. Przy każdym wybierz „Ukryj”, jeśli to dane osobowe,
+        albo „To nie dane”, jeśli to zwykły tekst. Kopiowanie i pobieranie włączy się,
+        gdy zdecydujesz o wszystkich miejscach.</p>
+        <ul id="lista-decyzji" class="lista-decyzji"></ul>
+      </div>
 
       <div id="komunikat-status" class="komunikat" hidden></div>
 
@@ -182,6 +190,26 @@
           <button type="button" id="kopiuj" class="przycisk-wtorny">Kopiuj</button>
         </div>
         <div class="kartka"><div id="podglad-tekstu" class="tekst-kartki"></div></div>
+        <p class="podpowiedz">Zaznacz słowo, a pojawi się przycisk „Ukryj wszędzie”.
+        Kliknij czarną plakietkę, żeby uznać ją za zwykły tekst.</p>
+      </div>
+
+      <p id="komunikat-poprawek" class="komunikat-poprawek" aria-live="polite"></p>
+
+      <div id="blok-poprawek" class="poprawki" hidden>
+        <div id="akcja-znacznika" class="komunikat komunikat-ok" role="group" aria-label="Poprawka znacznika" hidden>
+          <p id="akcja-znacznika-opis"></p>
+          <p id="akcja-znacznika-wyjasnienie" class="podpowiedz"></p>
+          <button type="button" id="akcja-znacznika-przycisk" class="przycisk-wtorny"></button>
+          <button type="button" id="akcja-znacznika-zamknij" class="linkowy">Zamknij</button>
+        </div>
+        <div class="pole-poprawki">
+          <label for="pole-ukryj-wszedzie">Ukryj wszędzie słowo lub fragment</label>
+          <input type="text" id="pole-ukryj-wszedzie" maxlength="200" autocomplete="off" spellcheck="false">
+          <button type="button" id="przycisk-ukryj-wszedzie" class="przycisk-wtorny">Ukryj wszędzie</button>
+        </div>
+        <h3 id="naglowek-poprawek" hidden>Twoje poprawki</h3>
+        <ul id="lista-poprawek" class="lista-poprawek"></ul>
       </div>
 
       <div id="blok-pobrania" class="pobrania" hidden>
@@ -293,6 +321,7 @@
   </div>
 </footer>
 
+<button type="button" id="ukryj-zaznaczone" class="plywajacy" hidden>Ukryj wszędzie</button>
 <div class="zapowiedz-offscreen" aria-live="assertive" id="zapowiedz"></div>
 
 </body>
