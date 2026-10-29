@@ -45,6 +45,13 @@ class Konfig:
     # rejestr wydanych map w pliku (skróty SHA-256 + identyfikatory, bez danych):
     # mapa przywraca się po restarcie programu; None = tylko w obrębie sesji (K4b pkt 7)
     rejestr_map: Path | None = None
+    # magazyn map (docs/MAPY-I-AKTUALIZACJE.md §2): automatyczny zapis zaszyfrowanej
+    # mapy z retencją w dniach; 0 = brak automatycznego zapisu (zostaje pobranie pliku)
+    mapy_retencja_dni: int = 30
+    mapy_katalog: Path | None = None  # None = katalog_danych()/"mapy" (podstawia create_app)
+    # przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu;
+    # dopiero ta opcja skreśla mapę z rejestru wydanych map (pobrane kopie przestają działać)
+    mapy_uniewaznij_pobrane: bool = False
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -95,6 +102,13 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         raise ValueError(
             f"NIEWIDKA_OBRAZY: nieznana polityka obrazów {obrazy!r}; dozwolone: {', '.join(POLITYKI_OBRAZOW)}"
         )
+    mapy = toml.get("mapy", {})
+    mapy_retencja_dni = _jako_int(env, "NIEWIDKA_MAPY_RETENCJA_DNI", int(mapy.get("retencja_dni", 30)))
+    if mapy_retencja_dni < 0:
+        raise ValueError(
+            f"NIEWIDKA_MAPY_RETENCJA_DNI: retencja nie może być ujemna, jest {mapy_retencja_dni}; "
+            "0 oznacza brak automatycznego zapisu map"
+        )
     host = env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1"))
     # K4b pkt 14: lokalne MVP nasłuchuje wyłącznie na loopbacku — nasłuch LAN
     # udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika (audyt pkt 14)
@@ -127,4 +141,10 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         timeout_s=_jako_int(env, "NIEWIDKA_TIMEOUT_S", int(limity.get("timeout_s", 120))),
         wykrywaj_date=_jako_bool(env.get("NIEWIDKA_WYKRYWAJ_DATE", detekcja.get("wykrywaj_date", True))),
         rejestr_map=_jako_sciezka(env, "NIEWIDKA_REJESTR_MAP"),
+        mapy_retencja_dni=mapy_retencja_dni,
+        mapy_katalog=_jako_sciezka(env, "NIEWIDKA_MAPY_KATALOG")
+        or (Path(mapy["katalog"]) if mapy.get("katalog") else None),
+        mapy_uniewaznij_pobrane=_jako_bool(
+            env.get("NIEWIDKA_MAPY_UNIEWAZNIJ_POBRANE", mapy.get("uniewaznij_pobrane", False))
+        ),
     )

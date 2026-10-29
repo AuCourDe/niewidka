@@ -229,3 +229,11 @@
   - [ ] „Jak to działa”: kilka lokalnych metod naraz zamiast jednego modelu (uczciwie: ile modeli jest naprawdę)
   - [ ] aktualizacje modeli: podpisany katalog pakietów, sprawdzanie ręczne i automatyczne, aktualizacja z zachowaniem poprzedniej wersji
   - [ ] testy: pytest, API, GUI web i okno (EXE przebudowany), raport do Desktop/C
+- [~] 07:54 (agent claude-glm przez szynę, w ramach 07:40) magazyn map z retencją + przywracanie przez wklejenie: TYLKO sekcje 1-3 i 8 (wiersze 2, 3, 9, 10) docs/MAPY-I-AKTUALIZACJE.md; sekcje 4-5 robi kto inny
+  - [ ] konfig: mapy_retencja_dni (30, 0 = brak zapisu, ujemna = ValueError), mapy_katalog, uniewaznij_pobrane (TOML [mapy] + env NIEWIDKA_MAPY_*)
+  - [ ] niewidka/magazyn.py: zapis/wczytaj/lista/usuń/usuń wszystkie/sprzątanie wygasłych, dziennik JSONL bez PII, zapis atomowy (wspólna funkcja z pakiety.py), walidacja id regexem (path traversal), jedna blokada, zegar wstrzyknięty
+  - [ ] api.py: zapis mapy w /api/ukryj (nagłówek x-niewidka-mapa-zapisana), /api/przywroc z tekst/wynik + opcjonalna mapa/identyfikator (dopisek wygrywa z polem; bez dopisku kandydaci tylko z kompletem znaczników; nic → 422 wybierz_mape), GET/DELETE /api/mapy; usunięcie/wygaśnięcie skreśla z rejestru TYLKO przy uniewaznij_pobrane
+  - [ ] okno.py: przygotuj_srodowisko ustawia NIEWIDKA_MAPY_KATALOG (setdefault)
+  - [ ] web: zakładka Przywróć (wklejenie odpowiedzi + lista Zadanie z GET /api/mapy), zdanie o zapisanej mapie na ekranie wyniku, sekcja Zapisane mapy w Ustawieniach, bez półpauz
+  - [ ] testy RED→GREEN (tests/test_magazyn.py + rozszerzenia), autouse fixture izolująca katalog danych w conftest
+  - [ ] bramka: pełny pytest (bazowo 560 passed, 1 xfailed) + ruff; raport /tmp/niew/raport-mapy.md
