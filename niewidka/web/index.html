@@ -368,6 +368,26 @@
       </div>
     </div>
 
+    <h3 class="naglowek-map">Stałe listy</h3>
+    <p class="podpowiedz">Listy działają przy każdym dokumencie. Wpisz jedno słowo lub fragment
+    w wierszu. Program rozpoznaje też odmiany, na przykład „Urzędu Miasta” dla „Urząd Miasta”.
+    Numerów PESEL, NIP i innych z sumą kontrolną nie można dodać do listy „Nigdy nie ukrywaj”.</p>
+    <p id="listy-administratora" class="podpowiedz" hidden></p>
+    <div class="listy-stale">
+      <div>
+        <label for="lista-zawsze">Zawsze ukrywaj</label>
+        <textarea id="lista-zawsze" class="lista-stala" spellcheck="false"
+                  placeholder="Na przykład nazwa referatu"></textarea>
+      </div>
+      <div>
+        <label for="lista-nigdy">Nigdy nie ukrywaj</label>
+        <textarea id="lista-nigdy" class="lista-stala" spellcheck="false"
+                  placeholder="Na przykład nazwa urzędu"></textarea>
+      </div>
+    </div>
+    <p><button type="button" id="zapisz-listy" class="przycisk-wtorny">Zapisz listy</button>
+      <span id="status-list" class="podpowiedz" aria-live="polite"></span></p>
+
     <h3 class="naglowek-map">Zapisane mapy</h3>
     <p id="okres-map" class="podpowiedz"></p>
     <ul id="lista-map-zapisanych" class="lista-mapy"></ul>

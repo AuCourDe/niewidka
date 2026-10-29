@@ -48,6 +48,7 @@ from niewidka.jakosc import opisy_ryzyka, r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
 from niewidka.konfig import Konfig, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
+from niewidka.listy import ListyStale
 from niewidka.magazyn import MagazynMap, kontekst_domyslny, wersje_pakietow
 from niewidka.mapa import WZORZEC_ZNACZNIKA, BladMapy, Mapa, odszyfruj, zaszyfruj
 from niewidka.pakiety import (
@@ -354,6 +355,8 @@ def create_app(
     if konfig.mapy_katalog is None:
         # magazyn map w katalogu danych użytkownika (przegląd Argona, docs/MAPY-I-AKTUALIZACJE.md §2)
         konfig = replace(konfig, mapy_katalog=katalog_danych() / "mapy")
+    if konfig.listy_plik is None:
+        konfig = replace(konfig, listy_plik=katalog_danych() / "listy.json")
     wstrzykniety = detektor
     if wstrzykniety is None:
         try:
@@ -394,6 +397,29 @@ def create_app(
 
     # wykrycia ostatnich zadań do poprawek w podglądzie: tylko RAM, krótko (§8 pkt 4)
     app.state.poprawki = PamiecWykryc(konfig.poprawki_maks_zadan, konfig.poprawki_ttl_s)
+    app.state.listy = ListyStale(
+        konfig.listy_plik, konfig.listy_zawsze, konfig.listy_nigdy, konfig.listy_tylko_administrator
+    )
+
+    def _popraw_z_listami(detekcje, ukryj_uzytkownika=(), nie_dane=(), zostaw=()):
+        """`popraw` z listami stałymi: „Zawsze ukrywaj” idzie przed listą użytkownika (stałe
+        numery znaczników), „Nigdy nie ukrywaj” jak „To nie dane”; jawne „Ukryj wszędzie”
+        użytkownika wygrywa z „Nigdy”. Zwraca też `wlasne` przeliczone na pozycje listy
+        użytkownika i znaczniki powstałe z listy „Zawsze”."""
+        listy = app.state.listy.razem()
+        nie_dane_razem = list(nie_dane) + [z for z in listy.znaczniki_nigdy(detekcje) if z not in nie_dane]
+        wynik, mapa, raport, wlasne = popraw(
+            detekcje,
+            listy.zawsze + list(ukryj_uzytkownika),
+            nie_dane_razem,
+            list(zostaw) + [f for f in listy.nigdy if f not in zostaw],
+            kontrola_blokada=konfig.kontrola_blokada,
+            wykrywaj_date=konfig.wykrywaj_date,
+        )
+        n = len(listy.zawsze)
+        z_listy = sorted(z for z, i in wlasne.items() if i < n)
+        wlasne = {z: i - n for z, i in wlasne.items() if i >= n}
+        return wynik, mapa, raport, wlasne, z_listy
     app.state.magazyn = MagazynMap(
         konfig.mapy_katalog, retencja_dni=konfig.mapy_retencja_dni, kontekst=_kontekst_dziennika
     )
@@ -476,13 +502,13 @@ def create_app(
         """Token sesji + Host/Origin dla POST-ów i DELETE-ów /api/ oraz GET-ów
         pakietów/stanu/map (K7c pkt 5: status pakietów bywa nośnikiem sekreta
         z lustra); limity przed buforowaniem treści."""
-        strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy", "/api/aktualizacje")
+        strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy", "/api/aktualizacje", "/api/listy")
         # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
         # (Codex 2026-10-29: GET / z obcym Host oddawał token — DNS rebinding)
         if (request.headers.get("host") or "").split(":")[0] not in hosty:
             return JSONResponse({"blad": "niedozwolony Host"}, status_code=403)
         if (
-            request.method in ("POST", "DELETE") and request.url.path.startswith("/api/")
+            request.method in ("POST", "PUT", "DELETE") and request.url.path.startswith("/api/")
         ) or (request.method == "GET" and request.url.path in strazliwe_gety):
             host = (request.headers.get("host") or "").split(":")[0]
             origin = request.headers.get("origin")
@@ -787,12 +813,19 @@ def create_app(
                 max_rozpakowane_bajtow=konfig.max_rozpakowane_mb * _MB,
                 polityka_obrazow=konfig.obrazy,
             )
-            return wynik, mapa, raport, zaszyfruj(mapa, klucz)
+            zadanie = mapa.identyfikator
+            detekcje = raport.detekcje
+            listy = app.state.listy.razem()
+            z_listy = None
+            if detekcje is not None and (listy.zawsze or listy.znaczniki_nigdy(detekcje) or listy.nigdy):
+                # listy stałe jak poprawka od razu po ukryciu (model nie jest wołany ponownie)
+                wynik, mapa, raport, _, z_listy = _popraw_z_listami(detekcje)
+            return wynik, mapa, raport, zaszyfruj(mapa, klucz), zadanie, detekcje, z_listy
 
-        wynik, mapa, raport, mapa_paczka = await app.state.kolejka.wykonaj(praca)
+        wynik, mapa, raport, mapa_paczka, zadanie, detekcje, z_listy = await app.state.kolejka.wykonaj(praca)
         # zadanie = identyfikator mapy bazowej; poprawki liczą się zawsze od tych wykryć
-        app.state.poprawki.zapamietaj(mapa.identyfikator, raport.detekcje)
-        return _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, mapa.identyfikator)
+        app.state.poprawki.zapamietaj(zadanie, detekcje)
+        return _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, z_listy=z_listy)
 
     def _miejsca_do_decyzji(raport, wynik: bytes, format: str) -> tuple[list[dict], str | None]:
         """Lista miejsc wątpliwych (fragment + pozycja w podglądzie) i podgląd tekstu.
@@ -818,7 +851,9 @@ def create_app(
             miejsce["wystapien"] += 1
         return list(zebrane.values()), podglad
 
-    def _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None) -> Response:
+    def _wydaj_wynik(
+        wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None, z_listy=None
+    ) -> Response:
         """Wspólne dla /api/ukryj i /api/popraw: blokada (422 z miejscami do decyzji) albo
         zapis mapy przed odpowiedzią i paczka ZIP z nagłówkami."""
         if raport.status == "zablokowany":
@@ -862,6 +897,9 @@ def create_app(
         if wlasne is not None:
             # znacznik → numer pozycji „ukryj", z której powstał (UI cofa je zamiast „To nie dane")
             naglowki["x-niewidka-wlasne"] = _json_naglowek(wlasne)
+        if z_listy:
+            # znaczniki z listy „Zawsze ukrywaj” (UI odsyła do Ustawień zamiast „To nie dane”)
+            naglowki["x-niewidka-z-listy"] = _json_naglowek(z_listy)
         if mapa_zapisana is not None:
             naglowki["x-niewidka-mapa-zapisana"] = (
                 mapa_zapisana if isinstance(mapa_zapisana, str) else mapa_zapisana.isoformat()
@@ -890,19 +928,15 @@ def create_app(
 
         def praca():
             klucz = pobierz_klucz(konfig)
-            wynik, mapa, raport, wlasne = popraw(
-                detekcje,
-                lista_ukryj,
-                lista_nie_dane,
-                lista_zostaw,
-                kontrola_blokada=konfig.kontrola_blokada,
-                wykrywaj_date=konfig.wykrywaj_date,
+            wynik, mapa, raport, wlasne, z_listy = _popraw_z_listami(
+                detekcje, lista_ukryj, lista_nie_dane, lista_zostaw
             )
-            return wynik, mapa, raport, zaszyfruj(mapa, klucz), wlasne
+            return wynik, mapa, raport, zaszyfruj(mapa, klucz), wlasne, z_listy
 
-        wynik, mapa, raport, mapa_paczka, wlasne = await app.state.kolejka.wykonaj(praca)
+        wynik, mapa, raport, mapa_paczka, wlasne, z_listy = await app.state.kolejka.wykonaj(praca)
         odpowiedz = _wydaj_wynik(
-            wynik, mapa, raport, mapa_paczka, f"tekst.{detekcje.format}", detekcje.format, zadanie, wlasne
+            wynik, mapa, raport, mapa_paczka, f"tekst.{detekcje.format}", detekcje.format, zadanie, wlasne,
+            z_listy,
         )
         try:  # tylko liczby pozycji, bez treści (dziennik audytu)
             app.state.magazyn.odnotuj(
@@ -1084,6 +1118,36 @@ def create_app(
                     usuniete.append(wpis["identyfikator"])
             _skresl_z_rejestru(usuniete)
         return JSONResponse({"usunieto": len(usuniete)})
+
+    def _listy_odpowiedz() -> dict:
+        listy = app.state.listy
+        uzytkownik = listy.uzytkownika()
+        return {
+            "zawsze": uzytkownik.zawsze,
+            "nigdy": uzytkownik.nigdy,
+            "administrator": {"zawsze": listy.admin.zawsze, "nigdy": listy.admin.nigdy},
+            "tylko_administrator": listy.tylko_administrator,
+        }
+
+    @app.get("/api/listy")
+    async def endpoint_listy() -> dict:
+        """Listy stałe: użytkownika (edytowalna) i administratora (tylko do odczytu)."""
+        return _listy_odpowiedz()
+
+    @app.put("/api/listy")
+    async def endpoint_zapisz_listy(request: Request) -> dict:
+        try:
+            tresc = await request.json()
+        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
+            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        if not isinstance(tresc, dict):
+            raise HTTPException(status_code=422, detail="oczekiwano obiektu z polami zawsze i nigdy")
+        try:
+            listy = app.state.listy.zapisz(tresc.get("zawsze"), tresc.get("nigdy"))
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="listy ustawia administrator") from None
+        logger.info("listy stałe zapisane: zawsze %d, nigdy %d", len(listy.zawsze), len(listy.nigdy))
+        return _listy_odpowiedz()
 
     @app.get("/api/stan")
     async def endpoint_stan() -> dict:

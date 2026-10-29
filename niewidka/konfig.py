@@ -56,6 +56,12 @@ class Konfig:
     poprawki_maks_zadan: int = 4
     poprawki_ttl_s: int = 900
     aktualizacje_tryb: str | None = None
+    # listy stałe (niewidka/listy.py): plik użytkownika (None = katalog_danych()/"listy.json"),
+    # lista administratora i blokada edycji przez użytkownika
+    listy_plik: Path | None = None
+    listy_zawsze: tuple[str, ...] = ()
+    listy_nigdy: tuple[str, ...] = ()
+    listy_tylko_administrator: bool = False
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -116,6 +122,7 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         )
     mapy = toml.get("mapy", {})
     poprawki = toml.get("poprawki", {})
+    listy = toml.get("listy", {})
     mapy_retencja_dni = _jako_int(env, "NIEWIDKA_MAPY_RETENCJA_DNI", int(mapy.get("retencja_dni", 30)))
     if mapy_retencja_dni < 0:
         raise ValueError(
@@ -165,4 +172,11 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         ),
         poprawki_ttl_s=_jako_int(env, "NIEWIDKA_POPRAWKI_TTL_S", int(poprawki.get("ttl_s", 900))),
         aktualizacje_tryb=aktualizacje_tryb,
+        listy_plik=_jako_sciezka(env, "NIEWIDKA_LISTY_PLIK")
+        or (Path(listy["plik"]) if listy.get("plik") else None),
+        listy_zawsze=tuple(listy.get("zawsze", ())),
+        listy_nigdy=tuple(listy.get("nigdy", ())),
+        listy_tylko_administrator=_jako_bool(
+            env.get("NIEWIDKA_LISTY_TYLKO_ADMINISTRATOR", listy.get("tylko_administrator", False))
+        ),
     )

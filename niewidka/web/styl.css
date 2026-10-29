@@ -676,3 +676,6 @@ progress {
 @media (max-width: 480px) {
   .pakiet-naglowek { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
 }
+
+.listy-stale { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin: 0.5rem 0; }
+.lista-stala { min-height: 7rem; }

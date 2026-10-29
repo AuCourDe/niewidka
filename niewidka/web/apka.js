@@ -474,11 +474,11 @@ const TYPY_Z_SUMA = ["PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"];
 const MAKS_POZYCJI = 200;
 const MAKS_ZNAKOW = 200;
 
-let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, miejsca: [], trwa: false };
+let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, zListy: [], miejsca: [], trwa: false };
 let zaznaczone = "";
 
 function nowePoprawki(zadanie) {
-  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, miejsca: [], trwa: false };
+  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], wlasne: {}, zListy: [], miejsca: [], trwa: false };
   document.getElementById("komunikat-poprawek").textContent = "";
   zamknijAkcjeZnacznika();
   ukryjPlywajacy();
@@ -512,11 +512,20 @@ function rysujPoprawki() {
     cofnij.setAttribute("aria-label", `Cofnij poprawkę. ${pozycja.opis}`);
     cofnij.addEventListener("click", () => przelicz(() => poprawki[pozycja.tablica].splice(pozycja.i, 1)));
     wiersz.append(opis, cofnij);
+    if (pozycja.tablica === "ukryj" && !listyStale.tylko_administrator) {
+      const naStale = document.createElement("button");
+      naStale.type = "button";
+      naStale.className = "linkowy";
+      naStale.textContent = "Ukrywaj zawsze";
+      naStale.setAttribute("aria-label", `Dodaj do listy Zawsze ukrywaj. ${pozycja.opis}`);
+      naStale.addEventListener("click", () => dodajDoListy("zawsze", poprawki.ukryj[pozycja.i]));
+      wiersz.append(naStale);
+    }
     lista.append(wiersz);
   }
 }
 
-async function przelicz(zmiana) {
+async function przelicz(zmiana, dodanyFragment = null) {
   if (!poprawki.zadanie || poprawki.trwa) return;
   const kopia = JSON.parse(JSON.stringify(poprawki));
   zmiana();
@@ -537,10 +546,18 @@ async function przelicz(zmiana) {
     const czesci = await otworzZip(await odpowiedz.blob());
     if (mojaKolejna !== licznikZlecen) return;
     poprawki.wlasne = JSON.parse(odpowiedz.headers.get("x-niewidka-wlasne") || "{}");
+    poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "[]");
     poprawki.miejsca = [];
     document.getElementById("wynik").hidden = false;
     pokazWynik(odpowiedz.headers, czesci);
-    komunikatPoprawek("Tekst się zmienił. Skopiuj go ponownie.");
+    // „Ukryj wszędzie” bez nowego znacznika: fragment był już ukryty albo go nie ma w tekście
+    const ostatni = poprawki.ukryj.length - 1;
+    if (dodanyFragment !== null && poprawki.ukryj[ostatni] === dodanyFragment
+      && !Object.values(poprawki.wlasne).includes(ostatni)) {
+      komunikatPoprawek(`„${dodanyFragment}” było już ukryte albo nie ma go w tekście jako osobnego słowa. Tekst się nie zmienił.`);
+    } else {
+      komunikatPoprawek("Tekst się zmienił. Skopiuj go ponownie.");
+    }
   } catch (blad) {
     if (mojaKolejna !== licznikZlecen) return;
     if (blad.status === 410) {
@@ -579,7 +596,7 @@ function dodajUkryj(fragment) {
     komunikatPoprawek("Ten fragment już ukryto.");
     return;
   }
-  przelicz(() => poprawki.ukryj.push(tekst));
+  przelicz(() => poprawki.ukryj.push(tekst), tekst);
 }
 
 /* pływający przycisk przy zaznaczeniu (mysz) */
@@ -633,6 +650,12 @@ function pokazAkcjeZnacznika(znacznik) {
   if (znacznik in poprawki.wlasne) {
     przycisk.textContent = "Cofnij tę poprawkę";
     przycisk.onclick = () => przelicz(() => poprawki.ukryj.splice(poprawki.wlasne[znacznik], 1));
+  } else if (poprawki.zListy.includes(znacznik)) {
+    przycisk.textContent = "To nie dane osobowe";
+    przycisk.disabled = true;
+    wyjasnienie.textContent = "Ten fragment jest na liście „Zawsze ukrywaj”. Zmienisz to w Ustawieniach, "
+      + "w części Stałe listy.";
+    przycisk.setAttribute("aria-describedby", "akcja-znacznika-wyjasnienie");
   } else if (TYPY_Z_SUMA.includes(typ)) {
     przycisk.textContent = "To nie dane osobowe";
     przycisk.disabled = true;
@@ -898,6 +921,7 @@ function inicjalizujUkrywanie() {
       const czesci = await otworzZip(await odpowiedz.blob());
       document.getElementById("wynik").hidden = false;
       nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
+      poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "[]");
       pokazWynik(odpowiedz.headers, czesci);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
@@ -1057,6 +1081,85 @@ function inicjalizujPrzywracanie() {
   document.getElementById("kopiuj-przywrocony").addEventListener("click", async (zdarzenie) => {
     await skopiujDoSchowka(tekstPrzywroconego, zdarzenie.currentTarget);
   });
+}
+
+/* ---------- stałe listy „Zawsze ukrywaj” / „Nigdy nie ukrywaj” ---------- */
+
+let listyStale = { zawsze: [], nigdy: [], administrator: { zawsze: [], nigdy: [] }, tylko_administrator: false };
+
+function wierszeListy(id) {
+  return document.getElementById(id).value.split("\n").map((w) => w.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+
+function rysujListy() {
+  document.getElementById("lista-zawsze").value = listyStale.zawsze.join("\n");
+  document.getElementById("lista-nigdy").value = listyStale.nigdy.join("\n");
+  const blokada = listyStale.tylko_administrator;
+  for (const id of ["lista-zawsze", "lista-nigdy", "zapisz-listy"]) document.getElementById(id).disabled = blokada;
+  const admin = listyStale.administrator;
+  const opis = document.getElementById("listy-administratora");
+  const czesci = [];
+  if (admin.zawsze.length) czesci.push(`zawsze ukrywane: ${admin.zawsze.join(", ")}`);
+  if (admin.nigdy.length) czesci.push(`nigdy nieukrywane: ${admin.nigdy.join(", ")}`);
+  if (blokada) czesci.push("listy może zmieniać tylko administrator");
+  opis.textContent = czesci.length ? `Ustawione przez administratora: ${czesci.join("; ")}.` : "";
+  opis.hidden = czesci.length === 0;
+}
+
+async function odswiezListy() {
+  try {
+    const odpowiedz = await fetch("/api/listy", { headers: NAGLOWKI });
+    if (!odpowiedz.ok) return;
+    listyStale = await odpowiedz.json();
+  } catch {
+    return;
+  }
+  rysujListy();
+  rysujPoprawki();
+}
+
+async function zapiszListy(zawsze, nigdy) {
+  const status = document.getElementById("status-list");
+  try {
+    const odpowiedz = await fetch("/api/listy", {
+      method: "PUT",
+      headers: { ...NAGLOWKI, "Content-Type": "application/json" },
+      body: JSON.stringify({ zawsze, nigdy }),
+    });
+    const dane = await odpowiedz.json().catch(() => ({}));
+    if (!odpowiedz.ok) {
+      status.textContent = `Nie zapisano. ${dane.blad || dane.detail || ""}`.trim();
+      zapowiedz(status.textContent);
+      return false;
+    }
+    listyStale = dane;
+    rysujListy();
+    status.textContent = "Zapisano. Listy działają od następnego ukrycia.";
+    zapowiedz(status.textContent);
+    return true;
+  } catch {
+    status.textContent = "Nie zapisano. Program nie odpowiada.";
+    return false;
+  }
+}
+
+async function dodajDoListy(ktora, fragment) {
+  if (listyStale[ktora].includes(fragment)) {
+    komunikatPoprawek(`„${fragment}” już jest na liście „Zawsze ukrywaj”.`);
+    return;
+  }
+  const nowe = { zawsze: [...listyStale.zawsze], nigdy: listyStale.nigdy.filter((f) => f !== fragment) };
+  nowe[ktora].push(fragment);
+  if (await zapiszListy(nowe.zawsze, nowe.nigdy)) {
+    komunikatPoprawek(`„${fragment}” będzie ukrywane w każdym kolejnym dokumencie. Listę zmienisz w Ustawieniach.`);
+  } else {
+    komunikatPoprawek(document.getElementById("status-list").textContent);
+  }
+}
+
+function inicjalizujListy() {
+  document.getElementById("zapisz-listy").addEventListener("click", () =>
+    zapiszListy(wierszeListy("lista-zawsze"), wierszeListy("lista-nigdy")));
 }
 
 /* ---------- zapisane mapy (docs/MAPY-I-AKTUALIZACJE.md §1-2) ---------- */
@@ -1554,11 +1657,13 @@ inicjalizujPoprawki();
 inicjalizujPrzywracanie();
 inicjalizujPakiety();
 inicjalizujMapy();
+inicjalizujListy();
 inicjalizujAktualizacje();
 budujListeTypow();
 wczytajStan();
 odswiezPakiety();
 odswiezMapy();
+odswiezListy();
 odswiezAktualizacje();
 /* Ekran pierwszego uruchomienia znika sam, gdy pakiet pojawi się z zewnątrz
    (IT instaluje z katalogu albo drugie okno pobiera): lekki odpyt tylko,
