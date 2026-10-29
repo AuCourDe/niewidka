@@ -40,3 +40,44 @@ ale Astra sprawdziła: to nazwa portfela kryptowalutowego — odrzucone. Repo: `
 - „Włamanie nic nie ujawni” jest niewykonalne absolutnie — przejęty proces z prawem odszyfrowania mapy odczyta ją. Ograniczamy: mapa szyfrowana, klucz poza aplikacją, brak logów treści, brak telemetrii, brak połączeń sieciowych podczas przetwarzania.
 - Serwer: ograniczona kolejka, **jeden proces inferencji**, model ładowany raz.
 - Tryb w UI jawny: „Na tym urządzeniu” / „Na serwerze organizacji” (drugi = oryginał idzie przez LAN).
+
+## Konsultacja logiki aplikacji (2026-10-29, `docs/LOGIKA.md`, commit 8e62ba5)
+
+Argon (Gemini „4 Argon”) i Astra (ChatGPT, GPT-6 Astra, bez danych klienta) dostali ten sam opis logiki
+i 4 pytania. Każde twierdzenie sprawdzone w kodzie, zanim trafiło do planu.
+
+### Sprawdzone w kodzie
+
+| Uwaga | Kto | Stan po sprawdzeniu |
+|---|---|---|
+| Przywracanie odpowiedzi AI pada, bo czat nie powtarza dopisku z identyfikatorem mapy | obaj | **Potwierdzone i naprawione** `a84946f`: brak dopisku = przywrócenie z ostrzeżeniem, dopisek innej mapy = odmowa |
+| DOCX: komentarze, historia zmian, metadane wyciekną | obaj | **Nieaktualne**: `formaty/docx_.py` usuwa `word/comments`, `w:del`, `docProps/*`, autorów rewizji; opis w LOGIKA.md tego nie mówił |
+| AI zgubi przyrostek `_F1` | Argon | **Obsłużone**: znacznik bez wariantu wraca w formie domyślnej (`mapa.przygotuj_zamiany`) |
+| Wariant F odtwarza dawną odmianę, nie dobiera jej do nowego zdania | obaj | **Prawda**, ograniczenie znane; dobór odmiany do kontekstu = osobny projekt |
+| „Później” przy wymaganym pakiecie | Argon | Do sprawdzenia w UI: suwak zostaje bez modelu, pierwsze „Ukryj” musi jasno mówić, czego brakuje |
+
+### Zgodne obu konsultantów (kandydaci do następnego etapu)
+
+1. **Blokada: pokazać podgląd z zaznaczonym miejscem wątpliwym**, „Kopiuj/Pobierz” wyłączone do decyzji
+   („Ukryj ten fragment” / „Zostaw, to nie dane osobowe”). Bez uniwersalnego „wyślij mimo wszystko”.
+2. **Ręczna korekta w podglądzie**: zaznacz słowo → „Ukryj też to (wszędzie)”; klik w plakietkę → „To nie są dane osobowe”.
+3. **Mapa zapisywana automatycznie** (szyfrowana, z okresem przechowywania) i **przywracanie przez samo wklejenie**
+   odpowiedzi; Astra: dobór mapy jednoznacznie po znacznikach, nie „ostatnia użyta”; identyfikator w każdym znaczniku.
+4. **Jeden zalecany tryb domyślny** zamiast suwaka 3 poziomów (sprzeczne z zamówieniem właściciela → decyzja właściciela).
+5. **Ryzyko bez żargonu**: zamiast „górna granica 95%, 1 na 14” zadanie: „Ukryto 18 informacji. Przejrzyj przed wysłaniem”.
+6. Astra: „ZANONIMIZOWANY” to w rozumieniu EROD pseudonimizacja (odwracalna) → np. „DANE UKRYTE” (dopisek zamówił właściciel → jego decyzja).
+
+### Brakujące typy danych (obaj, scalone)
+
+Księga wieczysta (format i cyfra kontrolna), sygnatury akt (sąd, komornik, prokuratura), paszport, karta pobytu,
+prawo jazdy, numer PWZ i wpisu na listę adwokatów/radców, numery polis, umów, klienta, pracownika, faktur,
+działka ewidencyjna i obręb, IMEI i numery seryjne, VIN, rejestracja, KRS, adres e-Doręczeń i skrytka ePUAP,
+hasła/PIN-y/tokeny, kody ICD-10 (dane szczególnej kategorii), symbole niepełnosprawności, nazwy JDG zawierające
+nazwisko, kwoty i daty słownie. Astra: IP i SWIFT regułami już w pakiecie podstawowym.
+
+### Pozostałe uwagi
+
+- Astra: wersja web w organizacji wymaga uwierzytelnienia użytkowników, izolacji ich map i HTTPS; token strony tego nie zastępuje.
+- Astra: kontrola tym samym detektorem nie jest niezależna; „0 blokad na 8 pismach” nic nie mówi o wyciekach (wycieki mierzy `testy_e2e`).
+- Argon: doliczanie słów z wielkiej litery do osoby potrafi wciągnąć nazwę urzędu; lista słów zatrzymujących (Urzędu, Sądu, Miasta, Prezes…).
+- Astra: niepoprawna suma kontrolna powinna obniżać pewność, nie wykluczać maskowania (u nas „pułapka” z błędną sumą i tak jest maskowana).

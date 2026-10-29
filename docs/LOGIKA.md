@@ -66,6 +66,8 @@ Użytkownik podaje tekst albo plik z odpowiedzią AI (ze znacznikami) i plik map
 2. identyfikator w dopisku zgadza się z identyfikatorem mapy;
 3. mapa daje się odszyfrować kluczem.
 
+Gdy w tekście nie ma dopisku (zwykła odpowiedź czatu AI go nie powtarza), program przywraca dane i ostrzega, że zgodności mapy nie sprawdził. Dopisek z identyfikatorem innej mapy oznacza odmowę.
+
 Potem program zamienia znaczniki na oryginały, z właściwą formą fleksyjną dla wariantu F. Raport rozbieżności obejmuje znacznik bez wpisu w mapie i wpis niewykorzystany.
 
 ## Bezpieczeństwo
@@ -74,6 +76,7 @@ Potem program zamienia znaczniki na oryginały, z właściwą formą fleksyjną 
 - Kontrola nagłówków Host i Origin (ochrona przed DNS rebinding i CSRF).
 - Nasłuch tylko na loopbacku.
 - Limity rozmiaru, rozpakowania (zip bomb) i kolejki.
+- DOCX: komentarze, usunięte zmiany (`w:del`), autorzy rewizji, miniatura i właściwości dokumentu są usuwane przed analizą.
 - DOCX z makrami jest odrzucany. Obrazy są domyślnie usuwane, bo bez OCR nie da się ich sprawdzić.
 - Logi i odpowiedzi błędów nie zawierają treści dokumentów ani nazw plików.
 
