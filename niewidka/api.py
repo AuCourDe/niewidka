@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -69,6 +70,7 @@ from niewidka.rdzen import (
     ukryj,
     zbuduj_detektor,
 )
+from niewidka.zdalny import SerwerModeliNiedostepny, ZdalnyDetektor, stan_serwera, zbuduj_klienta
 
 logger = logging.getLogger("niewidka.api")
 
@@ -234,11 +236,12 @@ class Kolejka:
     maks: int
     timeout_s: int
     czekajacy: int = 0
+    rownolegle: int = 1  # serwer inferencji: tyle prac naraz; aplikacja użytkownika zostaje przy 1
     _semafor: asyncio.Semaphore | None = None
 
     def _slot(self) -> asyncio.Semaphore:
         if self._semafor is None:  # tworzone w pętli zdarzeń, która pierwsza użyje
-            self._semafor = asyncio.Semaphore(1)
+            self._semafor = asyncio.Semaphore(self.rownolegle)
         return self._semafor
 
     async def wykonaj(self, praca, timeout_s: int | None = None):
@@ -339,11 +342,14 @@ def create_app(
     konfig: Konfig | None = None,
     detektor: Any = None,
     menedzer_pakietow: MenedzerPakietow | None = None,
+    klient_inferencji: httpx.Client | None = None,
 ) -> FastAPI:
     """Aplikacja API; `detektor` wstrzyknięty (testy/desktop) albo z wag
     (NIEWIDKA_MODELE_KATALOG). K7b: brak wag NIE zabija startu — aplikacja wstaje,
     a ukrywanie odpowiada 409 z listą brakujących pakietów (ekran pierwszego
-    uruchomienia prowadzi do pobrania); `menedzer_pakietow` wstrzykiwany w testach."""
+    uruchomienia prowadzi do pobrania); `menedzer_pakietow` wstrzykiwany w testach.
+    `[inferencja] adres` = wykrywanie na centralnym serwerze (`klient_inferencji`
+    wstrzykiwany w testach); błędy konfiguracji klienta przerywają start."""
     konfig = konfig or wczytaj_konfig()
     if konfig.modele_katalog is None:
         # jedna ścieżka dla menedżera pakietów i detektora (przegląd Codex 2026-10-29):
@@ -358,7 +364,10 @@ def create_app(
     if konfig.listy_plik is None:
         konfig = replace(konfig, listy_plik=katalog_danych() / "listy.json")
     wstrzykniety = detektor
-    if wstrzykniety is None:
+    if konfig.inferencja_adres and klient_inferencji is None:
+        klient_inferencji = zbuduj_klienta(konfig)
+    zdalny = bool(konfig.inferencja_adres)
+    if wstrzykniety is None and not zdalny:
         try:
             wstrzykniety = zbuduj_detektor(konfig.poziom, konfig)
         except Exception:  # noqa: BLE001 — brak pakietu/wag: łagodny start (patrz wyżej)
@@ -378,8 +387,9 @@ def create_app(
     # klucz (poziom, pakiet Rozszerzony zainstalowany): wstrzyknięty detektor obsługuje
     # wszystkie; produkcyjnie cache leniwy. Startowy zbudowano bez pakietu Rozszerzonego.
     app.state.detektory: dict[tuple[int, bool], Any] = (
-        {} if detektor is not None else {(konfig.poziom, False): wstrzykniety}
+        {} if detektor is not None or zdalny else {(konfig.poziom, False): wstrzykniety}
     )
+    app.state.klient_inferencji = klient_inferencji if zdalny else None
     app.state.kolejka = Kolejka(maks=konfig.kolejka, timeout_s=konfig.timeout_s)
     app.state.identyfikatory: set[str] = set()
     # K4b pkt 7: skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
@@ -473,6 +483,11 @@ def create_app(
         poziom 3 dostaje zweryfikowany stan pakietu Rozszerzonego z menedżera."""
         if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
             return detektor
+        if zdalny:  # serwer inferencji: bez lokalnych wag i pakietów, więc bez 409
+            return app.state.detektory.setdefault(
+                (poziom, False),
+                ZdalnyDetektor(poziom, app.state.klient_inferencji, konfig.wykrywaj_date),
+            )
         # stan pakietu w kluczu: detektor ze stanu sprzed weryfikacji po starcie
         # (bez zwrotu zmiany) nie zostaje w cache dla poziomu 3 (odbiór K7c)
         rozszerzony = poziom == 3 and app.state.pakiety.stan_pakietu("rozszerzony") == "zainstalowany"
@@ -633,6 +648,15 @@ def create_app(
             headers={"retry-after": str(konfig.timeout_s)},
         )
 
+    @app.exception_handler(SerwerModeliNiedostepny)
+    async def _serwer_modeli_niedostepny(request: Request, blad: SerwerModeliNiedostepny):
+        # fail-closed: bez serwera nie ma wyniku; komunikat nie niesie treści dokumentu
+        return JSONResponse(
+            {"blad": str(blad), "kod": "serwer_modeli"},
+            status_code=503,
+            headers={"retry-after": "5"},
+        )
+
     @app.exception_handler(BrakWymaganegoPakietu)
     async def _brak_wymaganego_pakietu(request: Request, blad: BrakWymaganegoPakietu):
         # K7b: poziom bez wymaganego pakietu = jasny błąd z listą pakietów do pobrania
@@ -654,6 +678,29 @@ def create_app(
     async def _blad_aktualizacji(request: Request, blad: BladAktualizacji):
         return JSONResponse({"blad": str(blad)}, status_code=422)
 
+    async def _stan_serwera_inferencji() -> dict | None:
+        """Stan serwera inferencji (None = modele lokalne). Nieosiągalny serwer nie
+        przewraca /api/stan: interfejs dostaje `dostepny: false` i brak poziomów."""
+        if not zdalny:
+            return None
+        try:
+            stan = await asyncio.to_thread(stan_serwera, app.state.klient_inferencji)
+        except SerwerModeliNiedostepny as blad:
+            return {"adres": konfig.inferencja_adres, "dostepny": False, "blad": str(blad)}
+        poziomy = [p for p in stan.get("poziomy", []) if p in _POZIOMY]
+        return {
+            "adres": konfig.inferencja_adres,
+            "dostepny": True,
+            "poziomy": poziomy,
+            "urzadzenie": stan.get("urzadzenie"),
+            "wersja": stan.get("wersja"),
+        }
+
+    async def _poziomy_dostepne(serwer: dict | None) -> list[int]:
+        if serwer is None:
+            return app.state.pakiety.poziomy_dostepne()
+        return serwer.get("poziomy", [])
+
     @app.get("/api/pakiety")
     async def endpoint_pakiety() -> dict:
         """Stan pakietów + postęp bieżącej operacji (K7b); bez tokena: dane
@@ -661,7 +708,7 @@ def create_app(
         pakiety_stan = app.state.pakiety
         odpowiedz = {
             "pakiety": pakiety_stan.lista(),
-            "poziomy_dostepne": pakiety_stan.poziomy_dostepne(),
+            "poziomy_dostepne": await _poziomy_dostepne(await _stan_serwera_inferencji()),
             "postep": {
                 "pakiet": pakiety_stan.postep.pakiet,
                 "pobrane": pakiety_stan.postep.pobrane,
@@ -1162,6 +1209,7 @@ def create_app(
 
     @app.get("/api/stan")
     async def endpoint_stan() -> dict:
+        serwer = await _stan_serwera_inferencji()
         czesci = getattr(app.state.detektor, "czesci", None) if app.state.detektor else None
         modele = [c.nazwa for c in czesci] if czesci else (
             [app.state.detektor.nazwa] if app.state.detektor else []
@@ -1171,7 +1219,9 @@ def create_app(
             "modele": modele,
             "poziom": konfig.poziom,
             "poziomy": list(_POZIOMY),  # dostępne poziomy suwaka
-            "poziomy_dostepne": app.state.pakiety.poziomy_dostepne(),  # K7b: z pakietami
+            # K7b: z pakietami; przy serwerze inferencji poziomy zgłasza serwer
+            "poziomy_dostepne": await _poziomy_dostepne(serwer),
+            "inferencja": serwer,  # None = modele lokalne
             "r95": r95_poziomy(),  # R95 per poziom — interfejs pokazuje dla wybranego
             "limity": {
                 "rozmiar_mb": konfig.max_rozmiar_mb,

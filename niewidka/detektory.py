@@ -109,6 +109,7 @@ class OnnxDetektor:
         provider: str = "CPUExecutionProvider",
         próg: float | None = None,
         pół_krok: bool = False,
+        watki: int = 0,
     ):
         self.nazwa = nazwa
         self.etykiety = etykiety
@@ -162,7 +163,12 @@ class OnnxDetektor:
                 # K7c pkt 3 (audyt): sesja otwierana z bajtów — te same, które
                 # przeszły weryfikację SHA (brak okna sprawdź-użyj na dysku)
                 model_bajty = model if isinstance(model, bytes) else Path(model).read_bytes()
-                sesja = ort.InferenceSession(model_bajty, providers=[provider])
+                argumenty: dict = {}
+                if watki > 0:  # 0 = decyduje onnxruntime (serwer inferencji: [modele] watki)
+                    opcje = ort.SessionOptions()
+                    opcje.intra_op_num_threads = watki
+                    argumenty["sess_options"] = opcje
+                sesja = ort.InferenceSession(model_bajty, providers=[provider], **argumenty)
             wejscia = (
                 [i.name for i in sesja.get_inputs()]
                 if hasattr(sesja, "get_inputs")
@@ -294,6 +300,7 @@ def wczytaj_bardsai(
     próg: float | None = None,
     pół_krok: bool = False,
     katalog_pakietow: Path | None = None,
+    watki: int = 0,
 ) -> OnnxDetektor:
     """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14).
 
@@ -320,6 +327,7 @@ def wczytaj_bardsai(
             próg=próg,
             pół_krok=pół_krok,
             laduj_manifest=False,
+            watki=watki,
         )
     except BladPakietu as blad:
         raise BladDetektora(f"pakiet Podstawowy: {blad}") from blad
@@ -397,6 +405,7 @@ def wczytaj_lfm25(
     krok: int = 448,
     rozszerzony: bool = False,
     katalog_pakietow: Path | None = None,
+    watki: int = 0,
 ) -> OnnxDetektor:
     """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`, K2b).
 
@@ -425,6 +434,7 @@ def wczytaj_lfm25(
                 krok=krok,
                 provider=provider,
                 laduj_manifest=False,
+                watki=watki,
             )
         except BladPakietu as blad:
             raise BladDetektora(f"pakiet Rozszerzony: {blad}") from blad
@@ -438,6 +448,7 @@ def wczytaj_lfm25(
         okno=okno,
         krok=krok,
         provider=provider,
+        watki=watki,
     )
 
 
@@ -482,6 +493,7 @@ def zbuduj_poziom(
     próg_osoba: float = PROG_OSOBA_DOMYSLNY,
     reguly: Detektor | None = None,
     pakiet_rozszerzony: bool = False,
+    watki: int = 0,
 ) -> Detektor:
     """Poziomy produktu (suwak jakości, K2d) — JEDYNA funkcja składająca poziom;
     używa jej rdzeń (`rdzen.zbuduj_detektor`) i pomiar (`narzedzia.pomiar`), więc
@@ -503,6 +515,7 @@ def zbuduj_poziom(
         provider=provider,
         próg=None if poziom == 1 else próg_osoba,
         pół_krok=poziom > 1,
+        watki=watki,
     )
     if poziom == 1:
         return DetektorKompozyt("poziom1", [warstwa_regul, model])
@@ -519,7 +532,9 @@ def zbuduj_poziom(
         "poziom3+rozszerzony",
         podstawa=[poziom3],
         uzup=BezSwiftWNaglowku(
-            wczytaj_lfm25(katalog, wariant="q4-bl32", provider=provider, rozszerzony=True)
+            wczytaj_lfm25(
+                katalog, wariant="q4-bl32", provider=provider, rozszerzony=True, watki=watki
+            )
         ),
         typy_uzup=frozenset(
             {TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}

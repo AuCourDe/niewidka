@@ -62,6 +62,15 @@ class Konfig:
     listy_zawsze: tuple[str, ...] = ()
     listy_nigdy: tuple[str, ...] = ()
     listy_tylko_administrator: bool = False
+    # wątki obliczeń ONNX (intra_op_num_threads); 0 = decyduje onnxruntime
+    watki: int = 0
+    # centralny serwer inferencji (docs/SERWER-INFERENCJI.md): pusty adres = modele lokalne.
+    # Token: tylko ścieżka pliku sekretów, nigdy wartość.
+    inferencja_adres: str | None = None
+    inferencja_token_plik: Path | None = None
+    inferencja_ca_plik: Path | None = None
+    inferencja_timeout_s: int = 60
+    inferencja_zezwol_bez_tls: bool = False
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -123,6 +132,7 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
     mapy = toml.get("mapy", {})
     poprawki = toml.get("poprawki", {})
     listy = toml.get("listy", {})
+    inferencja = toml.get("inferencja", {})
     mapy_retencja_dni = _jako_int(env, "NIEWIDKA_MAPY_RETENCJA_DNI", int(mapy.get("retencja_dni", 30)))
     if mapy_retencja_dni < 0:
         raise ValueError(
@@ -178,5 +188,18 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         listy_nigdy=tuple(listy.get("nigdy", ())),
         listy_tylko_administrator=_jako_bool(
             env.get("NIEWIDKA_LISTY_TYLKO_ADMINISTRATOR", listy.get("tylko_administrator", False))
+        ),
+        watki=_jako_int(env, "NIEWIDKA_WATKI", int(detekcja.get("watki", 0))),
+        inferencja_adres=(env.get("NIEWIDKA_INFERENCJA_ADRES", inferencja.get("adres")) or "").strip()
+        or None,
+        inferencja_token_plik=_jako_sciezka(env, "NIEWIDKA_INFERENCJA_TOKEN_PLIK")
+        or (Path(inferencja["token_plik"]) if inferencja.get("token_plik") else None),
+        inferencja_ca_plik=_jako_sciezka(env, "NIEWIDKA_INFERENCJA_CA_PLIK")
+        or (Path(inferencja["ca_plik"]) if inferencja.get("ca_plik") else None),
+        inferencja_timeout_s=_jako_int(
+            env, "NIEWIDKA_INFERENCJA_TIMEOUT_S", int(inferencja.get("timeout_s", 60))
+        ),
+        inferencja_zezwol_bez_tls=_jako_bool(
+            env.get("NIEWIDKA_INFERENCJA_ZEZWOL_BEZ_TLS", inferencja.get("zezwol_bez_tls", False))
         ),
     )

@@ -223,6 +223,7 @@ def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
         próg_osoba=konfig.prog_osoba,
         reguly=baza,
         pakiet_rozszerzony=pakiet_rozszerzony,
+        watki=getattr(konfig, "watki", 0),
     )
 
 
