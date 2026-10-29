@@ -344,3 +344,29 @@ async def test_blokada_tekstowa_zawiera_podglad_i_pozycje_potem_decyzja(konfig):
         # „To nie dane” dla tego miejsca zwalnia wynik
         gotowe = await _popraw(klient, app, tresc["zadanie"], zostaw=[miejsce["fragment"]])
     assert gotowe.status_code == 200, gotowe.text
+
+
+# --- interfejs (statycznie; zachowanie sprawdza testy_e2e/gui_poprawki.py) ----------
+
+_WEB = Path(__file__).parents[1] / "niewidka" / "web"
+
+
+def test_ui_jak_to_dziala_bez_pauz_i_z_dwoma_modelami():
+    html = (_WEB / "index.html").read_text(encoding="utf-8")
+    opis = " ".join(html[html.index('id="jak-to-dziala"') : html.index('id="status-ukryj"')].split())
+    assert "–" not in opis and "—" not in opis  # zakaz półpauz i pauz
+    assert "dwa modele językowe" in opis and not re.search(r"\btrzy\b", opis.lower())
+    assert "Słownik imion z danych GUS" in opis
+    assert "próbkę kontrolną" in opis and "Poprzednia wersja zostaje" in opis
+    assert "miejsca" in opis and "To nie dane" in opis  # punkt o ponownym sprawdzeniu
+
+
+def test_ui_dostepnosc_poprawek():
+    html = (_WEB / "index.html").read_text(encoding="utf-8")
+    js = (_WEB / "apka.js").read_text(encoding="utf-8")
+    assert 'id="komunikat-poprawek" class="komunikat-poprawek" aria-live="polite"' in html
+    assert 'id="ukryj-zaznaczone"' in html and 'id="pole-ukryj-wszedzie"' in html  # klawiatura
+    assert 'document.createElement("button")' in js and "zaslepka-przycisk" in js  # plakietki jako przyciski
+    assert "Tekst się zmienił. Skopiuj go ponownie." in js
+    assert "if (mojaKolejna !== licznikZlecen) return;" in js  # odpowiedzi starszych żądań ignorowane
+    assert '"PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"' in js  # bez „To nie dane” dla sum

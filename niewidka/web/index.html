@@ -98,10 +98,17 @@
         sieci. Twój oryginalny dokument nigdzie nie wypływa i nie jest wysyłany do internetu.</p>
         <p>Program znajduje w tekście dane osobowe i zamienia je na bezpieczne znaczniki, takie jak
         [OSOBA_1] czy [PESEL_1], dzięki czemu możesz spokojnie przekazać tekst do zewnętrznych
-        narzędzi, na przykład do ChatGPT. Razem z oczyszczonym dokumentem pobierasz zaszyfrowany
-        plik mapy (.nwidka), który pozwala później jednym kliknięciem przywrócić prawdziwe dane
-        w odpowiedzi od sztucznej inteligencji. Zachowaj ten plik mapy w bezpiecznym miejscu,
-        ponieważ to jedyny klucz do odzyskania oryginalnych informacji.</p>
+        narzędzi, na przykład do ChatGPT. Mapa, która pozwala wrócić do prawdziwych danych,
+        zapisuje się sama na Twoim komputerze, w zaszyfrowanej postaci. Znika po okresie
+        ustawionym przez administratora. Gdy dostaniesz odpowiedź od sztucznej inteligencji,
+        wklejasz ją na zakładce Przywróć, a program wstawia prawdziwe dane z powrotem. Plik mapy
+        (.nwidka) możesz też pobrać, na przykład do akt sprawy. To opcja, nie obowiązek.</p>
+        <p>Pod spodem działa kilka lokalnych metod naraz, a nie jedna. Reguły z sumami kontrolnymi
+        sprawdzają numery takie jak PESEL, NIP czy IBAN. Model rozpoznający osoby szuka imion
+        i nazwisk w każdej odmianie. Słownik imion z danych GUS pomaga złapać imiona, które model
+        pominął. Z pakietem Rozszerzonym dochodzi drugi model, więc razem pracują dwa modele
+        językowe. Każda metoda łapie trochę co innego, dlatego razem wypadają lepiej niż każda
+        osobno.</p>
 
         <h3>Jakie dane wykrywamy</h3>
         <p>Program automatycznie wyszukuje i zasłania w tekście następujące informacje:</p>
@@ -122,7 +129,7 @@
         <details class="szczegoly-techniczne">
           <summary>Szczegóły techniczne</summary>
           <ul class="lista-techniczna">
-            <li><strong>Dwa sposoby wykrywania danych:</strong> program łączy ścisłe reguły
+            <li><strong>Kilka metod wykrywania danych:</strong> program łączy ścisłe reguły
             sprawdzające z lokalną sztuczną inteligencją. Numery PESEL, NIP, REGON, IBAN oraz
             numery dowodów osobistych są weryfikowane za pomocą cyfry kontrolnej (ciągi znaków
             przypominające te numery, ale mające błędną sumę kontrolną, również są zasłaniane jako
@@ -139,8 +146,30 @@
             miejsce dokładnie tę formę gramatyczną, która była w oryginale.</li>
             <li><strong>Ponowne sprawdzenie i czyszczenie pliku:</strong> po zapisaniu wyniku
             program automatycznie sprawdza cały plik drugi raz. Jednocześnie usuwa ukryte części
-            dokumentu (metadane, komentarze oraz śledzone zmiany), a jeśli wykryje w treści
-            pozostałości danych osobowych, blokuje pobranie dokumentu.</li>
+            dokumentu (metadane, komentarze oraz śledzone zmiany). Jeśli w wyniku zostało miejsce,
+            co do którego kontrola ma wątpliwości, program pokazuje podgląd z zaznaczonymi
+            miejscami. Przy każdym z nich decydujesz: „Ukryj” albo „To nie dane”. Kopiowanie
+            i pobieranie włączają się dopiero po decyzji o wszystkich miejscach. Numery z sumą
+            kontrolną można tylko ukryć.</li>
+            <li><strong>Poprawki w podglądzie:</strong> zaznacz słowo i kliknij „Ukryj wszędzie”,
+            a program ukryje je w całym tekście, także w innych odmianach. Kliknij czarną plakietkę
+            i wybierz „To nie dane osobowe”, jeśli program się pomylił. Wynik liczy się od nowa bez
+            ponownego uruchamiania modelu, więc trwa to chwilę, a numery istniejących znaczników się
+            nie zmieniają. Po każdej poprawce tekst jest inny, więc skopiuj go ponownie. Do poprawek
+            program trzyma wykrycia tylko w pamięci komputera, najwyżej kilkanaście minut. Nic z tego
+            nie trafia na dysk.</li>
+            <li><strong>Przechowywanie map:</strong> mapa zapisuje się w katalogu programu
+            i znika sama po okresie ustawionym przez administratora (domyślnie 30 dni). W Ustawieniach
+            widzisz listę zapisanych map i możesz usunąć każdą z nich albo wszystkie. Program prowadzi
+            dziennik zdarzeń, w którym nie ma danych osobowych, treści ani nazw plików. Pobrana kopia
+            pliku mapy podlega przechowywaniu w Twojej organizacji.</li>
+            <li><strong>Aktualizacje modeli:</strong> lista dostępnych pakietów modeli jest podpisana
+            cyfrowo, a program przyjmuje tylko listę z poprawnym podpisem. Każdy pobrany plik jest
+            sprawdzany sumą SHA-256. Zanim nowy model zacznie działać, przechodzi próbkę kontrolną:
+            kilka fikcyjnych zdań, w których musi wykryć to, co powinien, i nie może zasłaniać tego,
+            czego nie powinien. Poprzednia wersja zostaje na dysku, więc można do niej wrócić
+            jednym przyciskiem. W sieci bez internetu aktualizację instaluje się z folderu
+            przygotowanego przez dział IT.</li>
             <li><strong>Szyfrowanie mapy:</strong> plik mapy (.nwidka) jest chroniony szyfrowaniem
             AES-256. Klucz szyfrujący jest przechowywany wyłącznie w systemowym sejfie haseł
             Twojego komputera albo w bezpiecznym pliku sekretów administratora sieci, nigdy w samej
