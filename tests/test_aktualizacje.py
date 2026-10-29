@@ -37,7 +37,6 @@ from niewidka.aktualizacje import (
     ocen_probke_kontrolna,
     podpisz_dane,
     wczytaj_klucze_publiczne,
-    wczytaj_ustawienia,
     weryfikuj_katalog,
     weryfikuj_podpis,
     zapisz_ustawienia,
@@ -217,7 +216,6 @@ def test_schemat_katalogu_bez_pola_pliku_odrzucony(para_kluczy):
 
 def test_start_z_uszkodzonym_katalogiem_w_danych(srodowisko_testowe):
     kat_danych = srodowisko_testowe["dane"]
-    kat_modeli = srodowisko_testowe["modele"]
     publiczny = srodowisko_testowe["klucz_publiczny"]
 
     (kat_danych / "katalog-pakietow.json").write_text('{"wersja_katalogu": 99, "pakiety": []}', "utf-8")
@@ -525,14 +523,17 @@ def test_sprawdzanie_raz_na_dobe(srodowisko_testowe):
     menedzer = _menedzer(srodowisko_testowe)
 
     zawolano = []
-    monkey = lambda: zawolano.append(True)  # noqa: E731
+
+    def atrapa_sprawdzania():
+        zawolano.append(True)
+
     menedzer.sprawdz_przy_starcie()
     time.sleep(0.05)
     assert zawolano == []  # doba nie minęła: bez sprawdzenia
 
     ustawienia["ostatnie_sprawdzenie"] = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
     zapisz_ustawienia(kat_danych, ustawienia)
-    menedzer.sprawdz_aktualizacje = monkey  # type: ignore[method-assign]
+    menedzer.sprawdz_aktualizacje = atrapa_sprawdzania  # type: ignore[method-assign]
     menedzer.sprawdz_przy_starcie()
     time.sleep(0.05)
     assert len(zawolano) == 1
@@ -657,7 +658,9 @@ async def test_api_post_tryb_oraz_409_gdy_narzucony(srodowisko_testowe):
     from niewidka.konfig import Konfig
 
     kat_modeli = srodowisko_testowe["modele"]
-    naglowki = lambda app: {"X-Niewidka-Token": app.state.token}  # noqa: E731
+
+    def naglowki(app):
+        return {"X-Niewidka-Token": app.state.token}
 
     app = create_app(Konfig(modele_katalog=kat_modeli), detektor=DetektorProbki())
     async with httpx.AsyncClient(
