@@ -220,10 +220,17 @@ class MagazynMap:
             self._dopisz(zdarzenie, identyfikator, None, None, self.zegar())
         return True
 
-    def odnotuj(self, zdarzenie: str, identyfikator: str, poziom: int | None = None) -> None:
-        """Wpis audytu o zdarzeniu spoza magazynu (np. przywrocono z pobranej kopii)."""
+    def odnotuj(
+        self,
+        zdarzenie: str,
+        identyfikator: str,
+        poziom: int | None = None,
+        liczby: dict[str, int] | None = None,
+    ) -> None:
+        """Wpis audytu o zdarzeniu spoza magazynu (np. przywrocono z pobranej kopii,
+        poprawiono z liczbami pozycji). Wyłącznie liczby, nigdy treść."""
         with self.blokada:
-            self._dopisz(zdarzenie, sprawdz_id(identyfikator), poziom, None, self.zegar())
+            self._dopisz(zdarzenie, sprawdz_id(identyfikator), poziom, liczby, self.zegar())
 
     # --- dziennik ---------------------------------------------------------------
 

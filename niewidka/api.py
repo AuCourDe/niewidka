@@ -52,6 +52,7 @@ from niewidka.pakiety import (
     wczytaj_pakiety,
     zrodlo,
 )
+from niewidka.poprawki import BladPoprawki, PamiecWykryc, popraw, sprawdz_liste
 from niewidka.rdzen import (
     ArchiwumZaDuze,
     identyfikator_z_dopisku,
@@ -91,11 +92,27 @@ class PracaPrzekroczylaCzas(Exception):
 
 
 class BladKontroli(Exception):
-    """Kontrola zapisu zablokowała wynik (K4b pkt 1 → 422 BEZ dokumentu)."""
+    """Kontrola zapisu zablokowała wynik (→ 422). Poza typami niesie miejsca do decyzji
+    użytkownika (fragment + pozycja w podglądzie), podgląd tekstu i identyfikator zadania
+    do `/api/popraw` (docs/MAPY-I-AKTUALIZACJE.md §4). Fragmenty wyłącznie w odpowiedzi
+    do interfejsu na tym komputerze, nigdy w logach ani dzienniku."""
 
-    def __init__(self, typy: dict[str, int]):
+    def __init__(
+        self,
+        typy: dict[str, int],
+        miejsca: list[dict] | None = None,
+        podglad: str | None = None,
+        zadanie: str | None = None,
+    ):
         self.typy = typy
+        self.miejsca = miejsca or []
+        self.podglad = podglad
+        self.zadanie = zadanie
         super().__init__("kontrola zapisu zablokowała wynik")
+
+
+class BrakZadaniaPoprawek(Exception):
+    """Wykrycia zadania wygasły albo nigdy ich nie było (→ 410)."""
 
 
 class WybierzMape(Exception):
@@ -127,7 +144,7 @@ class LicznikZlecen:
         if (
             scope["type"] != "http"
             or scope.get("method") != "POST"
-            or not sciezka.startswith(("/api/ukryj", "/api/przywroc"))
+            or not sciezka.startswith(("/api/ukryj", "/api/przywroc", "/api/popraw"))
         ):
             await self.app(scope, receive, send)
             return
@@ -367,6 +384,8 @@ def create_app(
         pola["pakiety"] = wersje_pakietow(konfig.modele_katalog)
         return pola
 
+    # wykrycia ostatnich zadań do poprawek w podglądzie: tylko RAM, krótko (§8 pkt 4)
+    app.state.poprawki = PamiecWykryc(konfig.poprawki_maks_zadan, konfig.poprawki_ttl_s)
     app.state.magazyn = MagazynMap(
         konfig.mapy_katalog, retencja_dni=konfig.mapy_retencja_dni, kontekst=_kontekst_dziennika
     )
@@ -517,6 +536,17 @@ def create_app(
             status_code=422,
         )
 
+    @app.exception_handler(BladPoprawki)
+    async def _blad_poprawki(request: Request, blad: BladPoprawki):
+        return JSONResponse({"blad": str(blad)}, status_code=422)
+
+    @app.exception_handler(BrakZadaniaPoprawek)
+    async def _brak_zadania_poprawek(request: Request, blad: BrakZadaniaPoprawek):
+        return JSONResponse(
+            {"kod": "brak_zadania", "blad": "Minął czas na poprawki tego zadania. Ukryj dokument ponownie."},
+            status_code=410,
+        )
+
     @app.exception_handler(BrakMapyWMagazynie)
     async def _brak_mapy_w_magazynie(request: Request, blad: BrakMapyWMagazynie):
         return JSONResponse({"kod": "brak_mapy", "blad": str(blad)}, status_code=422)
@@ -625,14 +655,14 @@ def create_app(
     async def _blad_kontroli(request: Request, blad: BladKontroli):
         # K4b pkt 1: zablokowany dokument NIE wraca — żadnych bajtów dokumentu,
         # żadnych fragmentów; tylko typy znalezisk z licznikami.
-        return JSONResponse(
-            {
-                "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany",
-                "status": "zablokowany",
-                "typy": blad.typy,
-            },
-            status_code=422,
-        )
+        odpowiedz = {
+            "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany",
+            "status": "zablokowany",
+            "typy": blad.typy,
+        }
+        if blad.zadanie:
+            odpowiedz.update(zadanie=blad.zadanie, miejsca=blad.miejsca, podglad=blad.podglad)
+        return JSONResponse(odpowiedz, status_code=422)
 
     def _format_z_nazwy(nazwa: str) -> str:
         rozszerzenie = Path(nazwa).suffix.lstrip(".").lower()
@@ -673,8 +703,40 @@ def create_app(
             return wynik, mapa, raport, zaszyfruj(mapa, klucz)
 
         wynik, mapa, raport, mapa_paczka = await app.state.kolejka.wykonaj(praca)
+        # zadanie = identyfikator mapy bazowej; poprawki liczą się zawsze od tych wykryć
+        app.state.poprawki.zapamietaj(mapa.identyfikator, raport.detekcje)
+        return _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, mapa.identyfikator)
+
+    def _miejsca_do_decyzji(raport, wynik: bytes, format: str) -> tuple[list[dict], str | None]:
+        """Lista miejsc wątpliwych (fragment + pozycja w podglądzie) i podgląd tekstu.
+        Podgląd tylko dla TXT; inne formaty dostają listę bez pozycji (-1)."""
+        podglad = wynik.decode("utf-8", errors="replace") if format == "txt" else None
+        zebrane: dict[tuple[str, str], dict] = {}
+        for o in raport.ostrzezenia:
+            fragment = o.fragment.strip()
+            if not fragment:
+                continue
+            pozycja = -1
+            if podglad is not None:
+                # TXT to jeden segment, więc offset z kontroli jest offsetem w podglądzie
+                pozycja = (
+                    o.start + len(o.fragment) - len(o.fragment.lstrip())
+                    if o.segment >= 0 and o.start >= 0
+                    else podglad.find(fragment)
+                )
+            miejsce = zebrane.setdefault(
+                (o.typ, fragment),
+                {"typ": o.typ, "fragment": fragment, "pozycja": pozycja, "wystapien": 0},
+            )
+            miejsce["wystapien"] += 1
+        return list(zebrane.values()), podglad
+
+    def _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None) -> Response:
+        """Wspólne dla /api/ukryj i /api/popraw: blokada (422 z miejscami do decyzji) albo
+        zapis mapy przed odpowiedzią i paczka ZIP z nagłówkami."""
         if raport.status == "zablokowany":
-            raise BladKontroli(_licznik_typow(raport.ostrzezenia))  # przed pakowaniem: nic nie wychodzi
+            miejsca, podglad = _miejsca_do_decyzji(raport, wynik, format)
+            raise BladKontroli(_licznik_typow(raport.ostrzezenia), miejsca, podglad, zadanie)
         _posprzataj()  # sprzątanie wygasłych przy każdym wywołaniu (§2)
         mapa_zapisana = None  # datetime wygaśnięcia albo "blad" (§9 pkt 5)
         with app.state.magazyn.blokada:  # jedna blokada: magazyn + dziennik + rejestr (pkt 9)
@@ -700,20 +762,71 @@ def create_app(
             zip_archiwum.writestr(f"{skrot}.nwidka", mapa_paczka)
         naglowki = {
             "x-niewidka-identyfikator": mapa.identyfikator,
+            "x-niewidka-zadanie": zadanie,
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
             "x-niewidka-ostrzezenia": _json_naglowek(_licznik_typow(raport.ostrzezenia)),
             "x-niewidka-uwagi": _json_naglowek(raport.uwagi),
             # K5c: gotowe teksty ryzyka (próg małej próby liczy serwer), nie gołe R95
-            "x-niewidka-r95": _json_naglowek(opisy_ryzyka(poziom, list(raport.statystyki))),
+            "x-niewidka-r95": _json_naglowek(opisy_ryzyka(raport.poziom, list(raport.statystyki))),
             "x-niewidka-status": raport.status,
             # docs/MAPY-I-AKTUALIZACJE.md §3: obecny tylko, gdy mapa trafiła do magazynu
             "content-disposition": 'attachment; filename="wynik.zip"',
         }
+        if wlasne is not None:
+            # znacznik → numer pozycji „ukryj", z której powstał (UI cofa je zamiast „To nie dane")
+            naglowki["x-niewidka-wlasne"] = _json_naglowek(wlasne)
         if mapa_zapisana is not None:
             naglowki["x-niewidka-mapa-zapisana"] = (
                 mapa_zapisana if isinstance(mapa_zapisana, str) else mapa_zapisana.isoformat()
             )
         return Response(paczka.getvalue(), media_type="application/zip", headers=naglowki)
+
+    @app.post("/api/popraw")
+    async def endpoint_popraw(request: Request) -> Response:
+        """Poprawki w podglądzie bez ponownego uruchamiania modelu (§4, §8 pkt 4-5).
+        JSON: `zadanie` (x-niewidka-zadanie), `ukryj`, `nie_dane` (znaczniki), `zostaw`
+        (miejsca wątpliwe z blokady uznane za nie-dane). Za każdym razem pełne listy:
+        cofnięcie poprawki to przeliczenie bez niej."""
+        try:
+            tresc = await request.json()
+        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
+            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        if not isinstance(tresc, dict) or not isinstance(tresc.get("zadanie"), str):
+            raise HTTPException(status_code=422, detail="brak identyfikatora zadania")
+        lista_ukryj = sprawdz_liste("ukryj", tresc.get("ukryj"))
+        lista_nie_dane = sprawdz_liste("nie_dane", tresc.get("nie_dane"))
+        lista_zostaw = sprawdz_liste("zostaw", tresc.get("zostaw"))
+        zadanie = tresc["zadanie"]
+        detekcje = app.state.poprawki.pobierz(zadanie)
+        if detekcje is None:
+            raise BrakZadaniaPoprawek()
+
+        def praca():
+            klucz = pobierz_klucz(konfig)
+            wynik, mapa, raport, wlasne = popraw(
+                detekcje,
+                lista_ukryj,
+                lista_nie_dane,
+                lista_zostaw,
+                kontrola_blokada=konfig.kontrola_blokada,
+                wykrywaj_date=konfig.wykrywaj_date,
+            )
+            return wynik, mapa, raport, zaszyfruj(mapa, klucz), wlasne
+
+        wynik, mapa, raport, mapa_paczka, wlasne = await app.state.kolejka.wykonaj(praca)
+        odpowiedz = _wydaj_wynik(
+            wynik, mapa, raport, mapa_paczka, f"tekst.{detekcje.format}", detekcje.format, zadanie, wlasne
+        )
+        try:  # tylko liczby pozycji, bez treści (dziennik audytu)
+            app.state.magazyn.odnotuj(
+                "poprawiono",
+                mapa.identyfikator,
+                mapa.poziom,
+                {"ukryj": len(lista_ukryj), "nie_dane": len(lista_nie_dane), "zostaw": len(lista_zostaw)},
+            )
+        except ValueError:
+            pass
+        return odpowiedz
 
     def _metadane_listy() -> list[dict]:
         return [

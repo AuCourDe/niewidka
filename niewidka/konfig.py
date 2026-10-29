@@ -52,6 +52,9 @@ class Konfig:
     # przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu;
     # dopiero ta opcja skreśla mapę z rejestru wydanych map (pobrane kopie przestają działać)
     mapy_uniewaznij_pobrane: bool = False
+    # pamięć wykryć do poprawek w podglądzie (§8 pkt 4): tylko RAM, ostatnie zadania, krótko
+    poprawki_maks_zadan: int = 4
+    poprawki_ttl_s: int = 900
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -103,6 +106,7 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
             f"NIEWIDKA_OBRAZY: nieznana polityka obrazów {obrazy!r}; dozwolone: {', '.join(POLITYKI_OBRAZOW)}"
         )
     mapy = toml.get("mapy", {})
+    poprawki = toml.get("poprawki", {})
     mapy_retencja_dni = _jako_int(env, "NIEWIDKA_MAPY_RETENCJA_DNI", int(mapy.get("retencja_dni", 30)))
     if mapy_retencja_dni < 0:
         raise ValueError(
@@ -147,4 +151,8 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         mapy_uniewaznij_pobrane=_jako_bool(
             env.get("NIEWIDKA_MAPY_UNIEWAZNIJ_POBRANE", mapy.get("uniewaznij_pobrane", False))
         ),
+        poprawki_maks_zadan=_jako_int(
+            env, "NIEWIDKA_POPRAWKI_MAKS_ZADAN", int(poprawki.get("maks_zadan", 4))
+        ),
+        poprawki_ttl_s=_jako_int(env, "NIEWIDKA_POPRAWKI_TTL_S", int(poprawki.get("ttl_s", 900))),
     )

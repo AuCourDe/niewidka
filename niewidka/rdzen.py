@@ -240,6 +240,21 @@ def _sprawdz_rozpakowane(dane: bytes, limit_bajtow: int | None) -> None:
         raise ArchiwumZaDuze(f"rozpakowana treść archiwum {suma} B przekracza limit {limit_bajtow} B")
 
 
+def uwagi_obrazow(dok) -> list[str]:
+    """Nieblokujące uwagi o obrazach (K4b pkt 2), wspólne dla `ukryj` i poprawek."""
+    uwagi: list[str] = []
+    obrazy = (dok.zasoby or {}).get("obrazy", {})
+    if obrazy.get("usuniete"):
+        uwagi.append(
+            f"OBRAZ USUNIĘTY ({obrazy['usuniete']} szt.): bez OCR treść obrazu nie daje się sprawdzić"
+        )
+    if obrazy.get("pozostale"):
+        uwagi.append(
+            f"OBRAZ BEZ OCR ({obrazy['pozostale']} szt.): treść obrazu pozostała w wyniku i nie daje się sprawdzić"
+        )
+    return uwagi
+
+
 def zloz_wynik(
     adapter, dok, segmenty_encji: list[list[Encja]], poziom: int
 ) -> tuple[bytes, Mapa, dict[str, int], dict[str, Wpis]]:
@@ -371,16 +386,7 @@ def ukryj(
         if not nowe:
             break
         fragmenty.update(nowe)
-    uwagi: list[str] = []
-    obrazy = (dok.zasoby or {}).get("obrazy", {})
-    if obrazy.get("usuniete"):
-        uwagi.append(
-            f"OBRAZ USUNIĘTY ({obrazy['usuniete']} szt.): bez OCR treść obrazu nie daje się sprawdzić"
-        )
-    if obrazy.get("pozostale"):
-        uwagi.append(
-            f"OBRAZ BEZ OCR ({obrazy['pozostale']} szt.): treść obrazu pozostała w wyniku i nie daje się sprawdzić"
-        )
+    uwagi = uwagi_obrazow(dok)
     raport = Raport(
         identyfikator=mapa.identyfikator,
         poziom=poziom,
