@@ -1,4 +1,5 @@
 {
+  "wersja_katalogu": 1,
   "zrodlo_domyslne": "https://github.com/AuCourDe/niewidka/releases/latest/download",
   "pakiety": [
     {
@@ -11,6 +12,8 @@
         2,
         3
       ],
+      "wersja": 1,
+      "min_wersja": 1,
       "katalog_rel": "",
       "pliki": [
         {
@@ -41,6 +44,8 @@
       "poziomy": [
         3
       ],
+      "wersja": 1,
+      "min_wersja": 1,
       "katalog_rel": "lfm25/q4-bl32",
       "wymaga": "podstawowy",
       "pliki": [

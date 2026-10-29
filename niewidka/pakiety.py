@@ -58,10 +58,20 @@ class Pakiet:
     katalog_rel: str  # podkatalog z manifest.json ("" = katalog wag główny)
     pliki: list[PlikPakietu]
     wymaga: str | None = None  # pakiet potrzebny do działania tego pakietu
+    wersja: int = 1
+    min_wersja: int = 1
 
     @property
     def rozmiar(self) -> int:
         return sum(p.rozmiar for p in self.pliki)
+
+
+def wczytaj_wersje_katalogu(plik: Path = KATALOG_PAKIETOW) -> int:
+    try:
+        dane = json.loads(plik.read_text(encoding="utf-8"))
+        return int(dane.get("wersja_katalogu", 1))
+    except (OSError, ValueError):
+        return 1
 
 
 def wczytaj_pakiety(plik: Path = KATALOG_PAKIETOW) -> list[Pakiet]:
@@ -75,6 +85,8 @@ def wczytaj_pakiety(plik: Path = KATALOG_PAKIETOW) -> list[Pakiet]:
             poziomy=wpis.get("poziomy", []),
             katalog_rel=wpis.get("katalog_rel", ""),
             wymaga=wpis.get("wymaga"),
+            wersja=int(wpis.get("wersja", 1)),
+            min_wersja=int(wpis.get("min_wersja", 1)),
             pliki=[
                 PlikPakietu(
                     nazwa=p["nazwa"], zrodlo=p["zrodlo"], rozmiar=p["rozmiar"], sha256=p["sha256"]
@@ -175,6 +187,20 @@ def stan(pakiet: Pakiet, katalog: Path) -> str:
     if uszkodzone:
         return "uszkodzony"
     return "brak" if braki else "zainstalowany"
+
+
+def odczytaj_zainstalowana_wersje(pakiet: Pakiet, katalog: Path) -> int | None:
+    """Wersja zainstalowanego pakietu z manifest.json; brak pliku = None,
+    brak pola wersja w starym manifeście = 1."""
+    katalog_pakietu = katalog / pakiet.katalog_rel if pakiet.katalog_rel else katalog
+    manifest = katalog_pakietu / "manifest.json"
+    if not manifest.is_file():
+        return None
+    try:
+        dane = json.loads(manifest.read_text(encoding="utf-8"))
+        return int(dane.get("wersja", 1))
+    except (OSError, ValueError):
+        return 1
 
 
 # --- K7c pkt 4 (audyt #4): dowiązania nie prowadzą poza katalog modeli --------
@@ -375,6 +401,7 @@ def _zapisz_manifest(pakiet: Pakiet, katalog: Path) -> None:
     katalog_pakietu = katalog / pakiet.katalog_rel if pakiet.katalog_rel else katalog
     manifest = {
         "pakiet": pakiet.id,
+        "wersja": pakiet.wersja,
         "pliki": {Path(p.nazwa).name: p.sha256 for p in pakiet.pliki},
     }
     tresc = (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -479,6 +506,19 @@ def instaluj_z_katalogu(
     odmowa PRZED kopiowaniem), limit czasu i anulowanie jak przy pobieraniu."""
     limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
     start_czasu = time.monotonic()
+
+    # K7/akt: weryfikacja podpisu gdy katalog pakietów znajduje się w folderze offline
+    plik_kat = zrodlo_katalog / "katalog-pakietow.json"
+    if plik_kat.is_file():
+        plik_sig = zrodlo_katalog / "katalog-pakietow.json.sig"
+        if not plik_sig.is_file():
+            raise BladPakietu("brak pliku podpisu katalog-pakietow.json.sig w folderze źródłowym")
+        from niewidka.aktualizacje import wczytaj_klucze_publiczne, weryfikuj_podpis
+
+        klucze = wczytaj_klucze_publiczne()
+        if not weryfikuj_podpis(plik_kat.read_bytes(), plik_sig.read_bytes(), klucze):
+            raise BladPakietu("zły podpis katalogu pakietów w folderze źródłowym")
+
     for plik in pakiet.pliki:
         if przerwano is not None and przerwano():
             raise BladPakietu("instalacja przerwana")

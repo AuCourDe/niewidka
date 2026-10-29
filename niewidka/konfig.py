@@ -52,6 +52,7 @@ class Konfig:
     # przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu;
     # dopiero ta opcja skreśla mapę z rejestru wydanych map (pobrane kopie przestają działać)
     mapy_uniewaznij_pobrane: bool = False
+    aktualizacje_tryb: str | None = None
 
 
 def _jako_bool(wartosc: object) -> bool:
@@ -97,6 +98,14 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
     klucze = toml.get("klucze", {})
     limity = toml.get("limity", {})
     kontrola = toml.get("kontrola", {})
+    aktualizacje = toml.get("aktualizacje", {})
+    aktualizacje_tryb = env.get("NIEWIDKA_AKTUALIZACJE", aktualizacje.get("tryb"))
+    if aktualizacje_tryb is not None:
+        dozwolone_tryby = ("reczne", "sprawdzaj", "automatyczne", "wylaczone")
+        if aktualizacje_tryb not in dozwolone_tryby:
+            raise ValueError(
+                f"NIEWIDKA_AKTUALIZACJE: nieznany tryb {aktualizacje_tryb!r}; dozwolone: {', '.join(dozwolone_tryby)}"
+            )
     obrazy = env.get("NIEWIDKA_OBRAZY", kontrola.get("obrazy", "usun"))
     if obrazy not in POLITYKI_OBRAZOW:
         raise ValueError(
@@ -147,4 +156,5 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
         mapy_uniewaznij_pobrane=_jako_bool(
             env.get("NIEWIDKA_MAPY_UNIEWAZNIJ_POBRANE", mapy.get("uniewaznij_pobrane", False))
         ),
+        aktualizacje_tryb=aktualizacje_tryb,
     )
