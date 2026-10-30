@@ -1,0 +1,89 @@
+# Niewidka: plik ustawień programu (niewidka.toml).
+#
+# Skopiuj go jako niewidka.toml:
+#   wersja okienkowa: obok Niewidka.exe,
+#   wersja w przeglądarce: do folderu, z którego uruchamiasz python -m niewidka.api.
+# Bez pliku program używa wartości domyślnych, takich jak niżej.
+# Każdą opcję nadpisuje zmienna środowiskowa (lista w docs/KONFIGURACJA.md).
+# Klucza mapy ani tokenu nie wpisuj tutaj. Podajesz tylko ścieżkę do pliku.
+
+[serwer]
+# Program słucha wyłącznie na tym komputerze. Innego adresu nie przyjmie.
+host = "127.0.0.1"
+# Port wersji w przeglądarce. Wersja okienkowa sama wybiera wolny port.
+port = 8390
+
+[detekcja]
+# Poziom dla zapytań API bez podanego poziomu: 1 Szybko, 2 Dokładniej, 3 Najdokładniej.
+# Suwak w programie zawsze podaje własny poziom.
+poziom = 1
+# Czy ukrywać daty (urodzenia, pism, zdarzeń).
+wykrywaj_date = true
+# Folder z modelami. Puste = folder danych użytkownika.
+# modele_katalog = "D:\\Niewidka\\modele"
+# Na czym liczyć: "CPUExecutionProvider" (procesor), "CUDAExecutionProvider" (NVIDIA),
+# "DmlExecutionProvider" (Windows, DirectML). Karta wymaga innej wersji onnxruntime.
+provider = "CPUExecutionProvider"
+# Liczba wątków procesora. 0 = automatycznie.
+watki = 0
+
+[klucze]
+# Plik z kluczem mapy (base64, 32 bajty, na Linuxie uprawnienia 0600).
+# Puste = klucz z magazynu systemu (Windows: Menedżer poświadczeń).
+# plik = "/etc/niewidka/klucz-mapy"
+# Nazwa wpisu w magazynie systemu.
+usluga = "niewidka"
+
+[limity]
+# Największy plik wejściowy w MB.
+rozmiar_mb = 25
+# Największy rozmiar .docx po rozpakowaniu w MB.
+rozpakowane_mb = 200
+# Największy tekst po wczytaniu w MB.
+tekst_mb = 1
+# Ile dokumentów liczy się naraz, ile może czekać i ile sekund wolno liczyć jeden.
+kolejka = 4
+zlecenia = 8
+timeout_s = 120
+
+[kontrola]
+# true = gdy kontrola ma wątpliwości, użytkownik musi zdecydować o każdym miejscu.
+blokada = true
+# Obrazy w .docx: "usun" (usuwa), "blokuj" (odrzuca dokument), "zostaw" (zostawia z ostrzeżeniem).
+obrazy = "usun"
+
+[mapy]
+# Po ilu dniach program usuwa zapisane mapy. 0 = nie zapisuje map wcale.
+retencja_dni = 30
+# Folder zapisanych map. Puste = folder danych użytkownika.
+# katalog = "D:\\Niewidka\\mapy"
+# true = usunięta albo wygasła mapa przestaje działać także jako pobrany plik .nwidka.
+uniewaznij_pobrane = false
+
+[poprawki]
+# Ile ostatnich dokumentów i jak długo (w sekundach) można poprawiać w podglądzie.
+maks_zadan = 4
+ttl_s = 900
+
+[aktualizacje]
+# "reczne", "sprawdzaj" (raz na dobę), "automatyczne", "wylaczone".
+# Wpis tutaj blokuje zmianę w Ustawieniach. Bez wpisu wybiera użytkownik.
+# tryb = "sprawdzaj"
+
+[listy]
+# Listy administratora. Działają u każdego i wygrywają z listami użytkownika.
+zawsze = []
+nigdy = []
+# true = użytkownik nie może zmieniać własnych list.
+tylko_administrator = false
+# Plik list użytkownika. Puste = folder danych użytkownika.
+# plik = "D:\\Niewidka\\listy.json"
+
+[inferencja]
+# Wspólny serwer modeli w sieci. Puste = modele na tym komputerze.
+# Opis: docs/SERWER-INFERENCJI.md i konfiguracja/klient-web.przyklad.toml.
+# adres = "https://niewidka-serwer.urzad.local:8443"
+# token_plik = "C:\\Niewidka\\token"
+# ca_plik = "C:\\Niewidka\\ca.pem"
+timeout_s = 60
+zezwol_bez_tls = false

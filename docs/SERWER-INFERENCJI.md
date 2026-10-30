@@ -18,7 +18,7 @@ użytkownika, która nasłuchuje wyłącznie na `127.0.0.1`.
 
 ## Wymagania
 
-- Python z zainstalowaną Niewidką (`pip install .`), modele pobrane do katalogu modeli
+- Python z Niewidką (w folderze repozytorium `uv sync`), modele pobrane do katalogu modeli
   (te same pakiety co u użytkownika, weryfikowane sumami SHA-256).
 - Procesor wystarcza (domyślnie). Dla karty NVIDIA: `pip install onnxruntime-gpu`
   (zamiast `onnxruntime`), sterownik i CUDA zgodne z wydaniem onnxruntime. Na Windowsie
