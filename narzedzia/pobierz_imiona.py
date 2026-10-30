@@ -1,4 +1,4 @@
-"""Słownik polskich imion (K2d, wariant B): CSV GUS/dane.gov.pl -> niewidka/dane/imiona_gus.txt.
+"""Słownik polskich imion: CSV GUS/dane.gov.pl -> niewidka/dane/imiona_gus.txt.
 
 Źródło (otwarte dane, MSWiA): dane.gov.pl, zbiór id 1667 „Lista imion występujących
 w rejestrze PESEL", przegląd plików `IMIONA_MĘSKIE.csv` i `IMIONA_KOBIET.csv` (stan 18.07.2019, imię pierwsze), kolumny `IMIĘ 1` + `Liczba`.
@@ -27,7 +27,7 @@ PLIKI: dict[str, str] = {
     "męskie": "https://api.dane.gov.pl/media/resources/20190719/IMIONA_M%C4%98SKIE.csv",
     "żeńskie": "https://api.dane.gov.pl/media/resources/20190719/IMIONA_KOBIET.csv",
 }
-LIMIT = 3000  # kilka tysięcy najczęstszych (zlecenie K2d)
+LIMIT = 3000  # kilka tysięcy najczęstszych
 WYJSCIE = Path("niewidka") / "dane" / "imiona_gus.txt"
 
 

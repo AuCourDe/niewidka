@@ -1,10 +1,6 @@
-"""Rdzeń ukryj/przywroc (K4): jedna para funkcji dla API i przyszłego desktopu (LLD §8/§12).
-
-`ukryj(dane, format, poziom)` zwraca (wynik, mapa, raport); detektor idzie
-wstrzyknięty albo buduje się z konfiguracji (poziomy 1-3 wg K2d: 1 = reguły +
-bardsai, 2 = wariant A — próg OSOBA + okna półkrokowe, 3 = wariant B —
-+słownik imion; LFM2.5 odrzucony pomiarem — `docs/WYNIK-K2b.md`). Kontrola
-zapisu działa ZAWSZE (Astra pkt 8); nowe znaleziska blokują status „ukończony".
+"""Rdzeń ukryj/przywroc dla API i desktopu. `ukryj(dane, format, poziom)` zwraca
+(wynik, mapa, raport); detektor wstrzyknięty albo zbudowany z konfiguracji. Kontrola zapisu
+działa zawsze, a nowe znaleziska blokują status „ukończony".
 """
 
 from __future__ import annotations
@@ -51,7 +47,7 @@ class Raport:
     poziom: int
     statystyki: dict[str, int]  # typ -> liczba zastąpionych encji
     ostrzezenia: list[Ostrzezenie] = field(default_factory=list)
-    uwagi: list[str] = field(default_factory=list)  # nieblokujące (K4b pkt 2: usunięte obrazy)
+    uwagi: list[str] = field(default_factory=list)  # nieblokujące
     r95: dict[str, float | None] = field(default_factory=dict)
     status: str = "ukonczony"  # "zablokowany", gdy kontrola znalazła nowe znaleziska
     # wykrycia ostatniego przebiegu do poprawek w podglądzie (tylko RAM, nigdy w odpowiedzi)
@@ -62,7 +58,7 @@ class Raport:
 class Detekcje:
     """Wykrycia ostatniego przebiegu `ukryj` (zakresy, typy, grupy osób, numeracja):
     z nich `poprawki.popraw` liczy nowy wynik BEZ ponownego uruchamiania modelu
-    (docs/MAPY-I-AKTUALIZACJE.md §4, §8 pkt 4). Zawierają oryginał dokumentu, więc
+    Zawierają oryginał dokumentu, więc
     żyją wyłącznie w pamięci procesu (`poprawki.PamiecWykryc`), nigdy na dysku ani w logach."""
 
     dane: bytes
@@ -77,7 +73,7 @@ class Detekcje:
 
 
 class _BezDaty:
-    """Wrapper wyłączający typ DATA (konfiguracja `wykrywaj_date`, LLD §3)."""
+    """Wrapper wyłączający typ DATA (konfiguracja `wykrywaj_date`)."""
 
     def __init__(self, wewnetrzny):
         self._wewnetrzny = wewnetrzny
@@ -90,14 +86,14 @@ class _BezDaty:
 
 class ZnacznikiWTresci(BladMapy):
     """Wejście zawiera już znacznik Niewidki: nadany znacznik mógłby się z nim
-    zderzyć i przywrócenie po cichu wstawiłoby dane w obce miejsce (Codex 2026-10-29)."""
+    zderzyć i przywrócenie po cichu wstawiłoby dane w obce miejsce."""
 
 
 MAKS_PRZEBIEGOW = 5  # zmierzone 2026-10-28: pismo właściciela potrzebuje do 4 (model niedeterministyczny)
 TYPY_ENCJI = {typ.value for typ in TypEncji}
 # do osoby z kontroli doliczamy do 2 kolejnych wyrazów z wielkiej litery w tej samej
 # linii: model raz łapie „Jan Marek", raz „Nowicki" (zmierzone 2026-10-28). Zawsze
-# po pełnych słowach (przegląd Codex 2026-10-29: „ Mc" zostawiało „Donald" jawne).
+# po pełnych słowach.
 _ODSTEP = "[ \t\u00a0\u202f]+"
 _SLOWO_NAZWISKA = re.compile(rf"{_ODSTEP}([^\W\d_][\w'’\-]*)")
 _W_SLOWIE = re.compile(r"[\w'’\-]*")
@@ -199,10 +195,10 @@ class _ZDopelnieniem:
 
 
 def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
-    """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed, LLD §15).
+    """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed).
 
-    Skład poziomu (1 = reguły+bardsai; 2 = wariant A; 3 = wariant B, K2d) robi
-    `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze. K7c (audyt #1):
+    Skład poziomu (1 = reguły+bardsai; 2 = wariant A; 3 = wariant B) robi
+    `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze.
     `pakiet_rozszerzony` = zweryfikowany stan pakietu Rozszerzonego (API podaje
     go ze stanu menedżera pakietów); bez niego poziom 3 nie używa LFM2.5.
     """
@@ -242,7 +238,7 @@ def _sprawdz_rozpakowane(dane: bytes, limit_bajtow: int | None) -> None:
 
 
 def uwagi_obrazow(dok) -> list[str]:
-    """Nieblokujące uwagi o obrazach (K4b pkt 2), wspólne dla `ukryj` i poprawek."""
+    """Nieblokujące uwagi o obrazach, wspólne dla `ukryj` i poprawek."""
     uwagi: list[str] = []
     obrazy = (dok.zasoby or {}).get("obrazy", {})
     if obrazy.get("usuniete"):
@@ -280,7 +276,7 @@ def zloz_wynik(
             wpis.formy.setdefault(wariant, encja.tekst)
 
     mapa = Mapa(
-        # K4b pkt 7: 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
+        # 128 bitów — 24-bitowy id pozwalał wygrać kolizję ze starymi
         # mapami (~77,5% dla 5000×5000) i przyjąć szyfrogram z wcześniejszej sesji
         identyfikator=secrets.token_hex(16),
         utworzono=datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -305,7 +301,7 @@ def ukryj(
 ) -> tuple[bytes, Mapa, Raport]:
     """Dokument -> wynik ze znacznikami + mapa + raport (kontrola zapisu zawsze).
 
-    `polityka_obrazow` (K4b pkt 2): usun | blokuj | zostaw — domyślnie usuwamy
+    `polityka_obrazow`: usun | blokuj | zostaw — domyślnie usuwamy
     obrazy (bez OCR nie dają się zweryfikować) i zostawiamy uwagę w raporcie.
     """
     _sprawdz_format(format)
@@ -328,7 +324,6 @@ def ukryj(
     fragmenty: dict[str, TypEncji] = {}
     # suma oryginałów ze WSZYSTKICH przejść: scalenie w późniejszym przejściu daje
     # dłuższy oryginał, a krótszy z wcześniejszego dalej musi być szukany w wyniku
-    # (przegląd Codex 2026-10-29: inaczej wyciek w styles.xml znikał z ostrzeżeń)
     oryginaly: set[str] = set()
     for _ in range(MAKS_PRZEBIEGOW):
         detektor_przebiegu = _ZDopelnieniem(detektor, fragmenty) if fragmenty else detektor
@@ -351,7 +346,7 @@ def ukryj(
 
         wynik, mapa, statystyki, wpisy = zloz_wynik(adapter, dok, segmenty_encji, poziom)
         wystapienia = mapa.wystapienia
-        # K3b: oryginały mapy = druga siatka kontroli (każda część archiwum)
+        # oryginały mapy = druga siatka kontroli (każda część archiwum)
         oryginaly |= {wyst.oryginal for wyst in wystapienia} | {
             forma for wpis in wpisy.values() for forma in wpis.formy.values()
         }
@@ -416,7 +411,7 @@ def identyfikator_z_dopisku(
     dane: bytes, format: str, *, max_rozpakowane_bajtow: int | None = None
 ) -> str | None:
     """Pierwszy identyfikator mapy z dopisku w treści dokumentu; None, gdy dopisku
-    nie ma (np. czat AI go nie powtórzył, K4b pkt 6). Reużyte przez /api/przywroc
+    nie ma (np. czat AI go nie powtórzył). Reużyte przez /api/przywroc
     do wskazania mapy w magazynie bez pliku .nwidka."""
     _sprawdz_format(format)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
@@ -435,13 +430,13 @@ def przywroc(
     """Zamiana znaczników na oryginały wg (oznaczenie, wariant); dopisek wyniku znika.
 
     Przywrócenie odtwarza wyłącznie dane zastąpione znacznikami — elementy usunięte
-    przy czyszczeniu (metadane, komentarze) nie wracają (LLD §7/§8).
+    przy czyszczeniu (metadane, komentarze) nie wracają.
     """
     _sprawdz_format(format)
     _sprawdz_rozpakowane(dane, max_rozpakowane_bajtow)
     adapter = adapter_formatu(format)
     dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane_bajtow)
-    # K4b pkt 6: mapa jest związana z KONKRETNYM dokumentem. Dopisek z identyfikatorem
+    # mapa jest związana z KONKRETNYM dokumentem. Dopisek z identyfikatorem
     # innej mapy = odmowa. Brak dopisku to zwykła odpowiedź czatu AI (nie powtarza go),
     # więc przywracamy, ale z ostrzeżeniem, że zgodności mapy nie da się sprawdzić.
     znalezione = {m.group(1) for s in dok.segmenty for m in _ID_W_DOPISKU.finditer(s.tekst)}

@@ -1,4 +1,4 @@
-"""Konfiguracja (LLD §14): plik TOML + zmienne środowiskowe; env ma pierwszeństwo.
+"""Konfiguracja: plik TOML + zmienne środowiskowe; env ma pierwszeństwo.
 
 Nic na sztywno — każdy port, ścieżka, limit i provider idzie z konfiguracji.
 """
@@ -13,11 +13,11 @@ from pathlib import Path
 
 DOMYSLNY_PLIK = Path("niewidka.toml")
 
-# K2d (docs/WYNIK-K2d.md): próg pewności OSOBA poziomów 2-3 (wariant A/B); 0.2 i 0.3
+# Próg pewności OSOBA poziomów 2-3 (wariant A/B); 0.2 i 0.3
 # dawały identyczne wyniki na korpusie 182, przyjęto niższy.
 PROG_OSOBA_DOMYSLNY = 0.2
 
-# K4b pkt 2: polityka obrazów w DOCX — bez OCR nie dają się zweryfikować.
+# polityka obrazów w DOCX — bez OCR nie dają się zweryfikować.
 # „usun" (domyślnie) usuwa obrazy z ostrzeżeniem w raporcie, „blokuj" odrzuca
 # dokument, „zostaw" to świadome ryzyko (obraz zostaje, raport ostrzega).
 POLITYKI_OBRAZOW = ("usun", "blokuj", "zostaw")
@@ -39,20 +39,20 @@ class Konfig:
     kontrola_blokada: bool = True
     obrazy: str = "usun"
     kolejka: int = 4
-    zlecenia: int = 8  # K4b pkt 12: maks. żądań w toku (odrzucane przed parsowaniem body)
+    zlecenia: int = 8  # maks. żądań w toku (odrzucane przed parsowaniem body)
     timeout_s: int = 120
     wykrywaj_date: bool = True
     # rejestr wydanych map w pliku (skróty SHA-256 + identyfikatory, bez danych):
-    # mapa przywraca się po restarcie programu; None = tylko w obrębie sesji (K4b pkt 7)
+    # mapa przywraca się po restarcie programu; None = tylko w obrębie sesji
     rejestr_map: Path | None = None
-    # magazyn map (docs/MAPY-I-AKTUALIZACJE.md §2): automatyczny zapis zaszyfrowanej
+    # magazyn map: automatyczny zapis zaszyfrowanej
     # mapy z retencją w dniach; 0 = brak automatycznego zapisu (zostaje pobranie pliku)
     mapy_retencja_dni: int = 30
     mapy_katalog: Path | None = None  # None = katalog_danych()/"mapy" (podstawia create_app)
-    # przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu;
+    # retencja i ręczne „Usuń" dotyczą magazynu programu;
     # dopiero ta opcja skreśla mapę z rejestru wydanych map (pobrane kopie przestają działać)
     mapy_uniewaznij_pobrane: bool = False
-    # pamięć wykryć do poprawek w podglądzie (§8 pkt 4): tylko RAM, ostatnie zadania, krótko
+    # pamięć wykryć do poprawek w podglądzie: tylko RAM, ostatnie zadania, krótko
     poprawki_maks_zadan: int = 4
     poprawki_ttl_s: int = 900
     aktualizacje_tryb: str | None = None
@@ -140,8 +140,8 @@ def wczytaj_konfig(sciezka: Path | None = None, env: Mapping[str, str] | None = 
             "0 oznacza brak automatycznego zapisu map"
         )
     host = env.get("NIEWIDKA_HOST", serwer.get("host", "127.0.0.1"))
-    # K4b pkt 14: lokalne MVP nasłuchuje wyłącznie na loopbacku — nasłuch LAN
-    # udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika (audyt pkt 14)
+    # lokalne MVP nasłuchuje wyłącznie na loopbacku — nasłuch LAN
+    # udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika
     if host not in ("127.0.0.1", "localhost", "::1") and not host.startswith("127."):
         raise ValueError(
             f"NIEWIDKA_HOST: dozwolony jest wyłącznie nasłuch na loopbacku (127.0.0.1), jest {host!r}; "

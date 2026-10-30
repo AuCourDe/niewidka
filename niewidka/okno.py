@@ -1,12 +1,6 @@
-"""Aplikacja okienkowa (K6): pywebview + API Niewidki w jednym procesie.
-
-REUŻYJ: logika żyje wyłącznie w create_app (api.py) i rdzeniu; okno tylko skleja
-serwer z oknem. Uvicorn w wątku na 127.0.0.1: domyślnie wolny port, stały port
-wyłącznie z NIEWIDKA_PORT. Klucz mapy w magazynie systemowym (Windows: Menedżer
-poświadczeń, przez keyring); pierwsze uruchomienie bez klucza = jawny ekran
-konfiguracji (klucz powstaje wprost w magazynie, nigdy plik obok exe, nigdy
-w kodzie ani logach). Zamknięcie okna zatrzymuje serwer. Budowa:
-narzedzia/zbuduj_windows.ps1 (PyInstaller onedir, --windowed).
+"""Aplikacja okienkowa: pywebview + API Niewidki w jednym procesie, uvicorn na 127.0.0.1
+(stały port tylko z NIEWIDKA_PORT). Klucz mapy w magazynie systemowym; bez klucza pierwszy
+ekran konfiguracji. Budowa: narzedzia/zbuduj_windows.ps1.
 """
 
 from __future__ import annotations
@@ -138,7 +132,7 @@ def przygotuj_srodowisko(env: MutableMapping[str, str] | None = None) -> None:
     env.setdefault("NIEWIDKA_MODELE_KATALOG", str(katalog_modeli(env)))
     # mapa ma się przywracać po zamknięciu i ponownym otwarciu okna (2026-10-29)
     env.setdefault("NIEWIDKA_REJESTR_MAP", str(katalog_danych(env) / "wydane-mapy.jsonl"))
-    # magazyn map z retencją w katalogu danych (docs/MAPY-I-AKTUALIZACJE.md §2)
+    # magazyn map z retencją w katalogu danych
     env.setdefault("NIEWIDKA_MAPY_KATALOG", str(katalog_danych(env) / "mapy"))
 
 
@@ -161,7 +155,7 @@ def _ukryj_strumienie_bez_konsoli(env: MutableMapping[str, str] | None = None) -
     """Pakiet --windowed: stdout/stderr to None albo nieme atrapy PyInstallera,
     więc pierwsze logi uvicorna znikają po cichu. W zamrożonej aplikacji oba
     strumienie idą zawsze do devnull (logi Niewidki nie mają treści dokumentów,
-    LLD §12); NIEWIDKA_LOG_PLIK kieruje je do pliku (diagnostyka u IT)."""
+); NIEWIDKA_LOG_PLIK kieruje je do pliku (diagnostyka u IT)."""
     if not getattr(sys, "frozen", False):
         return  # rozwój z konsolą: strumienie rzeczywiste, nic nie ruszamy
     env = os.environ if env is None else env
@@ -278,7 +272,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
 
             modul_webview = webview
         # WebView2 bez tego anuluje pobranie wyniku, mapy i przywróconego dokumentu
-        # (pywebview: ALLOW_DOWNLOADS domyślnie False; przegląd Codex 2026-10-29)
+        # (pywebview: ALLOW_DOWNLOADS domyślnie False)
         if isinstance(getattr(modul_webview, "settings", None), dict):
             modul_webview.settings["ALLOW_DOWNLOADS"] = True
         # port PRZED create_app: kontrola Origin musi znać port, na którym stoi

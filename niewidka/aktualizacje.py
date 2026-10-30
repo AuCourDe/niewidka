@@ -1,21 +1,6 @@
-"""System aktualizacji modeli (docs/MAPY-I-AKTUALIZACJE.md §5, §8 w. 7-8, §9 w. 6).
-
-- Podpis Ed25519 katalogu pakietów; klucz publiczny w programie (kilka w pliku:
-  rotacja), prywatny wyłącznie u wydawcy.
-- Katalog przyjmowany tylko z poprawnym podpisem i `wersja_katalogu` wyższą od
-  znanej; przyjęty zapisywany w katalogu danych, podpis weryfikowany przy starcie
-  (zły podpis = katalog wbudowany + widoczny stan błędu integralności, §8 w. 7).
-- Najwyższa przyjęta wersja katalogu w ustawienia.json, osobno od pliku katalogu,
-  więc uszkodzony katalog nie obniża progu (§9 w. 6).
-- Instalacja: pliki do katalogu przejściowego (.nowe), SHA-256, próbka kontrolna
-  (musi_wykryc / nie_moze_wykryc oceniane względem pliku, §8 w. 8), dopiero potem
-  atomowa zamiana; poprzednia wersja w .poprzednie i przycisk powrotu z blokadą
-  min_wersja.
-- Tryby: reczne, sprawdzaj (domyślny, najwyżej raz na dobę), automatyczne,
-  wylaczone; konfiguracja może tryb narzucić i wtedy wybór w UI jest zablokowany.
-- Bez klucza publicznego w programie (placeholder przed wydaniem) program działa:
-  katalog wbudowany, aktualizacje zdalne niedostępne z czytelnym komunikatem,
-  bez wyjątku przy starcie.
+"""Aktualizacje modeli: katalog pakietów podpisany Ed25519, instalacja z weryfikacją SHA-256,
+próbką kontrolną i atomową zamianą, powrót do poprzedniej wersji (blokada `min_wersja`).
+Bez klucza publicznego w programie działa katalog wbudowany, bez wyjątku przy starcie.
 """
 
 from __future__ import annotations
@@ -87,7 +72,7 @@ def wczytaj_klucze_publiczne(
     zrodlo: Path | str | list[str] | None = None,
 ) -> list[ed25519.Ed25519PublicKey]:
     """Klucze publiczne wydawcy: po jednym base64 (surowe 32 B) w linii, linie
-    z # to komentarze. Kilka kluczy = rotacja (§9 w. 6): nowy klucz wchodzi
+    z # to komentarze. Kilka kluczy = rotacja: nowy klucz wchodzi
     w wydaniu programu, stary może jeszcze podpisywać katalogi."""
     if zrodlo is None:
         sciezka = KLUCZ_PUBLICZNY_DOMYSLNY
@@ -195,7 +180,7 @@ def weryfikuj_katalog(
     """Podpis, format JSON, wersja_katalogu i schemat (tyle, by wczytaj_pakiety
     nie mogło trafić na brak pola). Katalog o wersji niższej od progu, a bez
     `pozwalaj_rowna` także o równej, jest odrzucany: ochrona przed cofnięciem
-    do starej wersji (§5). Równą dopuszcza weryfikacja przy starcie (to jest
+    do starej wersji. Równą dopuszcza weryfikacja przy starcie (to jest
     właśnie ten przyjęty katalog)."""
     if not weryfikuj_podpis(katalog_bajty, podpis_bajty, klucze):
         raise BladIntegralnosci("Niepoprawny podpis katalogu pakietów")
@@ -261,7 +246,7 @@ def ocen_probke_kontrolna(
     detektor: Any,
     plik_probki: Path = PROBKA_KONTROLNA_DOMYSLNA,
 ) -> tuple[bool, list[str]]:
-    """Próbka kontrolna (§5, §8 w. 8): nowa wersja jest oceniana względem PLIKU,
+    """Próbka kontrolna: nowa wersja jest oceniana względem PLIKU,
     nie względem starej wersji. Zaliczona, gdy wykrywa każdy fragment z
     musi_wykryc (zakres musi go pokrywać) i nic z nie_moze_wykryc."""
     if not plik_probki.is_file():
@@ -386,7 +371,7 @@ class MenedzerAktualizacji:
 
     @property
     def najwyzsza_wersja_katalogu(self) -> int:
-        """Próg rollbacku zapisany OSOBNO w ustawienia.json (§9 w. 6); zanim cokolwiek
+        """Próg rollbacku zapisany OSOBNO w ustawienia.json; zanim cokolwiek
         przyjęto, próg to wersja katalogu aktywnego."""
         zapisana = wczytaj_ustawienia(self._katalog_danych).get("najwyzsza_wersja_katalogu")
         if isinstance(zapisana, int) and not isinstance(zapisana, bool):
@@ -403,7 +388,7 @@ class MenedzerAktualizacji:
     def weryfikuj_start(self) -> None:
         """Przyjęty wcześniej katalog: podpis sprawdzany przy każdym starcie.
         Zły podpis = katalog wbudowany i widoczny stan błędu integralności
-        (cofnięcie zostaje, ale nie po cichu, §8 w. 7); aktualizacje blokowane."""
+        (cofnięcie zostaje, ale nie po cichu); aktualizacje blokowane."""
         plik_katalogu = self._katalog_danych / PLIK_KATALOGU_DANYCH
         if not plik_katalogu.is_file():
             return
@@ -537,7 +522,7 @@ class MenedzerAktualizacji:
     # --- instalacja offline (folder od IT) ---------------------------------------
 
     def przyjmij_katalog_z_folderu(self, folder: Path) -> dict[str, Any]:
-        """Sieć offline (§5): katalog i podpis z folderu na pendrive od IT.
+        """Sieć offline: katalog i podpis z folderu na pendrive od IT.
         Ta sama weryfikacja co przy pobieraniu zdalnym."""
         if not self._klucze:
             raise BladAktualizacji(
@@ -730,7 +715,7 @@ class MenedzerAktualizacji:
 
     def _zamien_wersje(self, pakiet: Pakiet, przejsciowy: Path) -> None:
         """Poprzednia wersja do .poprzednie/<pakiet>, potem atomowa zamiana plików
-        i manifestu (§5). Pliki pakietu mają stałe ścieżki względne, więc
+        i manifestu. Pliki pakietu mają stałe ścieżki względne, więc
         przeniesienie po nazwie jest bezpieczne."""
         katalog_docelowy = (
             self._katalog_modeli / pakiet.katalog_rel if pakiet.katalog_rel else self._katalog_modeli
@@ -762,7 +747,7 @@ class MenedzerAktualizacji:
 
     def cofnij_aktualizacje(self, pakiet_id: str) -> None:
         """Powrót do wersji z .poprzednie/<pakiet>; poniżej min_wersja pakietu
-        zablokowany (§9 w. 6). Działa także przy błędzie integralności: przywrócenie
+        zablokowany. Działa także przy błędzie integralności: przywrócenie
         znanego stanu to droga wyjścia, nie aktualizacja."""
         with self._zajete:
             if self._w_toku:

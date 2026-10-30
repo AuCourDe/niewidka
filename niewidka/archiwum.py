@@ -1,10 +1,6 @@
-"""Bezpieczny odczyt archiwów ZIP (K4b pkt 10, audyt Codex pkt 10).
-
-Nagłówki ZIP kłamią: wpis mógł deklarować 1 B przy wielkim strumieniu i
-„przechodził" sumę po nagłówkach, a odczyt dekompresował całość przed
-przycięciem. Tu: odczyt małymi porcjami pod wspólnym budżetem RZECZYWISTYCH
-rozpakowanych bajtów, weryfikacja długości po obu stronach deklaracji i
-odmowa odczytu dla metod kompresji poza stored/deflate (fail-closed).
+"""Bezpieczny odczyt ZIP: nagłówki mogą kłamać, więc odczyt porcjami pod wspólnym budżetem
+rzeczywistych bajtów, kontrola długości względem deklaracji, metody inne niż stored/deflate
+odrzucane (fail-closed).
 """
 
 from __future__ import annotations

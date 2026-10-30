@@ -1,13 +1,6 @@
-"""Znaczniki [TYP_N] / [OSOBA_N_Fk] — nadawanie numerów i zamiana (LLD §7).
-
-„N" liczy się per typ w kolejności wystąpienia w dokumencie; [OSOBA_1] wspólne
-dla wszystkich form tej osoby (klucz_grupy z osoby.py). Osoby dostają dodatkowo
-stabilny wariant formy powierzchniowej — [OSOBA_1_F2] — dzięki czemu przywracanie
-kluczem (oznaczenie, wariant) nie zależy od pozycji ani kolejności wystąpień
-i przetrwa parafrazę tekstu przez chmurowe AI (przegląd Astry pkt 2, Gemini
-pkt 3). Dopisek celowo nie zawiera nawiasów kwadratowych — kontrola wyniku
-szuka wzorca znacznika (przegląd Gemini pkt 7) — i obiecuje odtworzenie tylko
-danych zastąpionych znacznikami (Astra pkt 2).
+"""Znaczniki [TYP_N] / [OSOBA_N_Fk]: numery per typ w kolejności wystąpień, osoby ze stabilnym
+wariantem formy, więc przywracanie po (oznaczenie, wariant) nie zależy od pozycji ani
+parafrazy. Dopisek bez nawiasów kwadratowych, żeby kontrola nie brała go za znacznik.
 """
 
 from niewidka.model import Encja, TypEncji
@@ -24,7 +17,7 @@ _ALFABET_ID = "abcdefghijklmnop"
 def zakoduj_identyfikator(identyfikator: str) -> str:
     """Identyfikator jako same litery (nibble → a..p). Surowy hex w dopisku tworzył
     losowe 9-11-znakowe okna cyfr, które tripały reguły PESEL/REGON w kontroli
-    wyniku i losowo blokowały dokumenty (K4b pkt 6+7)."""
+    wyniku i losowo blokowały dokumenty."""
     return "".join(_ALFABET_ID[int(znak, 16)] for znak in identyfikator)
 
 
@@ -37,7 +30,7 @@ def odkoduj_identyfikator(litery: str) -> str | None:
 
 
 def dopisek(identyfikator: str) -> str:
-    """Dopisek wyniku z identyfikatorem mapy (K4b pkt 6): wiąże mapę z KONKRETNYM
+    """Dopisek wyniku z identyfikatorem mapy: wiąże mapę z KONKRETNYM
     dokumentem — przywracanie sprawdza, że identyfikator mapy równa się temu
     zapisanemu w treści; podsunięcie mapy innego zadania kończy się 422."""
     return f"{DOPISEK} Identyfikator mapy: {zakoduj_identyfikator(identyfikator)}."
@@ -83,7 +76,7 @@ def znacznik_encji(encja: Encja) -> str:
 def zamien_w_segment(
     segment_tekst: str, encje: list[Encja], poczatek_kolejnego: int = 0
 ) -> tuple[str, list[int]]:
-    """Tekst ze znacznikami + numery „kolejny" wystąpień dla mapy (LLD §8).
+    """Tekst ze znacznikami + numery „kolejny" wystąpień dla mapy.
 
     Zamiana od końca segmentu, żeby offsety nie uciekały. `poczatek_kolejnego`
     kontynuuje globalną numerację między segmentami.

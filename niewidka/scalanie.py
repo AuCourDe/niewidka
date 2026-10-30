@@ -1,4 +1,4 @@
-"""Scalanie kandydatów w encje (LLD §5, przegląd Astry pkt 1).
+"""Scalanie kandydatów w encje.
 
 Nakładające się zakresy tworzą grupę; maskowany obszar grupy to UNIA zakresów
 (wybór jednego zwycięzcy zostawiałby dziury), a wybierana jest tylko etykieta:
@@ -22,7 +22,7 @@ def _priorytet(kandydat: Zakres, wewnętrzny: bool) -> tuple:
 
 def scal(tekst_segmentu: str, kandydaci: list[Zakres]) -> list[Zakres]:
     """Zwraca encje po scaleniu grup nakładań, sortowane wg pozycji."""
-    del tekst_segmentu  # argument z kontraktu LLD; unia znaków nie jest tu potrzebna
+    del tekst_segmentu   # unia znaków nie jest tu potrzebna
     kandydaci = _bez_fragmentow_pewnych(kandydaci)
     wyniki: list[Zakres] = []
     grupa: list[Zakres] = []
@@ -42,7 +42,7 @@ def scal(tekst_segmentu: str, kandydaci: list[Zakres]) -> list[Zakres]:
 
 
 def _bez_fragmentow_pewnych(kandydaci: list[Zakres]) -> list[Zakres]:
-    """Kandydat w pełni zawarty w innym kandydacie z sumą kontrolną odpada (K7b).
+    """Kandydat w pełni zawarty w innym kandydacie z sumą kontrolną odpada.
 
     Numer z poprawną sumą kontrolną jest autorytatywny: jego fragment nie jest
     osobną daną (okno Luhna wewnątrz IBAN-u to nie karta). Zakres-fragment to

@@ -1,8 +1,8 @@
-"""Pomiar recall/precision detektora na korpusie (K0, zasady w KRYTERIA.md).
+"""Pomiar recall/precision detektora na korpusie.
 
 Dopasowanie dokładne: TP = identyczne (start, koniec, typ); pokrycie częściowe
-liczy się jednocześnie jako FN i FP; detekcja podejrzana (`podejrzana=True`,
-KRYTERIA §1.3) bez dopasowania liczy się osobno jako PN — nie zaniża precision.
+liczy się jednocześnie jako FN i FP; detekcja podejrzana (`podejrzana=True`)
+bez dopasowania liczy się osobno jako PN — nie zaniża precision.
 Uruchomienie z katalogu repo:
 
     .venv/bin/python -m narzedzia.pomiar --detektor reguly
@@ -53,11 +53,11 @@ class WynikTypu:
     tp: int = 0
     fp: int = 0
     fn: int = 0
-    pn: int = 0  # podejrzane nadmaskowanie (KRYTERIA §1.3), poza precision
+    pn: int = 0  # podejrzane nadmaskowanie, poza precision
 
 
 class DetektorPusty:
-    """Sanity pomiaru: zero detekcji → recall 0 (KRYTERIA.md §1.5)."""
+    """Sanity pomiaru: zero detekcji → recall 0."""
 
     def znajdz(self, tekst: str) -> list[Zakres]:
         return []
@@ -65,7 +65,7 @@ class DetektorPusty:
 
 PLIK_NOWE_TYPOW = "probki_nowe_typy.jsonl"
 
-# K7b: klasy LFM2.5 z korpusu nowych typów, które rdzeń (reguły albo pakiet
+# klasy LFM2.5 z korpusu nowych typów, które rdzeń (reguły albo pakiet
 # Rozszerzony LFM2.5) zwraca jako typy Niewidki; reszta zostaje surową nazwą.
 TYPY_KORPUSU_NA_RDZEN = {
     "contact.ip_address": "IP",
@@ -76,7 +76,7 @@ TYPY_KORPUSU_NA_RDZEN = {
 
 
 class Lfm25SoloDetektor:
-    """LFM2.5 z PELNĄ mapą klas (pomiar K2e — nie produkt).
+    """LFM2.5 z PELNĄ mapą klas (pomiar, nie produkt).
 
     Klasa `national_id` rozstrzyga się kształtem zapisu na spanie
     (detektory.mapuj_typ_lfm25); klasy bez odpowiednika w Niewidce wypisują
@@ -126,10 +126,10 @@ def zbuduj_detektor(
 ):
     """Detektor pomiaru wg nazwy CLI.
 
-    Poziomy produktu składa `detektory.zbuduj_poziom` (ta sama funkcja co rdzeń,
-    K2d): poziom1 = reguły+bardsai, poziom2-a = produktowy poziom 2 (wariant A,
+    Poziomy produktu składa `detektory.zbuduj_poziom` (ta sama funkcja co rdzeń):
+    poziom1 = reguły+bardsai, poziom2-a = produktowy poziom 2 (wariant A,
     próg `próg_osoba` + okna półkrokowe), poziom2-b = produktowy poziom 3 (wariant
-    B, +słownik imion). Nazwy `poziom2` (z LFM2.5, K2b) i `poziom2-uzup*` (K2c)
+    B, +słownik imion). Nazwy `poziom2` (z LFM2.5) i `poziom2-uzup*`
     zostają wyłącznie dla reprodukcji starych pomiarów.
     """
     if nazwa == "pusty":
@@ -330,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--wariant",
-        choices=("int8", "fp32", "q4-bl32", "q4-bl128"),  # K7a: kwantyzacja int4
+        choices=("int8", "fp32", "q4-bl32", "q4-bl128"),  # kwantyzacja int4
         default="int8",
     )
     parser.add_argument(

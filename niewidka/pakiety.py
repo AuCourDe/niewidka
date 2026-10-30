@@ -1,16 +1,7 @@
-"""Pakiety modeli (K7b): katalog wag pobierany PO instalacji, nie w paczce.
-
-Katalog pakietów: `niewidka/dane/pakiety.json` (pliki z URL względem źródła,
-rozmiarem i SHA-256 przypiętym do wersji). Pobieranie httpx strumieniowo
-z wznawianiem (Range), weryfikacja SHA-256 PRZED użyciem (zły hash = usunięcie
-+ `BladPakietu`), atomowe przeniesienie z pliku częściowego. Lustro IT:
-NIEWIDKA_MODELE_ZRODLO na dowolny serwer plików albo `instaluj_z_katalogu`
-dla środowisk offline. Katalog wag: %LOCALAPPDATA%\\Niewidka\\modele (Windows),
-XDG data home (Linux/Mac), nadpisywany NIEWIDKA_MODELE_KATALOG.
-
-Pobierane są wyłącznie pliki modelu (ONNX), tokenizer i konfiguracja JSON;
-żaden pobrany plik nie jest wykonywany (brak importu, brak pickle — ONNX czyta
-wyłącznie onnxruntime), a JSON parsuje json.
+"""Pakiety modeli: wagi pobierane PO instalacji (katalog `niewidka/dane/pakiety.json`),
+strumieniowo z wznawianiem, z weryfikacją SHA-256 przed użyciem. Źródło lustra IT:
+NIEWIDKA_MODELE_ZRODLO albo `instaluj_z_katalogu`. Pobierane są tylko pliki modelu,
+tokenizer i JSON; nic z pobranego nie jest wykonywane.
 """
 
 from __future__ import annotations
@@ -131,7 +122,7 @@ def wczytaj_bajty_pakietu(
     katalog: Path,
     katalog_pakietow: Path = KATALOG_PAKIETOW,
 ) -> dict[str, bytes]:
-    """K7c pkt 2/3 (audyt #2/#3): ZAUFANY katalog pakietów (wbudowany w aplikację)
+    """ZAUFANY katalog pakietów (wbudowany w aplikację)
     decyduje, które pliki pakietu są wymagane i jakie mają SHA-256; lokalny
     manifest.json nie wyznacza oczekiwanych sum. Każdy plik czytany DO PAMIĘCI
     dokładnie raz: hasz liczony z tych samych bajtów, które wracają do loadera
@@ -161,8 +152,7 @@ def zrodlo(env: dict[str, str] | None = None) -> str:
 
 
 def limit_czasu_domyslny(env: dict[str, str] | None = None) -> int:
-    """Całkowity limit czasu JEDNEJ operacji pobierania/instalacji (K7c pkt 8,
-    audyt: timeout odczytu httpx dotyczy fragmentu, nie całego transferu).
+    """Całkowity limit czasu JEDNEJ operacji pobierania/instalacji (timeout odczytu httpx dotyczy fragmentu, nie całego transferu).
     Konfigurowalny NIEWIDKA_PAKIETY_LIMIT_CZASU_S; domyślnie 1800 s."""
     env = os.environ if env is None else env
     surowa = env.get("NIEWIDKA_PAKIETY_LIMIT_CZASU_S", "1800")
@@ -212,7 +202,7 @@ def odczytaj_zainstalowana_wersje(pakiet: Pakiet, katalog: Path) -> int | None:
         return 1
 
 
-# --- K7c pkt 4 (audyt #4): dowiązania nie prowadzą poza katalog modeli --------
+# --- dowiązania nie prowadzą poza katalog modeli --------
 
 PUBLIKOWANY = ".publikowany"
 
@@ -249,7 +239,7 @@ def _opublikuj(
     bajty: bytes, cel: Path, suma_oczekiwana: str, katalog: Path
 ) -> None:
     """Publikacja zweryfikowanych bajtów: hasz z DOKŁADNIE tych bajtów, które
-    zapisujemy (K7c pkt 3, koniec okna sprawdź-użyj), zapis do świeżego pliku
+    zapisujemy, zapis do świeżego pliku
     O_EXCL i atomowy os.replace (rename NIE podąża za symlinkiem w miejscu
     docelowym, więc podstawiony manifest/cel zostaje zastąpiony, nie przezpisany).
     """
@@ -274,7 +264,7 @@ def _podziel_postep(postep, rozmiary: list[int]):
     return wywolaj, po_pliku
 
 
-# --- K7c pkt 10 (audyt): przekierowania pod kontrolą --------------------------
+# --- przekierowania pod kontrolą --------------------------
 
 _SKOKI_MAKS = 5
 
@@ -298,7 +288,7 @@ def _host_prywatny(host: str) -> bool:
 
 
 def _waliduj_przekierowanie(adres: str, host_zrodla: str) -> None:
-    """Każdy krok przekierowania (K7c pkt 10): HTTPS, chyba że cel jest hostem
+    """Każdy krok przekierowania: HTTPS, chyba że cel jest hostem
     skonfigurowanego lustra IT (NIEWIDKA_MODELE_ZRODLO może być http, także
     loopback); nigdy sieci prywatne poza lustrem (ślepy SSRF)."""
     u = httpx.URL(adres)
@@ -327,9 +317,9 @@ def _pobierz_plik(
 ) -> None:
     """Strumieniowe pobranie jednego pliku z wznawianiem; publikacja zweryfikowanych
     bajtów (_opublikuj). Plik częściowy otwierany bez podążania za dowiązaniami.
-    K7c pkt 8 (audyt): twardy limit bajtów = rozmiar z katalogu (też przy Range),
+    twardy limit bajtów = rozmiar z katalogu (też przy Range),
     całkowity limit czasu i anulowanie sprawdzane przy KAŻDYM kawałku.
-    K7c pkt 10 (audyt): przekierowania prowadzone RĘCZNIE z walidacją każdego
+    przekierowania prowadzone RĘCZNIE z walidacją każdego
     kroku (_waliduj_przekierowanie) — follow_redirects=False."""
     czesciowy = cel.with_name(cel.name + CZESCIOWY)
     if _jest_dowiazaniem(czesciowy):
@@ -405,7 +395,7 @@ def _pobierz_plik(
 
 
 def _zapisz_manifest(pakiet: Pakiet, katalog: Path) -> None:
-    """Manifest informacyjny; zapis atomowy (K7c pkt 4): świeży O_EXCL + os.replace,
+    """Manifest informacyjny; zapis atomowy: świeży O_EXCL + os.replace,
     więc podstawiony symlink manifest.json zostaje ZASTĄPIONY, nie przezpisany."""
     katalog_pakietu = katalog / pakiet.katalog_rel if pakiet.katalog_rel else katalog
     manifest = {
@@ -418,7 +408,7 @@ def _zapisz_manifest(pakiet: Pakiet, katalog: Path) -> None:
 
 
 def opublikuj_bez_hasza(bajty: bytes, cel: Path, katalog: Path) -> None:
-    """Atomowa publikacja pliku (K7c pkt 4, wspólna z magazynem map): świeży
+    """Atomowa publikacja pliku: świeży
     O_EXCL + os.replace, uprawnienia 0600, symlink w miejscu docelowym zostaje
     ZASTĄPIONY, nie przezpisany."""
     _odrzuc_dowiazania(katalog, str(cel.relative_to(katalog)))
@@ -444,7 +434,7 @@ def pobierz(
 ) -> None:
     """Pobiera wszystkie pliki pakietu; pomija te już zgodne z SHA-256."""
     wlasny = klient is None
-    # K7c pkt 10: przekierowania prowadzone ręcznie (walidacja każdego kroku)
+    # przekierowania prowadzone ręcznie (walidacja każdego kroku)
     klient = klient or httpx.Client(follow_redirects=False, timeout=600)
     host_zrodla = httpx.URL(zrodlo_bazowe).host or ""
     limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
@@ -509,11 +499,10 @@ def instaluj_z_katalogu(
     przerwano=None,
 ) -> None:
     """Instalacja offline (IT): katalog z plikami o nazwach jak w źródle;
-    weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu (K7c pkt 3/4:
-    te same bajty są haszowane i publikowane, bez podążania za dowiązaniami).
-    K7c pkt 8: limit bajtów = rozmiar z katalogu wag (plik lustra większy =
+    weryfikacja SHA-256 przed zapisem, atomowo jak przy pobieraniu (te same bajty są haszowane i publikowane, bez podążania za dowiązaniami).
+    limit bajtów = rozmiar z katalogu wag (plik lustra większy =
     odmowa PRZED kopiowaniem), limit czasu i anulowanie jak przy pobieraniu.
-    K7/akt: to droga lustra IT (wersje przypięte w wbudowanym katalogu);
+    To droga lustra IT (wersje przypięte w wbudowanym katalogu);
     aktualizacja z folderem i podpisem idzie przez aktualizacje.MenedzerAktualizacji."""
     limit = limit_czasu_s if limit_czasu_s is not None else limit_czasu_domyslny()
     start_czasu = time.monotonic()
@@ -550,12 +539,12 @@ class PostepPobierania:
 
 
 class MenedzerPakietow:
-    """Stan pakietów + jedno pobieranie naraz w wątku tła (K7b).
+    """Stan pakietów + jedno pobieranie naraz w wątku tła.
 
     Operacje rdzenia (`pobierz`, `usun`, `instaluj_z_katalogu`) wołane z wątku;
     postęp publikowany w `PostepPobierania` dla GET /api/pakiety. `poziomy_dostepne`
     pilnuje pakietu wymaganego: bez niego żaden poziom suwaka nie działa.
-    K7c pkt 9 (audyt): stan pakietów jest ZAPAMIĘTANY — weryfikacja SHA działa
+    stan pakietów jest ZAPAMIĘTANY — weryfikacja SHA działa
     przy starcie i po każdej zmianie, w wątku tła; GET zwraca cache (fingerprint
     obecności plików, stat bez haszowania, wykrywa wgranie wag z zewnątrz).
     """
@@ -570,7 +559,7 @@ class MenedzerPakietow:
         katalog: Path,
         zrodlo_bazowe: str,
         klient: httpx.Client | None = None,
-        on_zmiana: callable | None = None,  # type: ignore[valid-type] # K7c: invalidacja cache detektorów
+        on_zmiana: callable | None = None,  # type: ignore[valid-type] # invalidacja cache detektorów
     ):
         self._pakiety = {p.id: p for p in lista}
         self._katalog = Path(katalog)
@@ -587,7 +576,7 @@ class MenedzerPakietow:
         self._odcisk = ""
         self._odswiezanie = threading.Lock()
         self._odswiezanie_w_toku = False
-        self.odswiez_w_tle()  # K7c pkt 9: weryfikacja raz przy starcie, w tle
+        self.odswiez_w_tle()  # weryfikacja raz przy starcie, w tle
 
     def _obecne(self) -> str:
         """Fingerprint obecności plików (stat, bez SHA) do wykrywania zmian z zewnątrz."""
@@ -652,13 +641,13 @@ class MenedzerPakietow:
         threading.Thread(target=praca, name="niewidka-pakiety-stan", daemon=True).start()
 
     def podmien_pakiety(self, lista: list[Pakiet]) -> None:
-        """K7/akt: przyjęty (podpisany) katalog aktualizacji zastępuje wbudowany;
+        """Przyjęty (podpisany) katalog aktualizacji zastępuje wbudowany;
         od teraz stan i SHA-256 pilnują nowych wersji. Odświeżenie w tle."""
         self._pakiety = {p.id: p for p in lista}
         self.odswiez_w_tle()
 
     def ustaw_zwrot_zmiany(self, on_zmiana: callable) -> None:  # type: ignore[valid-type]
-        """K7c: zwrot wywoływany po każdej zakończonej operacji (API podpina
+        """zwrot wywoływany po każdej zakończonej operacji (API podpina
         czyszczenie cache detektorów, by nowy stan pakietów był widoczny)."""
         self._on_zmiana = on_zmiana
 
@@ -672,7 +661,7 @@ class MenedzerPakietow:
         return wpis["stan"] if wpis else None
 
     def lista(self) -> list[dict]:
-        """Zapamiętany stan (K7c pkt 9); zmiana obecności plików odpala odświeżenie
+        """Zapamiętany stan; zmiana obecności plików odpala odświeżenie
         w tle, bez haszowania na żądanie żądania."""
         if self._obecne() != self._odcisk:
             self.odswiez_w_tle()
@@ -721,7 +710,7 @@ class MenedzerPakietow:
 
     def pobierz(self, identyfikator: str) -> bool:
         """Uruchamia pobieranie w wątku tła; False gdy inne już trwa albo pakiet
-        nieznany (K7b: operacja długotrwała, POST odpowiada 202 od razu)."""
+        nieznany."""
         pakiet = self._pakiety.get(identyfikator)
         if pakiet is None:
             return False
@@ -739,12 +728,12 @@ class MenedzerPakietow:
         )
 
     def anuluj(self) -> None:
-        """K7c pkt 8: prosi bieżącą operację o przerwanie (sprawdzane przy każdym
+        """prosi bieżącą operację o przerwanie (sprawdzane przy każdym
         kawałku); efekty widoczne w postep.blad po jej zakończeniu."""
         self._przerwano.set()
 
     def instaluj(self, identyfikator: str, katalog_zrodlowy: Path) -> bool:
-        """Instalacja offline w tle (K7c pkt 8, audyt: kopia lokalna blokowała
+        """Instalacja offline w tle (kopia lokalna blokowała
         pętlę API); False gdy inna operacja trwa. Limit bajtów/czasu jak przy
         pobieraniu; błędy lądują w postep.blad."""
         pakiet = self._pakiety[identyfikator]
@@ -774,7 +763,7 @@ class MenedzerPakietow:
             except BladPakietu as blad:
                 self.postep.blad = str(blad)
             except httpx.HTTPStatusError as blad:
-                # K7c pkt 5 (audyt): kontrolowany komunikat — bez URL (bywa z
+                # kontrolowany komunikat — bez URL (bywa z
                 # login:hasło lustra) i bez tekstu wyjątku; tylko kod HTTP
                 self.postep.blad = (
                     f"{pakiet.id}: {etykieta} nie powiodło się (HTTP {blad.response.status_code})"
@@ -782,10 +771,10 @@ class MenedzerPakietow:
             except (httpx.HTTPError, OSError):
                 self.postep.blad = f"{pakiet.id}: {etykieta} nie powiodła się (błąd sieci)"
             finally:
-                # K7c pkt 9: świeży stan ZANIM zniknie flaga _w_toku — czekaj()
+                # świeży stan ZANIM zniknie flaga _w_toku — czekaj()
                 # i polling UI mają widzieć stan po operacji, nie przed odświeżeniem.
                 # Koniec (pakiet=None) ogłaszamy NA SAMYM KOŃCU: UI po nim od razu
-                # zaczyna następny pakiet (Codex 2026-10-29: „Pobierz wszystko" → 409)
+                # zaczyna następny pakiet
                 self.odswiez()
                 self._zglos_zmiane()
                 self._w_toku = False

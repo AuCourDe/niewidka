@@ -1,11 +1,6 @@
-"""Reguły detekcji: wyrażenia regularne + sumy kontrolne (LLD §3).
-
-Walidatory dostają tekst znormalizowany (bez spacji i myślników, wielkimi
-literami). Znacznik `suma_kontrolna=True` oznacza najwyższy priorytet przy
-scalaniu i pewność 1.0; reguły bez walidatora mają pewność 0.9. Dopasowanie
-z BŁĘDNĄ sumą kontrolną nie jest odrzucane — dostaje flagę `podejrzana`
-i pewność 0.5 i wchodzi do maskowania (przegląd Astry pkt 14: literówka
-w prawdziwym numerze nie może zniknąć cicho).
+"""Reguły detekcji: wyrażenia regularne + sumy kontrolne. Walidatory dostają tekst
+znormalizowany; suma poprawna = pewność 1.0 i najwyższy priorytet, błędna = encja
+`podejrzana` (0.5), nie odrzucenie (literówka w numerze nie może zniknąć cicho).
 """
 
 from __future__ import annotations
@@ -22,9 +17,9 @@ import stdnum.pl.regon
 from niewidka.model import TypEncji, Zakres
 
 PEWNOŚC_BEZ_SUMY = 0.9
-PEWNOŚC_PODEJRZANE = 0.5  # wzorzec pasuje, suma kontrolna błędna (LLD §3)
+PEWNOŚC_PODEJRZANE = 0.5  # wzorzec pasuje, suma kontrolna błędna
 
-# Dowód osobisty: python-stdnum go nie obejmuje — własny walidator (LLD §3).
+# Dowód osobisty: python-stdnum go nie obejmuje — własny walidator.
 # Wagi 7,3,1,9,7,3,1,7,3; litery A=10..Z=35; suma iloczynów mod 10 równa się
 # 4. znakowi (algorytm.org). W narzedzia/numery.py istnieje celowa kopia:
 # korpus testowy nie może zależeć od walidowanego kodu rdzenia.
@@ -68,7 +63,7 @@ def _dowod_ok(zapis: str) -> bool:
     return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == int(nr[3])
 
 
-# K7b: tania detekcja poziomu 1 dla typów, których wcześniej reguły nie obejmowały.
+# tania detekcja poziomu 1 dla typów, których wcześniej reguły nie obejmowały.
 
 def _ip_v4_ok(zapis: str) -> bool:
     return all(int(oktet) <= 255 for oktet in zapis.split("."))
@@ -95,7 +90,7 @@ _MIESIĄCE = (
 )
 
 # Miejscowość: słowa z wielkiej litery, także wieloczłonowe („Zielona Góra”,
-# „Bielsko-Biała”) — ogon adresu za kodem pocztowym (K2e). Tylko w jednej linii:
+# „Bielsko-Biała”) — ogon adresu za kodem pocztowym. Tylko w jednej linii:
 # z \s+ zjadał następny wiersz pisma („Warszawa\n\nDotyczy”, 2026-10-28).
 _MIEJSCOWOSC = r"[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:[ \t\u00a0\u202f]+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*)*"
 # Kod pocztowy NN-NNN; lookarouny odcinają kody zanurzone w dłuższych ciągach
@@ -145,7 +140,7 @@ REGULY: tuple[Regula, ...] = (
     # Telefon PL: prefiks opcjonalny; stacjonarny 2-3-2-2 (w nawiasach albo
     # ze spacjami), komórkowy 3-3-3 (bez prefiksu tylko od cyfry 5-8, żeby nie
     # wchodzić w 9-cyfrowe REGON-y) albo stacjonarny 3-3-3 od 1-4 — ten ostatni
-    # WYMAGA separatorów (ciąg 9 cyfr bez spacji to pułapka na REGON; K2b tel-085/086).
+    # WYMAGA separatorów (ciąg 9 cyfr bez spacji to pułapka na REGON).
     Regula(
         typ=TypEncji.TELEFON,
         wzorzec=re.compile(
@@ -159,7 +154,7 @@ REGULY: tuple[Regula, ...] = (
         walidator=None,
         suma_kontrolna=False,
     ),
-    # Adres: heurystyka (LLD §3 + K2e) — ciągła całość: od wyróżnika do numeru
+    # Adres: heurystyka — ciągła całość: od wyróżnika do numeru
     # z lokalem i, jeśli dalej stoi, kod pocztowy z miejscowością (słowa
     # z wielkiej litery, także wieloczłonowe: „Zielona Góra”, „Bielsko-Biała”).
     # Sam „kod miejscowość” bez ulicy też jest adresem. Kod+miejscowość to
@@ -185,7 +180,7 @@ REGULY: tuple[Regula, ...] = (
         typ=TypEncji.DATA,
         wzorzec=re.compile(
             rf"(?<![\d./-])(?:\d{{1,2}}[.-]\d{{1,2}}[.-]\d{{4}}"
-            rf"|\d{{4}}-\d{{2}}-\d{{2}}"  # ISO RRRR-MM-DD (K2b data-094)
+            rf"|\d{{4}}-\d{{2}}-\d{{2}}"  # ISO RRRR-MM-DD
             rf"|\d{{1,2}}\s+(?:{_MIESIĄCE})\s+\d{{4}})(?!\d)"
         ),
         walidator=None,
@@ -193,7 +188,7 @@ REGULY: tuple[Regula, ...] = (
     ),
     Regula(
         typ=TypEncji.EMAIL,
-        # K4b pkt 13: granica początku (lookbehind) — bez niej długie ciągi bez @
+        # granica początku (lookbehind) — bez niej długie ciągi bez @
         # cofały kwadratowo z KAŻDEJ pozycji (7 s na 100 tys. znaków); z nią próba
         # startuje wyłącznie na pierwszym znaku ciągu i koszt jest liniowy
         wzorzec=re.compile(
@@ -202,7 +197,7 @@ REGULY: tuple[Regula, ...] = (
         walidator=None,
         suma_kontrolna=False,
     ),
-    # K7b: IP v4. Koniec = nie za cyfrą i nie za kropką z cyfrą („1.2.3.4.5" i
+    # IP v4. Koniec = nie za cyfrą i nie za kropką z cyfrą („1.2.3.4.5" i
     # „.1.2.3.4" nie łapią się); zły oktet (256+) zostaje podejrzanym.
     Regula(
         typ=TypEncji.IP,
@@ -210,7 +205,7 @@ REGULY: tuple[Regula, ...] = (
         walidator=_ip_v4_ok,
         suma_kontrolna=False,
     ),
-    # K7b: IP v6 — formy pełna (8 grup) i ze skrótem „::". SIMPLIFICATION: bez
+    # IP v6 — formy pełna (8 grup) i ze skrótem „::". SIMPLIFICATION: bez
     # pełnej gramatyki RFC 4291 (strefy %, formy mieszane); czas „12:45:30" nie
     # przechodzi (brak „::" i mniej niż 8 grup). Rozbudować, gdy pomiar pokaże FN.
     Regula(
@@ -225,7 +220,7 @@ REGULY: tuple[Regula, ...] = (
         walidator=None,
         suma_kontrolna=False,
     ),
-    # K7b: karta płatnicza 13-19 cyfr w grupach po 4 (separatory opcjonalne) z
+    # karta płatnicza 13-19 cyfr w grupach po 4 (separatory opcjonalne) z
     # sumą Luhna; błędna suma = podejrzana (literówka w prawdziwej karcie nie
     # może zniknąć cicho, jak PESEL). Okno od 13 cyfr nie wchodzi w NIP (10),
     # PESEL (11) i REGON-9; IBAN/REGON-14 z poprawną sumą kontrolną wygrywają
@@ -246,7 +241,7 @@ def _pewnosc(regula: Regula) -> float:
 def znajdz(tekst: str) -> list[Zakres]:
     """Kandydaci ze wszystkich reguł (bez scalania), sortowane wg pozycji.
 
-    Zła suma kontrolna daje encję podejrzaną, nie odrzucenie (Astra pkt 14).
+    Zła suma kontrolna daje encję podejrzaną, nie odrzucenie.
     """
     kandydaci = []
     for regula in REGULY:

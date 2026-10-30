@@ -1,4 +1,4 @@
-"""Klucz mapy (LLD §8): plik z NIEWIDKA_KLUCZ_PLIK albo keyring — zero fallbacku
+"""Klucz mapy: plik z NIEWIDKA_KLUCZ_PLIK albo keyring — zero fallbacku
 i cichego generowania; brak obu źródeł = `BrakKlucza`. Treść klucza nigdy nie
 trafia do logów, wyjątków ani repr.
 """
@@ -32,7 +32,7 @@ class KluczJuzIstnieje(Exception):
 
 
 def utworz_klucz_w_keyringu(usluga: str, nadpisz: bool = False) -> None:
-    """Nowy klucz wprost do magazynu systemowego (desktop K6, Windows: Menedżer
+    """Nowy klucz wprost do magazynu systemowego (desktop, Windows: Menedżer
     poświadczeń). Istniejący wpis blokuje — zamiana tylko świadomie (nadpisz=True).
     """
     if not nadpisz and _z_keyringa(usluga):

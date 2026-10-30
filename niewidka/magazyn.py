@@ -1,18 +1,9 @@
-"""Magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2): automatyczny zapis
-zaszyfrowanej mapy każdego ukrycia w katalogu danych użytkownika, usuwanie po
-terminie retencji (RODO) i dziennik zdarzeń do audytu.
+"""Magazyn map z retencją: zaszyfrowana mapa każdego ukrycia w katalogu danych (`<id>.nwidka`
++ metadane `<id>.json` bez danych osobowych), usuwanie po terminie retencji i dziennik
+zdarzeń (`dziennik.jsonl`, nigdy treści ani nazw plików).
 
-Na zadanie dwa pliki: `<id>.nwidka` (szyfrogram AES-256-GCM, jak przy pobraniu)
-i `<id>.json` (metadane: utworzono, wygasa, poziom, liczby per typ - żadnych
-danych osobowych). Kradzież katalogu bez klucza z magazynu systemowego nic nie
-daje. Dziennik `dziennik.jsonl`: czas, zdarzenie, 12-znakowy skrót
-identyfikatora, poziom, liczby per typ - nigdy treści ani nazw plików.
-
-Zegar wstrzyknięty (testy retencji bez czekania). Zapis atomowy przez
-`opublikuj_bez_hasza` (wspólna z pakietami). Jedna blokada procesu na magazyn,
-dziennik i rejestr wydanych map (przegląd Argona pkt 9): API trzyma
-`MagazynMap.blokada` wokół zmian rejestru, żeby zapis magazynu i dopisek do
-rejestru nie potłukły się z równoległym sprzątaniem albo usuwaniem.
+Zegar wstrzyknięty; zapis atomowy. API trzyma `MagazynMap.blokada` wokół zmian rejestru
+wydanych map, żeby nie kolidowały ze sprzątaniem.
 """
 
 from __future__ import annotations
@@ -38,13 +29,13 @@ DOMYSLNY_ZEGAR: Callable[[], datetime] = lambda: datetime.now().astimezone()
 
 
 def kontekst_domyslny() -> dict:
-    """Pola środowiska audytu: użytkownik systemu i wersja programu (§9 pkt 10)."""
+    """Pola środowiska audytu: użytkownik systemu i wersja programu."""
     return {"uzytkownik": getpass.getuser(), "wersja": __version__}
 
 
 def wersje_pakietow(katalog_wag: Path | str | None) -> dict[str, str] | None:
     """Wersje pakietów modeli z manifestów w katalogu wag; None, gdy manifesty ich
-    nie podają (starsze katalogi) albo katalogu nie ma (§9 pkt 10, sekcja 5)."""
+    nie podają (starsze katalogi) albo katalogu nie ma."""
     if not katalog_wag:
         return None
     katalog = Path(katalog_wag)
@@ -71,7 +62,7 @@ def _skrot_poprzedniej_linii(sciezka: Path) -> str:
 
 
 def zweryfikuj_lancuch(sciezka: Path) -> tuple[bool, list[str]]:
-    """Weryfikacja łańcucha dziennika (§9 pkt 10): każdy wpis wskazuje skrót
+    """Weryfikacja łańcucha dziennika: każdy wpis wskazuje skrót
     SHA-256 poprzedniej linii, więc edycja treści albo usunięcie wiersza zepsuje
     następnik. Zwraca (spójny, problemy) z numerami linii - bez treści wpisów."""
     problemy: list[str] = []
@@ -243,8 +234,7 @@ class MagazynMap:
         teraz: datetime,
     ) -> None:
         """Wiersz audytu BEZ danych osobowych: skrót id zamiast treści mapy, do tego
-        kontekst środowiska i łańcuch skrótów SHA-256 (edycja jest wykrywalna,
-        §9 pkt 10)."""
+        kontekst środowiska i łańcuch skrótów SHA-256 (edycja jest wykrywalna,"""
         wpis = {
             "czas": teraz.isoformat(timespec="seconds"),
             "zdarzenie": zdarzenie,

@@ -1,8 +1,8 @@
-"""Kalibracja R95 (K2, LLD §11): górna granica Cloppera–Pearsona stopy ucieczek.
+"""Kalibracja R95: górna granica Cloppera–Pearsona stopy ucieczek.
 
 R95(typ) = beta.ppf(0.95, FN+1, TP+FN−FN) na korpusie walidacyjnym — runtime nie
 wymaga scipy, liczone wyłącznie tutaj. Wynik: dane/r95.json ze strukturą per
-poziom (K2d); każdy bieg dopisuje/odświeża swój poziom, pozostałe zostają.
+poziom; każdy bieg dopisuje/odświeża swój poziom, pozostałe zostają.
 
     .venv/bin/python -m narzedzia.kalibracja --detektor poziom1 \
         --modele ~/models/niewidka
@@ -38,7 +38,7 @@ def r95_gorna(k: int, n: int) -> float:
 
 
 def zbuduj_wpis(detektor: str, wyniki: dict, prog_osoba: float | None = None) -> dict:
-    """Wpis poziomu: R95 + próba (k pominięć na n przykładów) per typ (K5c).
+    """Wpis poziomu: R95 + próba (k pominięć na n przykładów) per typ.
 
     k i n lecą do r95.json prosto z pomiaru — bez zmyślania; próba rozstrzyga
     w jakosc.opis_ryzyka, czy R95 w ogóle dostaje etykietę.

@@ -1,6 +1,5 @@
-"""Ikona programu Niewidka (K6): karta z czarną zaślepką, PNG i .ico pisane od zera
-(czysty stdlib, bez Pillow). Placeholder do czasu decyzji właściciela o logo
-(zlecenie 12:55): paleta z styl.css (karta #FBFBF9, tusz #23282D, akcent #2D4A6B).
+"""Ikona programu Niewidka: karta z czarną zaślepką, PNG i .ico pisane od zera
+(czysty stdlib, bez Pillow). Placeholder do czasu decyzji właściciela o logo: paleta z styl.css (karta #FBFBF9, tusz #23282D, akcent #2D4A6B).
 
 Uruchomienie: python narzedzia/ikona.py --wyjscie ikona.ico
 """

@@ -1,4 +1,4 @@
-"""Poprawki w podglądzie: „Ukryj wszędzie” i „To nie dane” (docs/MAPY-I-AKTUALIZACJE.md §4, §8, §9).
+"""Poprawki w podglądzie: „Ukryj wszędzie” i „To nie dane”.
 
 Serwer trzyma w pamięci (RAM) wykrycia ostatnich zadań (`PamiecWykryc`: domyślnie 4 zadania
 przez 15 minut, nic na dysk, nic w logach). `popraw` liczy z nich nowy wynik BEZ ponownego

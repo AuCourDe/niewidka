@@ -1,6 +1,6 @@
-"""Generator plików wzorcowych DOCX do testów round-trip (K3, python-docx).
+"""Generator plików wzorcowych DOCX do testów round-trip.
 
-Wzorce zawierają to, co adapter DOCX musi obsłużyć (zlecenie K3): runy z przeplotem
+Wzorce zawierają to, co adapter DOCX musi obsłużyć: runy z przeplotem
 stylów, tabelę, nagłówek/stopkę z treścią, komentarz, śledzone zmiany (w:ins/w:del),
 hiperłącza http i mailto, przypis (część footnotes), obraz (mały PNG, tekst
 alternatywny), właściwości dokumentu oraz wariant z makrem (vbaProject.bin).
@@ -182,7 +182,7 @@ def zapisz_czesc_obca(sciezka: Path) -> Path:
     return sciezka
 
 
-# --- wzorzec pułapek (K3b): 15 punktów przeglądu DOCX (docs/konsultacje/05) ---
+# --- wzorzec pułapek: pułapki DOCX ---
 
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 DATA_REWIZJI = "2026-10-28T10:00:00Z"

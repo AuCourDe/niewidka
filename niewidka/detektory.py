@@ -1,9 +1,6 @@
-"""Detektory (LLD §4): wspólny interfejs, okna przesuwne, adaptery modeli ONNX.
-
-Adapter per model (przegląd Astry pkt 14): schemat etykiet (BIO/BIOES), tokeny
-specjalne i normalizacja różnią się między modelami — konwersja do `Zakres`
-żyje w adapterze modelu, nie we wspólnym kodzie. Błąd detektora = `BladDetektora`
-(fail-closed, LLD §15).
+"""Detektory: wspólny interfejs, okna przesuwne, adaptery modeli ONNX. Różnice między
+modelami (schemat etykiet, tokeny specjalne) żyją w adapterze. Błąd = `BladDetektora`
+(fail-closed).
 """
 
 from __future__ import annotations
@@ -36,7 +33,7 @@ class Detektor(Protocol):
 
 
 class RegulyDetektor:
-    """Reguły + scalanie — warstwa detekcji regułowa (K1)."""
+    """Reguły + scalanie — warstwa detekcji regułowa."""
 
     nazwa = "reguly"
     typy = frozenset(r.typ for r in REGULY)
@@ -64,8 +61,8 @@ class AdapterModelu:
 
 # Bardsai (poziom 1): dostarcza WYŁĄCZNIE OSOBA — typy z sumą kontrolną i
 # dokładnymi granicami mają reguły (pewność 1.0); dołączenie modelowych ADRES/
-# EMAIL itd. rozmywałoby granice (unia scalania = szerszy zakres = FN+FP,
-# KRYTERIA §1.3). Reszta etykiet (LOCATION, ORGANIZATION_NAME, ...) pomijana.
+# EMAIL itd. rozmywałoby granice (unia scalania = szerszy zakres = FN+FP).
+# Reszta etykiet (LOCATION, ORGANIZATION_NAME, ...) pomijana.
 ADAPTER_BARDSAI = AdapterModelu(
     nazwa="onnx:bardsai",
     mapa={
@@ -84,7 +81,7 @@ def _sha256(plik: Path) -> str:
 
 
 class OnnxDetektor:
-    """Detektor token-klasyfikacyjny ONNX za interfejsem Detektor (LLD §4).
+    """Detektor token-klasyfikacyjny ONNX za interfejsem Detektor.
 
     Tokenizacja całości (`tokenizers`, offsety znakowe), okna przesuwne
     tokenów, per okno inferencja i dekodowanie BIO adapterem. Duplikaty między
@@ -121,7 +118,7 @@ class OnnxDetektor:
             raise BladDetektora(f"{nazwa}: próg pewności klas poza [0, 1]: {próg}")
         self._próg = próg
         self._pół_krok = pół_krok
-        # Obniżony próg (K2d): kolumny etykiet klas z mapy (B-/I-/E-/S-) oraz
+        # Obniżony próg: kolumny etykiet klas z mapy (B-/I-/E-/S-) oraz
         # pary (B-etykieta, I-etykieta) do sklejenia ponadprogowej kontynuacji.
         self._kolumny_klas: dict[tuple[str, ...], list[int]] = {}
         self._etykiety_klas: dict[tuple[str, ...], tuple[str, str]] = {}
@@ -160,7 +157,7 @@ class OnnxDetektor:
                 dostepne = ort.get_available_providers()
                 if provider not in dostepne:
                     provider = "CPUExecutionProvider"
-                # K7c pkt 3 (audyt): sesja otwierana z bajtów — te same, które
+                # sesja otwierana z bajtów — te same, które
                 # przeszły weryfikację SHA (brak okna sprawdź-użyj na dysku)
                 model_bajty = model if isinstance(model, bytes) else Path(model).read_bytes()
                 argumenty: dict = {}
@@ -206,7 +203,7 @@ class OnnxDetektor:
         enc = self._tokenizer.encode(tekst, add_special_tokens=True)
         tokeny = list(zip(enc.ids, enc.offsets))
         wynik: list[Zakres] = []
-        # Drugi przebieg okien przesuniętych o pół kroku (K2d): encja na granicy
+        # Drugi przebieg okien przesuniętych o pół kroku: encja na granicy
         # okien ma pełny łańcuch etykiet w przesuniętym oknie — bez tego pierwsza
         # część pada jako B-frAGMENT, a reszta (I bez B) jest odpadana w dekodowaniu.
         okna: list[tuple[int, int]] = []
@@ -273,7 +270,7 @@ def rozciagnij_do_slow(zakresy: list[tuple[int, int]], tekst: str) -> list[tuple
     wynik = []
     for start, koniec in zakresy:
         # Tokeny BPE niosą wiodącą spację w offsecie ('ĠPiot' -> (14,19)); bez
-        # przycięcia rozciąganie uciekłoby na poprzednie słowo (K2b).
+        # przycięcia rozciąganie uciekłoby na poprzednie słowo.
         while start < koniec and tekst[start].isspace():
             start += 1
         while koniec > start and tekst[koniec - 1].isspace():
@@ -302,11 +299,11 @@ def wczytaj_bardsai(
     katalog_pakietow: Path | None = None,
     watki: int = 0,
 ) -> OnnxDetektor:
-    """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG, LLD §14).
+    """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG).
 
-    K2d: `próg` = obniżony próg pewności klas OSOBA (dodaje kandydatów poniżej
+    `próg` = obniżony próg pewności klas OSOBA (dodaje kandydatów poniżej
     argmaxu) i `pół_krok` = drugi przebieg okien o pół kroku (granice okien).
-    K7c pkt 2/3 (audyt): wagi weryfikowane względem ZAUFANEGO katalogu pakietów
+    wagi weryfikowane względem ZAUFANEGO katalogu pakietów
     (podstawowy), a do sesji/tokenizera idą dokładnie te bajty, które przeszły
     haszowanie; lokalny manifest nie wyznacza oczekiwanych sum.
     """
@@ -333,9 +330,9 @@ def wczytaj_bardsai(
         raise BladDetektora(f"pakiet Podstawowy: {blad}") from blad
 
 
-# LFM2.5 (poziom 2, K2b): jak bardsai dostarcza WYŁĄCZNIE OSOBA (identity.person_name,
-# schemat BIOES) — typy z sumą kontrolną i dokładnymi granicami mają reguły (KRYTERIA
-# §1.3); 39 pozostałych klas modelu pomijanych.
+# LFM2.5 (poziom 2): jak bardsai dostarcza WYŁĄCZNIE OSOBA (identity.person_name,
+# schemat BIOES) — typy z sumą kontrolną i dokładnymi granicami mają reguły;
+# 39 pozostałych klas modelu pomijanych.
 ADAPTER_LFM25 = AdapterModelu(
     nazwa="onnx:lfm25",
     mapa={
@@ -344,10 +341,10 @@ ADAPTER_LFM25 = AdapterModelu(
 )
 
 
-# K7b pakiet Rozszerzony (decyzja orkiestratora po K2e/K7a): LFM2.5 Q4 działa
+# Pakiet Rozszerzony: LFM2.5 Q4 działa
 # WYŁĄCZNIE jako detektor typów, których reguły i bardsai nie obsługują —
 # IP, karta płatnicza, SWIFT i loginy — i tylko tam, gdzie zakres nie nachodzi
-# na inne wykrycia. Nie dotyka OSOBA ani typów regułowych (pomiar K2b/K2c/K2e:
+# na inne wykrycia. Nie dotyka OSOBA ani typów regułowych (pomiar:
 # tam szkodzi).
 ADAPTER_LFM25_ROZSZERZONY = AdapterModelu(
     nazwa="onnx:lfm25-rozszerzony",
@@ -360,9 +357,9 @@ ADAPTER_LFM25_ROZSZERZONY = AdapterModelu(
 )
 
 
-# Mapowanie klas LFM2.5 -> typy Niewidki (K2e; pełny schemat 27 typów w
+# Mapowanie klas LFM2.5 -> typy Niewidki (pełny schemat 27 typów w
 # ~/models/niewidka/lfm25/label_schema.json). Klasy poza mapą Niewidka
-# dziś nie wykrywa — pomiar K2e raportuje je pod własnymi nazwami LFM2.5.
+# dziś nie wykrywa — pomiar raportuje je pod własnymi nazwami LFM2.5.
 _MAPA_LFM25: dict[str, TypEncji] = {
     "identity.person_name": TypEncji.OSOBA,
     "identity.passport": TypEncji.DOKUMENT,
@@ -378,7 +375,7 @@ _MAPA_LFM25: dict[str, TypEncji] = {
 
 
 def mapuj_typ_lfm25(klasa: str, tekst: str = "") -> TypEncji | str:
-    """Klasa LFM2.5 -> typ Niewidki (K2e); klasa poza mapą wypada surową nazwą.
+    """Klasa LFM2.5 -> typ Niewidki; klasa poza mapą wypada surową nazwą.
 
     national_id rozstrzyga kształt zapisu (model nie odróżnia polskich numerów):
     10 cyfr = NIP, 9/14 = REGON, 11 = PESEL; z literami = DOKUMENT (dowód/paszport
@@ -407,12 +404,12 @@ def wczytaj_lfm25(
     katalog_pakietow: Path | None = None,
     watki: int = 0,
 ) -> OnnxDetektor:
-    """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`, K2b).
+    """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`).
 
     Wariant wybiera katalog kwantyzacji; oba mają manifest SHA-256 z eksportu.
-    K7b: `rozszerzony=True` = adapter pakietu Rozszerzonego (tylko IP/KARTA/
-    SWIFT/LOGIN); pomiar K2e: te typy to jedyny realny zysk z tego modelu.
-    K7c pkt 2/3 (audyt): wariant pakietowy `q4-bl32` weryfikowany względem
+    `rozszerzony=True` = adapter pakietu Rozszerzonego (tylko IP/KARTA/
+    SWIFT/LOGIN); pomiar te typy to jedyny realny zysk z tego modelu.
+    wariant pakietowy `q4-bl32` weryfikowany względem
     ZAUFANEGO katalogu pakietów i ładowany z zweryfikowanych bajtów; warianty
     pomiarowe (fp32/int8) zachowują manifest z eksportu.
     """
@@ -456,7 +453,7 @@ def wczytaj_poziom2(
     katalog: Path,
     provider: str = "CPUExecutionProvider",
 ) -> DetektorKompozyt:
-    """Poziom 2 (KRYTERIA §4): reguły + bardsai + LFM2.5; duplikaty zdejmuje scalanie."""
+    """Poziom 2 : reguły + bardsai + LFM2.5; duplikaty zdejmuje scalanie."""
     return DetektorKompozyt(
         "poziom2",
         [
@@ -473,7 +470,7 @@ def wczytaj_poziom2_uzupelniajacy(
     wariant_b: bool = False,
     wariant_lfm25: str = "fp32",
 ) -> DetektorUzupełniający:
-    """Wariant uzupełniający K2c: LFM2.5 dodaje OSOBA tylko tam, gdzie nie nachodzi
+    """Wariant uzupełniający LFM2.5 dodaje OSOBA tylko tam, gdzie nie nachodzi
     na zakresy z reguł ani bardsai. Bardsai/reguły mają pierwszeństwo.
     """
     nazwa = "poziom2-uzup-b" if wariant_b else "poziom2-uzup"
@@ -495,14 +492,13 @@ def zbuduj_poziom(
     pakiet_rozszerzony: bool = False,
     watki: int = 0,
 ) -> Detektor:
-    """Poziomy produktu (suwak jakości, K2d) — JEDYNA funkcja składająca poziom;
+    """Poziomy produktu (suwak jakości) — JEDYNA funkcja składająca poziom;
     używa jej rdzeń (`rdzen.zbuduj_detektor`) i pomiar (`narzedzia.pomiar`), więc
     pomiar mierzy dokładnie to, co liczy produkt.
 
-    1 = reguły + bardsai (bez progu, bez półkroku); 2 = wariant A (`docs/WYNIK-K2d.md`:
-    bardsai z progiem pewności OSOBA `próg_osoba` + drugi przebieg okien o pół kroku);
+    1 = reguły + bardsai (bez progu, bez półkroku); 2 = wariant A (bardsai z progiem pewności OSOBA `próg_osoba` + drugi przebieg okien o pół kroku);
     3 = wariant B (2 + słownik imion GUS, CC0). `reguly` = podmiana warstwy reguł
-    (rdzeń wstawia filtr `_BezDaty` przy `wykrywaj_date=False`). K7b:
+    (rdzeń wstawia filtr `_BezDaty` przy `wykrywaj_date=False`).
     `pakiet_rozszerzony=True` oblewa poziom 3 LFM2.5 Q4 z pakietu Rozszerzonego
     (tylko IP/KARTA/SWIFT/LOGIN, bez nachodzenia); podkatalog `lfm25/q4-bl32`
     jest warunkiem — bez pakietu poziom 3 działa jak dotąd.
@@ -568,7 +564,7 @@ _SASIAD_ZA = re.compile(r"[ \t]+([^\W\d_]{3,})")
 def _sasiad_wielkimi(tekst: str, start: int, koniec: int) -> bool:
     poczatek_linii = tekst.rfind("\n", 0, start) + 1
     if re.search(r"\b(?:SWIFT|BIC)\b", tekst[poczatek_linii:start]):
-        return False  # jawna etykieta przed kodem (Codex 2026-10-29: „SWIFT EBOSPLPW BANK")
+        return False  # jawna etykieta przed kodem
     przed = _SASIAD_PRZED.search(tekst, max(0, start - 40), start)
     za = _SASIAD_ZA.match(tekst, koniec)
     return any(
@@ -577,7 +573,7 @@ def _sasiad_wielkimi(tekst: str, start: int, koniec: int) -> bool:
 
 
 class SlownikImionDetektor:
-    """Wykrywacz słownikowy OSOBA (K2d, wariant B): imię z listy + następne
+    """Wykrywacz słownikowy OSOBA: imię z listy + następne
     słowo z wielkiej litery, w dowolnej formie fleksyjnej — dopasowanie po
     rdzeniu imienia (`osoby.rdzen_nazwiska`, ta sama heurystyka końcówek).
 
@@ -626,7 +622,7 @@ def _zadość_liter(tekst: str, start: int, koniec: int) -> tuple[int, int]:
 def wczytaj_imiona(plik: Path) -> dict[str, str]:
     """Słownik imion -> rdzeń -> forma bazowa; `#` nagłówki pominięte.
 
-    Plik `niewidka/dane/imiona_gus.txt` (K2d): rejestrowane kolumny `Imię<TAB>liczba`,
+    Plik `niewidka/dane/imiona_gus.txt`: rejestrowane kolumny `Imię<TAB>liczba`,
     wygenerowany przez `narzedzia/pobierz_imiona.py` (GUS/dane.gov.pl, CC0 1.0).
     """
     if not plik.is_file():
@@ -645,7 +641,7 @@ def wczytaj_imiona(plik: Path) -> dict[str, str]:
 
 
 class DetektorKompozyt:
-    """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie (LLD §4)."""
+    """Kilka detektorów za jednym interfejsem; duplikaty zdejmuje scalanie."""
 
     def __init__(self, nazwa: str, czesci: list[Detektor]):
         self.nazwa = nazwa
@@ -657,10 +653,10 @@ class DetektorKompozyt:
 
 
 class DetektorUzupełniający:
-    """Poziom 2 wariant uzupełniający (K2c): reguły + bardsai jako podstawa,
+    """Poziom 2 wariant uzupełniający: reguły + bardsai jako podstawa,
     LFM2.5 dodaje zakresy WYŁĄCZNIE wybranych typów (`typy_uzup`, domyślnie
     OSOBA) tam, gdzie nie nachodzą na żaden zakres z podstawy (podstawa ma
-    pierwszeństwo granic). K7b: pakiet Rozszerzony podaje 4 typy poza regułami.
+    pierwszeństwo granic). pakiet Rozszerzony podaje 4 typy poza regułami.
     """
 
     def __init__(
@@ -711,7 +707,7 @@ class DetektorUzupełniający:
 def okna_tokenow(n: int, okno: int, krok: int, offset: int = 0) -> list[tuple[int, int]]:
     """Przesuwne okna tokenów (zakładka = okno - krok); ostatnie dociągnięte do końca.
 
-    `offset` = start pierwszego okna (przebieg półkrokowy K2d: offset = krok // 2);
+    `offset` = start pierwszego okna (przebieg półkrokowy offset = krok // 2);
     puste okno wyjście dla offsetu != 0 przy tekstach krótszych niż okno (duplikat).
     """
     if n <= 0:

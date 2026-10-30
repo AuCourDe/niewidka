@@ -1,10 +1,6 @@
-"""Mapa przywracania (LLD §8): format JSON, szyfrowanie AES-256-GCM, przywracanie
-po parze (oznaczenie, wariant) — niezależne od pozycji wystąpień, odporne na
-przestawienie zdań i parafrazę (przegląd Astry pkt 2, Gemini pkt 3).
-
-Format zaszyfrowany: b"NWID" + wersja(1B) + nonce(12B) + długość_id(1B) + id + ciphertext.
-Identyfikator jest AAD szyfrowania — mapa nie da się podstawić pod inny dokument
-(przegląd Astry pkt 3): podmiana id w nagłówku psuje tag GCM.
+"""Mapa przywracania: JSON szyfrowany AES-256-GCM, przywracanie po (oznaczenie, wariant).
+Format: b"NWID" + wersja(1B) + nonce(12B) + długość_id(1B) + id + ciphertext; identyfikator
+jest AAD, więc podmiana id w nagłówku psuje tag GCM.
 """
 
 from __future__ import annotations

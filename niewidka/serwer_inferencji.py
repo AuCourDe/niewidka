@@ -1,12 +1,7 @@
-"""Centralny serwer inferencji Niewidki w sieci lokalnej (docs/SERWER-INFERENCJI.md).
-
-Robi WYŁĄCZNIE wykrywanie: tekst -> lista zakresów. Nie zna kluczy map, nie tworzy
-map, nie zapisuje tekstu na dysk i nie loguje treści (tylko długość, poziom, czas).
-Wyjątek od K4b pkt 14 (nasłuch tylko na loopbacku) wynika z tego, że serwer nie
-odszyfrowuje map; w zamian wymaga tokenu (fail-closed) i TLS poza loopbackiem.
-
-Uruchomienie: `python -m niewidka.serwer_inferencji --konfig <plik.toml>`;
-token: `python -m niewidka.serwer_inferencji nowy-token <plik>`.
+"""Centralny serwer inferencji w sieci lokalnej (docs/SERWER-INFERENCJI.md): tylko wykrywanie
+(tekst -> zakresy), bez kluczy map, bez zapisu i logowania treści. Wymaga tokenu i TLS poza
+loopbackiem (fail-closed). Start: `python -m niewidka.serwer_inferencji --konfig <plik.toml>`;
+token: `... nowy-token <plik>`.
 """
 
 from __future__ import annotations

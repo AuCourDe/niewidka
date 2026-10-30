@@ -1,15 +1,7 @@
-"""Kontrola zapisu (LLD §10): weryfikacja ZAWSZE, na każdym poziomie suwaka.
-
-Zapisany plik wczytany jak obcy dokument (ten sam adapter) i przeskanowany
-detektorem; znaleziska niebędące znacznikami = `Ostrzezenie` (przegląd Astry
-pkt 8: nowe znaleziska blokują status „ukończony" — decyzja blokady w API, K4).
-Błąd detektora przelatuje jako `BladDetektora` — fail-closed (LLD §15).
-
-K3b: druga siatka NIEZALEŻNA od adaptera — archiwa ZIP skanowane surowo
-(węzły tekstowe i wartości atrybutów każdej części XML bezpiecznym parserem,
-bez encji zewnętrznych; w częściach binarnych bajt po bajcie). Adapter ma te
-same martwe punkty przy zapisie co przy odczycie, więc kontrola przez niego
-sama przeoczyłaby to, co on (notka pod przeglądem DOCX, Gemini).
+"""Kontrola zapisu: wynik wczytany jak obcy dokument i przeskanowany detektorem na każdym
+poziomie; znaleziska niebędące znacznikami = `Ostrzezenie`, błąd detektora = `BladDetektora`
+(fail-closed). Druga siatka niezależna od adaptera: archiwa ZIP skanowane surowo, bo adapter
+ma te same martwe punkty przy zapisie co przy odczycie.
 """
 
 from __future__ import annotations
@@ -60,7 +52,7 @@ def kontroluj(
     for numer, segment in enumerate(dok.segmenty):
         # Znacznik [TYP_N] to oczekiwana treść wyniku, nie wyciek: wyjmujemy go ze
         # skanu (spacja za znak, offsety bez zmian), bo model ONNX odpala OSOBA na
-        # samym tekście znacznika, także na jego fragmencie (znalezione E2E K5b).
+        # samym tekście znacznika, także na jego fragmencie.
         tekst_bez_znacznikow = WZORZEC_ZNACZNIKA.sub(
             lambda m: " " * (m.end() - m.start()), segment.tekst
         )
@@ -81,7 +73,7 @@ def kontroluj(
                     start=zakres.start,
                 )
             )
-    # K5b: skan surowy WYŁĄCZNIE na regułach + oryginałach z mapy — model ONNX na
+    # skan surowy WYŁĄCZNIE na regułach + oryginałach z mapy — model ONNX na
     # każdej części XML to były minuty (219 s na wzorcu, timeout API 120 s) i fałszywe
     # blokady z metadanych; model działa na treści czytanej adapterem, wyżej.
     uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane, pelne_slowa))
@@ -107,14 +99,14 @@ def _skan_surowy(
     część) — to samo znalezisko w dwóch częściach to dwa wycieki. Typ DATA
     pomijany: reguła daty krzyczałaby na metadane techniczne (rewizje, stała
     core.xml) — prawdziwe daty wrażliwe łapie warstwa oryginałów z mapy.
-    Detektor przychodzi z zewnątrz (K5b: zawsze reguły), by testy mogły
+    Detektor przychodzi z zewnątrz, by testy mogły
     podejrzeć przebieg; wołający nie podpinają tu modelu."""
     czesci = _czesci(dane, max_rozpakowane)
     znaki_oryginalow = {o: o.encode("utf-8") for o in oryginaly if o}
     uwagi: list[Ostrzezenie] = []
     for nazwa, zawartosc in czesci:
         widziane_w_czesci: set[tuple[str, str]] = set()
-        # K4b pkt 5: PII potrafi siedzieć w samej NAZWIE części (katalog ZIP czyta
+        # PII potrafi siedzieć w samej NAZWIE części (katalog ZIP czyta
         # każdy odbiorca); DATA pomijana jak w treści (metadane techniczne)
         for zakres in detektor.znajdz(nazwa):
             if _techniczny(zakres):
@@ -130,12 +122,12 @@ def _skan_surowy(
         try:
             korzen = etree.fromstring(zawartosc, _parser())
         except etree.XMLSyntaxError:
-            # K4b pkt 4: części XML, której nie da się sparsować, nie wysyłamy
+            # części XML, której nie da się sparsować, nie wysyłamy
             # (fail-closed); ciche „continue" przepuszczało niedomknięte pułapki
             uwagi.append(Ostrzezenie("XML_NIEPRAWIDLOWY", "", -1, nazwa))
             continue
         wartosci = chain(
-            # K4b pkt 3: także e.tail — dane za znacznikiem omijały skan wartości
+            # także e.tail — dane za znacznikiem omijały skan wartości
             (t for e in korzen.iter() for t in (e.text, e.tail) if t),
             (v for e in korzen.iter() for v in e.attrib.values()),
         )
@@ -156,14 +148,14 @@ def _skan_surowy(
 
 def _techniczny(zakres) -> bool:
     """Typy krzyczące na metadane techniczne w skanie surowym (precedens DATA).
-    K7b: karta z BŁĘDNYM Luhnem (panose fontów w fontTable.xml) — ciąg typografii,
+    karta z BŁĘDNYM Luhnem (panose fontów w fontTable.xml) — ciąg typografii,
     nie wyciek; karta z poprawną sumą zostaje ostrzeżeniem."""
     return zakres.typ is TypEncji.DATA or (zakres.typ is TypEncji.KARTA and zakres.podejrzana)
 
 
 def _czesci(dane: bytes, max_rozpakowane: int | None = None) -> list[tuple[str, bytes]]:
     if zipfile.is_zipfile(io.BytesIO(dane)):
-        # K4b pkt 10: odczyt porcjami pod budżetem (nagłówki ZIP bywają kłamliwe)
+        # odczyt porcjami pod budżetem (nagłówki ZIP bywają kłamliwe)
         return wczytaj_czesci(dane, limit_bajtow=max_rozpakowane)
     return [("plik", dane)]
 

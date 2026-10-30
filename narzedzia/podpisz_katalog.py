@@ -1,4 +1,4 @@
-"""Narzędzie wydawcy do podpisywania katalogu pakietów Ed25519 (K7/akt).
+"""Narzędzie wydawcy do podpisywania katalogu pakietów Ed25519.
 
 Klucz prywatny czytany WYŁĄCZNIE ze ścieżki w zmiennej środowiskowej
 `NIEWIDKA_KLUCZ_PODPISU` (nigdy z argumentu CLI, nigdy w logach).

@@ -1,4 +1,4 @@
-"""Pobranie wag modelu z HuggingFace przez httpx + manifest SHA-256 (K2, LLD §4).
+"""Pobranie wag modelu z HuggingFace przez httpx + manifest SHA-256.
 
 Środowisko B: wyłącznie httpx, żadnego huggingface_hub; uruchamiane ręcznie,
 nigdy w automated build. Wagi lądują w katalogu z `NIEWIDKA_MODELE_KATALOG`
@@ -42,7 +42,7 @@ _BARDSAI = ModelSpec(
     },
 )
 
-# bardsai fp32 (K7a): nieskwantyzowany ONNX z repo — wejście kwantyzacji int4
+# bardsai fp32: nieskwantyzowany ONNX z repo — wejście kwantyzacji int4
 # (narzedzia/kwantyzuj_q4.py); model_quantized.onnx ma już wagi całkowite, więc
 # nie jest sensownym źródłem dla Q4.
 _BARDSAI_FP32 = ModelSpec(
@@ -57,8 +57,8 @@ _BARDSAI_FP32 = ModelSpec(
     podkatalog="bardsai-fp32",
 )
 
-# LFM2.5 (poziom 2, K2b): brak ONNX w repo — pobieramy PEŁNE źródła (wagi + kod
-# custom przeglądany przed użyciem, zob. docs/WYNIK-K2b.md), eksport ONNX robi
+# LFM2.5 (poziom 2): brak ONNX w repo — pobieramy PEŁNE źródła (wagi + kod
+# custom przeglądany przed użyciem), eksport ONNX robi
 # narzedzia/eksport_lfm25.py do podkatalogów fp32/ i int8/.
 _LFM25 = ModelSpec(
     repo="LiquidAI/LFM2.5-Encoder-350M-PII-Detector",

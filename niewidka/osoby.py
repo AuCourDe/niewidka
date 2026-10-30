@@ -1,9 +1,9 @@
-"""Grupowanie osób po odmianach (LLD §6, decyzje z KONSULTACJE i przeglądów).
+"""Grupowanie osób po odmianach.
 
 SIMPLIFICATION: heurystyka końcówek zamiast lematyzacji (Morfeusz 2) —
 rozbudować, gdy pomiar pokaże błędne łączenia/rozdzielenia. Różne imię
 + to samo nazwisko = różne osoby; niejednoznaczne (inicjał, samo nazwisko
-przy kilku kandydatach) domyślnie NIE są łączone (przegląd Astry pkt 10).
+przy kilku kandydatach) domyślnie NIE są łączone.
 """
 
 from niewidka.model import Encja, TypEncji
@@ -49,7 +49,7 @@ def _przymiotnikowe(słowo: str) -> bool:
 
 def pogrupuj(encje: list[Encja]) -> None:
     """Ustawia klucz_grupy encji OSOBA: „imię|rdzeń". Samo nazwisko dołącza
-    do jedynej osoby o danym rdzeniu (przegląd Gemini pkt 13); przy kilku
+    do jedynej osoby o danym rdzeniu; przy kilku
     kandydatach każde takie wystąpienie zostaje osobną grupą."""
     osoby = [e for e in encje if e.zakres.typ is TypEncji.OSOBA]
     rozbiory = [_rozbij(e.tekst) for e in osoby]

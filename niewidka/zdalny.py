@@ -1,9 +1,6 @@
-"""Klient centralnego serwera inferencji (docs/SERWER-INFERENCJI.md).
-
-`ZdalnyDetektor` ma ten sam interfejs co detektory lokalne (`znajdz(tekst)`), ale
-tekst wysyła do serwera w sieci lokalnej, który robi WYŁĄCZNIE wykrywanie. Mapy,
-klucz mapy, kontrola wyniku i listy zostają na komputerze użytkownika. Błąd sieci
-albo serwera = `SerwerModeliNiedostepny` (fail-closed): nigdy wynik bez modelu.
+"""Klient centralnego serwera inferencji (docs/SERWER-INFERENCJI.md) o interfejsie detektora
+lokalnego; na serwer idzie tylko tekst, mapy i klucz zostają lokalnie. Błąd sieci =
+`SerwerModeliNiedostepny` (fail-closed), nigdy wynik bez modelu.
 """
 
 from __future__ import annotations

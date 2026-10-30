@@ -1,4 +1,4 @@
-"""Deterministyczny generator fikcyjnych numerów do korpusu testowego (K0).
+"""Deterministyczny generator fikcyjnych numerów do korpusu testowego.
 
 „Poprawne" numery mają poprawne sumy kontrolne, „błędne" różnią się dokładnie
 jedną cyfrą od poprawnego odpowiednika. Autor korpusu (agent zewnętrzny) kopiuje

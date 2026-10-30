@@ -1,12 +1,12 @@
-"""Kwantyzacja int4 weight-only ONNX (K7a): onnxruntime MatMulNBits, parametry z CLI.
+"""Kwantyzacja int4 weight-only ONNX: onnxruntime MatMulNBits, parametry z CLI.
 
 Pakiety modeli w klasie Q4 (mniejsze pobieranie po instalacji, decyzja właściciela
 2026-10-28). Wejściem jest zawsze ONNX float32 (`bardsai-fp32/` z repo HF albo
-`lfm25/fp32/` z eksportu K2b) — INT8 dynamiczny ma już wagi całkowite, nie jest
+`lfm25/fp32/` z eksportu) — INT8 dynamiczny ma już wagi całkowite, nie jest
 sensownym źródłem. Wynik: katalog z model.onnx + tokenizer.json + config.json +
 manifest.json (SHA-256 w formacie `narzedzia.pobierz_model`, więc OnnxDetektor
 weryfikuje go jak zwykle). Sanity porównuje logits z źródłem fp32 i pada przy
-NaN/złym kształcie; granicę jakości stanowi pomiar na korpusie (KRYTERIA.md).
+NaN/złym kształcie; granicę jakości stanowi pomiar na korpusie.
 
     .venv/bin/python -m narzedzia.kwantyzuj_q4 \
         --zrodlo ~/models/niewidka/bardsai-fp32 \

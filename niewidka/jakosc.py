@@ -1,9 +1,5 @@
-"""Ocena jakości (LLD §11): R95 z kalibracji — stała per poziom, nie ocena pliku.
-
-Struktura `dane/r95.json` per poziom (K2d): `{"poziomy": {"1": {"detektor": ...,
-"r95": {...}, "proba": {...}}, "2": {...}}, ...}`; poziom bez kalibracji = brak
-wartości (None, bez zmyślania). `proba` (K5c): ile przykładów danego typu było
-w korpusie (n) i ile uciekło (k) — przy małej próbie R95 nie wystawia etykiety.
+"""Ocena jakości: R95 z kalibracji (`dane/r95.json`), stała per poziom, nie ocena pliku.
+Poziom bez kalibracji = None; przy małej próbie (`proba`) bez etykiety ryzyka.
 """
 
 from __future__ import annotations
@@ -13,7 +9,7 @@ from pathlib import Path
 
 DANE = Path(__file__).parent / "dane" / "r95.json"
 
-# K5c: poniżej tyle przykładów górna granica Cloppera-Pearsona wychodzi wysoka
+# poniżej tyle przykładów górna granica Cloppera-Pearsona wychodzi wysoka
 # nawet przy zero pominięć — mówimy, ile było przykładów, zamiast etykietować.
 PROG_PROBY = 50
 
@@ -60,7 +56,7 @@ def opis_ryzyka(
     """Gotowy tekst po polsku; przy małej próbie (n < prog) bez etykiety ryzyka.
 
     Tekst musi być identyczny jak dotychczasowy z interfejsu (etykiety) albo uczciwie
-    opisywać próbę ("w testach: 0 pominięć na 7 przykładów"), K5c.
+    opisywać próbę ("w testach: 0 pominięć na 7 przykładów").
     """
     if r95 is None:
         return "brak oszacowania dla tego poziomu jakości"
@@ -80,7 +76,7 @@ def opis_ryzyka(
 def opisy_ryzyka(
     poziom: int, typy: list[str], katalog_danych: Path | None = None
 ) -> dict[str, dict]:
-    """{typ: {r95, n, k, opis}} dla typów występujących w dokumencie (nagłówek K5c).
+    """{typ: {r95, n, k, opis}} dla typów występujących w dokumencie.
 
     Interfejs dostaje tekst gotowy do wyświetlenia i nie liczy sam; typy bez
     kalibracji nie wychodzą (jak dotychczasowe odfiltrowanie None).

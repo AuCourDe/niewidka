@@ -1,10 +1,10 @@
-"""Adapter DOCX (LLD §9): runy, czyszczenie, allowlista struktury, blokady (K3).
+"""Adapter DOCX: runy, czyszczenie, allowlista struktury, blokady.
 
 Czyszczone z wyniku (nie wracają — dopisek obiecuje tylko dane ze znaczników):
 komentarze, przypisy, nagłówki/stopki, miniatura, właściwości app, śledzone
 zmiany usunięte (w:del); w:ins zostaje jako treść. Hiperłącza http(s) zostają,
 mailto/file rozpakowane (tekst zostaje, relacja znika). Części spoza allowlisty
-i makra → `ElementNieobslugiwany` (blokada, nigdy cicho — przegląd Astry pkt 5).
+i makra → `ElementNieobslugiwany` (blokada, nigdy cicho).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 VML = "urn:schemas-microsoft-com:vml"
 
-# K4b pkt 2: bez OCR treść obrazu nie daje się zweryfikować. Rozszerzenia, które
+# bez OCR treść obrazu nie daje się zweryfikować. Rozszerzenia, które
 # traktujemy jako obrazy; wszystko inne pod word/media/ to niezweryfikowana
 # część binarna = blokada.
 OBRAZY_ROZSZERZENIA = frozenset({"png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "emf", "wmf"})
@@ -53,19 +53,19 @@ USUWANE = (
     "word/footer",  # stopki
     "docProps/app",  # właściwości aplikacji (firma itd.)
     "docProps/thumbnail",  # miniatura pierwszej strony
-    "customXml/",  # custom XML — wektor wstrzyknięcia danych (Astra pkt 5)
-    "word/people",  # autorzy komentarzy z e-mailami (Gemini pkt 13)
-    "docProps/custom",  # właściwości niestandardowe systemów obiegu (Gemini pkt 13)
-    "word/glossary",  # Szybkie części / AutoTekst (Gemini pkt 13)
+    "customXml/",  # custom XML — wektor wstrzyknięcia danych
+    "word/people",  # autorzy komentarzy z e-mailami
+    "docProps/custom",  # właściwości niestandardowe systemów obiegu
+    "word/glossary",  # Szybkie części / AutoTekst
 )
 
 
 def _dozwolona(nazwa: str) -> bool:
-    """Allowlista struktury OOXML (LLD §9); reszta = blokada.
+    """Allowlista struktury OOXML; reszta = blokada.
 
     Części czyszczone (`_usuwana`) są obsługiwane — wchodzą do wczytania i
     znikają przy zapisie; blokada dotyczy wyłącznie części NIEZNANYCH.
-    Relacje `<część>.rels` dziedziczą los części (Gemini pkt 7): relacje
+    Relacje `<część>.rels` dziedziczą los części: relacje
     nagłówka/stopki/komentarzy są usuwane razem z częścią, nie blokują.
     """
     if _usuwana(nazwa):
@@ -99,7 +99,7 @@ def _czesc_rels(nazwa: str) -> str | None:
 
 
 def _parser() -> etree.XMLParser:
-    # Gemini pkt 6: bez sieci, bez encji zewnętrznych, prerywalny
+    # bez sieci, bez encji zewnętrznych, prerywalny
     return etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
 
 
@@ -114,9 +114,9 @@ class AdapterDocx:
         polityka_obrazow: str | None = None,
         max_rozpakowane: int | None = None,
     ) -> Dokument:
-        """`polityka_obrazow` (K4b pkt 2): „usun" usuwa obrazy z treści (brak OCR),
+        """`polityka_obrazow`: „usun" usuwa obrazy z treści (brak OCR),
         „blokuj" odrzuca dokument z obrazami, „zostaw" i None zostawiają je.
-        `max_rozpakowane` = budżet dekompresji (K4b pkt 10), egzekwowany przy odczycie."""
+        `max_rozpakowane` = budżet dekompresji, egzekwowany przy odczycie."""
         czesci_lista = wczytaj_czesci(dane, limit_bajtow=max_rozpakowane)
         czesci = dict(czesci_lista)
         nazwy = [n for n, _ in czesci_lista]
@@ -126,9 +126,9 @@ class AdapterDocx:
 
         obce_binarnie = [n for n in nazwy if _media(n) and _rozszerzenie(n) not in OBRAZY_ROZSZERZENIA]
         if obce_binarnie:
-            # niezweryfikowana część binarna — nie wiemy, co niesie (K4b pkt 2)
+            # niezweryfikowana część binarna — nie wiemy, co niesie
             raise ElementNieobslugiwany(obce_binarnie)
-        _przemianuj_media(czesci)  # K4b pkt 5: neutralne nazwy + aktualizacja relacji
+        _przemianuj_media(czesci)  # neutralne nazwy + aktualizacja relacji
         obrazy = [n for n in czesci if _media(n)]
         if polityka_obrazow == "blokuj" and obrazy:
             raise ElementNieobslugiwany([f"obrazy ({len(obrazy)} szt.)"])
@@ -151,7 +151,7 @@ class AdapterDocx:
         return dok
 
     def _usun_obrazy(self, drzewo: etree._Element, zasoby: dict) -> int:
-        """K4b pkt 2: run z obrazem (w:drawing albo w:pict) zamieniony na neutralny
+        """run z obrazem (w:drawing albo w:pict) zamieniony na neutralny
         tekst; relacje obrazu dołączone do `usun_relacje` (znikną z .rels przy zapisie)."""
         usuniete = 0
         grafiki = list(drzewo.iter(_q("drawing"))) + list(drzewo.iter(_q("pict")))
@@ -175,7 +175,7 @@ class AdapterDocx:
         return usuniete
 
     def _wyczysc_drzewo(self, drzewo: etree._Element, rels_xml: bytes, zasoby: dict) -> None:
-        """Czyszczenie treści dokument.xml przed odczytem segmentów (K3+K3b)."""
+        """Czyszczenie treści dokument.xml przed odczytem segmentów."""
         # śledzone zmiany: usunięte w:del znika (usunięty tekst ≠ treść),
         # w:ins rozpakowane = akceptacja zmiany (treść wchodzi do segmentów)
         for del_element in list(drzewo.iter(_q("del"))):
@@ -185,17 +185,17 @@ class AdapterDocx:
             for dziecko in list(ins_element):
                 ins_element.addprevious(dziecko)
             rodzic.remove(ins_element)
-        # tożsamość z rewizji/pól (Gemini pkt 5): author/date/initials nigdzie nie zostaje
+        # tożsamość z rewizji/pól: author/date/initials nigdzie nie zostaje
         for element in drzewo.iter():
             for atrybut in (f"{{{W}}}author", f"{{{W}}}date", f"{{{W}}}initials"):
                 if atrybut in element.attrib:
                     del element.attrib[atrybut]
-        # pola (Gemini pkt 2+3): instrukcja znika, wynik pola (w:t) zostaje jako tekst
+        # pola: instrukcja znika, wynik pola (w:t) zostaje jako tekst
         for instrukcja in list(drzewo.iter(_q("instrText"))):
             instrukcja.getparent().remove(instrukcja)
         for fld in list(drzewo.iter(_q("fldSimple"))):
             fld.attrib.pop(f"{{{W}}}instr", None)
-        # osierocone w:t (np. w:ins bez w:r, Gemini pkt 4) → opakuj w w:r, inaczej
+        # osierocone w:t (np. w:ins bez w:r) → opakuj w w:r, inaczej
         # tekst omija segmenty i detekcję
         for t in list(drzewo.iter(_q("t"))):
             rodzic = t.getparent()
@@ -217,7 +217,7 @@ class AdapterDocx:
                     rodzic.getparent().remove(rodzic)
         for odniesienie in list(drzewo.iter(_q("headerReference"), _q("footerReference"))):
             odniesienie.getparent().remove(odniesienie)
-        # teksty alternatywne obrazów mogą nieść PII — czyszczone (polityka obrazów, LLD §9)
+        # teksty alternatywne obrazów mogą nieść PII — czyszczone (polityka obrazów)
         WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
         for doc_pr in drzewo.iter(f"{{{WP}}}docPr"):
             doc_pr.set("descr", "")
@@ -232,7 +232,7 @@ class AdapterDocx:
                     link.addprevious(dziecko)  # tekst zostaje, opakowanie znika
                 rodzic.remove(link)
                 zasoby["usun_relacje"].add(id_relacji)
-        # zakładki (Gemini pkt 9): nazwy z PII → neutralne _Bm1..; systemowe _* zostają
+        # zakładki: nazwy z PII → neutralne _Bm1..; systemowe _* zostają
         zakladki: dict[str, str] = {}
         for bm in drzewo.iter(_q("bookmarkStart")):
             nazwa = bm.get(_q("name"), "")
@@ -240,17 +240,17 @@ class AdapterDocx:
                 continue
             zakladki.setdefault(nazwa, f"_Bm{len(zakladki) + 1}")
             bm.set(_q("name"), zakladki[nazwa])
-        # kotwice hiperłączy (Gemini pkt 14) — ta sama neutralizacja;
+        # kotwice hiperłączy — ta sama neutralizacja;
         # kotwica na nieznaną zakładkę → _Bm0
         for link in drzewo.iter(_q("hyperlink")):
             anchor = link.get(_q("anchor"))
             if anchor:
                 link.set(_q("anchor"), zakladki.get(anchor, "_Bm0"))
-        # kontrolki treści (Gemini pkt 10): alias/tag z PII — węzły znikają
+        # kontrolki treści: alias/tag z PII — węzły znikają
         for nazwa in ("alias", "tag"):
             for element in list(drzewo.iter(_q(nazwa))):
                 element.getparent().remove(element)
-        # smart tagi (Gemini pkt 15): metadane w:attr lecą z w:smartTagPr, treść zostaje
+        # smart tagi: metadane w:attr lecą z w:smartTagPr, treść zostaje
         for pr in list(drzewo.iter(_q("smartTagPr"))):
             pr.getparent().remove(pr)
         for st in list(drzewo.iter(_q("smartTag"))):
@@ -258,7 +258,7 @@ class AdapterDocx:
             for dziecko in list(st):
                 st.addprevious(dziecko)
             rodzic.remove(st)
-        # metadane grafiki VML (Gemini pkt 12): title/alt/descr na kształtach i obrazach
+        # metadane grafiki VML: title/alt/descr na kształtach i obrazach
         for element in drzewo.iter():
             if not element.tag.startswith(f"{{{VML}"):
                 continue
@@ -321,18 +321,18 @@ class AdapterDocx:
             baner = etree.SubElement(body, _q("p"))
             run_dopisku = etree.SubElement(baner, _q("r"))
             t = etree.SubElement(run_dopisku, _q("t"))
-            t.text = DOPISEK if dopisek is True else dopisek  # z id mapy (K4b pkt 6)
+            t.text = DOPISEK if dopisek is True else dopisek  # z id mapy
             body.insert(0, baner)  # dopisek na POCZĄTKU dokumentu
         else:
             # dokument przywrócony: akapit dopisku z wyniku znika
-            # (dopisek może mieć doklejony identyfikator mapy, K4b pkt 6)
+            # (dopisek może mieć doklejony identyfikator mapy)
             for segment in list(dok.segmenty):
                 if segment.tekst.startswith(DOPISEK) and segment.runs:
                     akapit = segment.runs[0].element.getparent()
                     if akapit is not None and akapit.getparent() is not None:
                         akapit.getparent().remove(akapit)
 
-        # gwarancja schematu OOXML: każda komórka ma akapit (Gemini pkt 6 —
+        # gwarancja schematu OOXML: każda komórka ma akapit (
         # po czyszczeniu w:del komórka nie może zostać pusta)
         for tc in zasoby["drzewo"].iter(_q("tc")):
             if tc.find(_q("p")) is None:
@@ -355,7 +355,7 @@ class AdapterDocx:
         czesci["docProps/core.xml"] = _wyczysc_core(czesci["docProps/core.xml"])
         do_usuniecia = [n for n in czesci if n != "word/document.xml" and _usuwana(n)]
         do_usuniecia += [n for n in czesci if n == "word/_rels/document.xml.rels"]
-        # relacje usuwanych części lecą razem z nimi (Gemini pkt 7)
+        # relacje usuwanych części lecą razem z nimi
         do_usuniecia += [n for n in czesci if (czesc := _czesc_rels(n)) is not None and _usuwana(czesc)]
         for nazwa in do_usuniecia:
             czesci.pop(nazwa, None)
@@ -388,7 +388,7 @@ def _usuwana(nazwa: str) -> bool:
     return nazwa.startswith(USUWANE)
 
 
-# --- neutralizacja nazw media (K4b pkt 5) ---------------------------------------
+# --- neutralizacja nazw media ---------------------------------------
 
 
 def _przemianuj_media(czesci: dict[str, bytes]) -> None:
@@ -461,7 +461,7 @@ def _przefiltruj_rels(rels_xml: bytes, usun_id: set[str], usun_czesci: set[str])
     for relacja in list(korzen):
         cel = relacja.get("Target") or ""
         if cel.lower().startswith(("http://", "https://")):
-            # Gemini pkt 11: zewnętrzny URL bez query stringa i fragmentu (PII)
+            # zewnętrzny URL bez query stringa i fragmentu (PII)
             czysty = cel.split("?", 1)[0].split("#", 1)[0]
             if czysty != cel:
                 relacja.set("Target", czysty)
@@ -504,7 +504,7 @@ def _przefiltruj_content_types(
             korzen.remove(override)
     for default in list(korzen.iter(f"{{{CT}}}Default")):
         rozszerzenie = (default.get("Extension") or "").lower()
-        # K4b pkt 2: ogólnie — Default bez części o tym rozszerzeniu znika
+        # ogólnie — Default bez części o tym rozszerzeniu znika
         # (po usunięciu obrazów paczka nie może deklarować pustych typów)
         if not any(nazwa.lower().endswith(f".{rozszerzenie}") for nazwa in pozostale):
             korzen.remove(default)
@@ -512,7 +512,7 @@ def _przefiltruj_content_types(
 
 
 def _wyczysc_settings(settings_xml: bytes) -> bytes:
-    """Gemini pkt 8: ślad szablonu, ochrony i sesji edycji znika z settings.xml."""
+    """ślad szablonu, ochrony i sesji edycji znika z settings.xml."""
     korzen = etree.fromstring(settings_xml, _parser())
     for nazwa in ("attachedTemplate", "documentProtection", "writeProtection", "mailMerge", "rsids"):
         for element in list(korzen.iter(_q(nazwa))):

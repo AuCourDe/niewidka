@@ -1,4 +1,4 @@
-"""Adapter TXT (LLD §9): jeden segment, jeden run; trywialny celowo."""
+"""Adapter TXT: jeden segment, jeden run; trywialny celowo."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class AdapterTekst:
         tresc = "\n".join("".join(run.tekst for run in segment.runs) for segment in dok.segmenty)
         if not dopisek:
             # dokument przywrócony: dopisek wyniku znika (odtwarzamy dane zastąpione);
-            # dopisek może mieć doklejony identyfikator mapy (K4b pkt 6)
+            # dopisek może mieć doklejony identyfikator mapy
             linie = tresc.split("\n")
             if linie and linie[0].startswith(DOPISEK):
                 tresc = "\n".join(linie[1:])

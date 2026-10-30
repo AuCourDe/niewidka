@@ -1,4 +1,4 @@
-"""Jednorazowy eksport ONNX z LFM2.5-Encoder-350M-PII-Detector (K2b).
+"""Jednorazowy eksport ONNX z LFM2.5-Encoder-350M-PII-Detector.
 
 Repo HF nie ma gotowego ONNX, a model wymaga trust_remote_code — kod przejrzany
 przed użyciem (docs/KOD-LFM25.md, werdykt: bezpieczny). Ten skrypt to JEDYNE

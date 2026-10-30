@@ -1,6 +1,6 @@
-"""Adaptery formatów (LLD §9): rejestr rozszerzenie → adapter, wspólne cięcia runów.
+"""Adaptery formatów: rejestr rozszerzenie → adapter, wspólne cięcia runów.
 
-Allowlista struktury per format (przegląd Astry pkt 5): części spoza allowlisty
+Allowlista struktury per format: części spoza allowlisty
 adaptera blokują eksport (`ElementNieobslugiwany`) — nigdy nie przechodzą cicho.
 """
 
@@ -14,7 +14,7 @@ from niewidka.model import Dokument, RunInfo, Segment
 
 
 class ElementNieobslugiwany(Exception):
-    """Eksport blokowany z listą elementów (LLD §15: makra, części spoza allowlisty)."""
+    """Eksport blokowany z listą elementów."""
 
     def __init__(self, elementy: list[str]):
         self.elementy = elementy
@@ -22,7 +22,7 @@ class ElementNieobslugiwany(Exception):
 
 
 class NieznanyFormat(Exception):
-    """Wejście w formacie spoza rejestru (LLD §15 → HTTP 415 z listą obsługiwanych)."""
+    """Wejście w formacie spoza rejestru."""
 
     def __init__(self, format: str, wspierane: list[str]):
         self.format = format
@@ -47,7 +47,7 @@ def podziel_segment(
 
     `zamiany` to rozłączne (start, koniec, znacznik) w znakach segmentu; fragment
     znacznika dziedziczy styl LEWEGO fragmentu, części wytnięte z runu — styl swojego
-    runu (LLD §9). Cięcie następuje w punktach granicznych zamian.
+    runu. Cięcie następuje w punktach granicznych zamian.
     """
     posortowane = sorted(zamiany)
     for (a_start, a_koniec, _), (b_start, b_koniec, _) in pairwise(posortowane):
@@ -72,7 +72,7 @@ def podziel_segment(
             _, _, tekst = znaczniki[poczatek]
             fragmenty.append((tekst, run_na_pozycji(poczatek)))
         elif _wewnatrz_zamiany(poczatek, posortowane):
-            continue  # Gemini pkt 1: punkt podziału w środku zamiany — bez oryginału
+            continue  # punkt podziału w środku zamiany — bez oryginału
         else:
             idx = run_na_pozycji(poczatek)
             fragmenty.append((segment.tekst[poczatek:koniec], idx))
@@ -84,7 +84,7 @@ def _wewnatrz_zamiany(pozycja: int, zamiany: list[tuple[int, int, str]]) -> bool
 
 
 def nazwa_wyniku(oryginalna: str, identyfikator: str) -> str:
-    """ZANONIMIZOWANY_<krótki-id>.<ext> (LLD §17 / Astra pkt 5)."""
+    """ZANONIMIZOWANY_<krótki-id>.<ext>."""
     rozszerzenie = Path(oryginalna).suffix
     return f"ZANONIMIZOWANY_{identyfikator}{rozszerzenie}"
 
@@ -93,7 +93,7 @@ def wstaw_znaczniki(segment: Segment, zamiany: list[tuple[int, int, str]], kopiu
     """Zamień segment wg `zamiany` (mutacja): nowe runy, starts, tekst.
 
     `kopiuj_run(element, tekst)` buduje element runu dla fragmentu (adapter zna
-    swój format; znacznik dziedziczy styl lewego fragmentu, LLD §9).
+    swój format; znacznik dziedziczy styl lewego fragmentu).
     """
     fragmenty = podziel_segment(segment, zamiany)
     stare = segment.runs

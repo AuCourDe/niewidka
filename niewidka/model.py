@@ -1,4 +1,4 @@
-"""Model danych rdzenia (LLD §2). Offsety zawsze w znakach segmentu."""
+"""Model danych rdzenia. Offsety zawsze w znakach segmentu."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class TypEncji(enum.StrEnum):
     IBAN = "IBAN"
     DOKUMENT = "DOKUMENT"
     DATA = "DATA"
-    # K7b: nowe typy (reguły: IP i karta z sumą Luhna; pakiet Rozszerzony LFM2.5
+    # nowe typy (reguły: IP i karta z sumą Luhna; pakiet Rozszerzony LFM2.5
     # dodaje SWIFT i LOGIN tam, gdzie reguły milczą).
     IP = "IP"
     KARTA = "KARTA"
@@ -35,7 +35,7 @@ class Zakres:
     pewnosc: float  # 0..1; reguły z sumą kontrolną = 1.0, podejrzane = 0.5
     zrodlo: str  # "regula", "onnx:bardsai", "onnx:lfm25"
     suma_kontrolna: bool = False
-    podejrzana: bool = False  # wzorzec pasuje, suma kontrolna błędna (Astra pkt 14)
+    podejrzana: bool = False  # wzorzec pasuje, suma kontrolna błędna
 
 
 @dataclass
@@ -64,4 +64,4 @@ class Segment:
 class Dokument:
     format: str  # "docx", "odt", ...
     segmenty: list[Segment]
-    zasoby: Any = None  # stan adaptera formatu (części paczki, drzewo XML; K3)
+    zasoby: Any = None  # stan adaptera formatu (części paczki, drzewo XML)
