@@ -53,10 +53,16 @@ Najczęściej przydatne zmienne:
 | dziennik błędów do pliku | `NIEWIDKA_LOG_PLIK=C:\Niewidka\niewidka.log` |
 | pobieranie modeli z serwera w urzędzie | `NIEWIDKA_MODELE_ZRODLO=https://lustro.urzad.local/niewidka/` |
 
-**Komputery bez internetu.** Wystaw pliki pakietów na serwerze HTTP w sieci urzędu.
-Nazwy plików są w polu `zrodlo` w `niewidka/dane/pakiety.json`. Ustaw na komputerach
-`NIEWIDKA_MODELE_ZRODLO` na adres tego folderu. Przycisk „Pobierz podstawowy (zalecane)”
-pobierze wtedy modele z serwera urzędu. Program sprawdza sumy SHA-256 każdego pliku.
+**Komputery bez internetu.** Pobierz pliki pakietów raz, na komputerze z internetem.
+Nazwy plików są w polu `zrodlo` w `niewidka/dane/pakiety.json`, a pliki leżą na stronie
+wydań. Potem wybierz jedną z dróg:
+
+- Folder. Połóż pliki w folderze sieciowym. Użytkownik wkleja ścieżkę w Ustawieniach
+  i klika „Zainstaluj z folderu” przy pakiecie.
+- Serwer HTTP. Wystaw folder na serwerze w sieci urzędu i ustaw na komputerach
+  `NIEWIDKA_MODELE_ZRODLO` na jego adres. Przycisk „Pobierz” pobierze wtedy modele stamtąd.
+
+W obu przypadkach program sprawdza rozmiar i sumę SHA-256 każdego pliku.
 
 Aktualizacje modeli w sieci bez internetu opisuje `docs/WYDANIE.md`.
 

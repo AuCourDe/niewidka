@@ -1,6 +1,6 @@
-# Wydanie pakietów modeli: podpisywanie i publikacja (K7/akt)
+# Wydanie pakietów modeli: podpisywanie i publikacja
 
-Instrukcja osoby wydającej Niewidkę. Podstawa: `docs/MAPY-I-AKTUALIZACJE.md` §5,
+Instrukcja osoby wydającej Niewidkę. Podstawa: `docs/rozwoj/MAPY-I-AKTUALIZACJE.md` §5,
 §8 wiersze 7-8, §9 wiersz 6. Narzędzie: `narzedzia/podpisz_katalog.py`.
 
 ## Co publikuje wydanie aktualizacji
@@ -66,8 +66,8 @@ i pliki pakietów pod nazwami `zrodlo`. Użytkownik wkleja ścieżkę w Ustawien
 podpis, próg wersji, SHA-256 każdego pliku, próbka kontrolna, dopiero potem
 atomowa zamiana z kopią poprzedniej wersji w `modele/.poprzednie/`.
 
-Uwaga na rozróżnienie: instalacja lustrzana IT (`POST /api/pakiety`, akcja
-`instaluj`) to INNA droga — służy do wgrania wersji przypiętych w katalogu
+Uwaga na rozróżnienie: „Zainstaluj z folderu” przy pakiecie w Ustawieniach
+(`POST /api/pakiety`, akcja `instaluj`) to INNA droga — służy do wgrania wersji przypiętych w katalogu
 wbudowanym danego programu (sha256 pilnuje katalog wbudowany, folder ma same
 pliki). Nowości wersjonowane idą wyłącznie przez katalog podpisany.
 
@@ -81,4 +81,8 @@ pliki). Nowości wersjonowane idą wyłącznie przez katalog podpisany.
 - [ ] Weryfikacja przed publikacją: program testowy przyjmuje katalog i zalicza
       próbkę (pytest `tests/test_aktualizacje.py` przechodzi na tym katalogu).
 - [ ] Załączniki wydania: katalog, podpis i wszystkie pliki z pól `zrodlo`.
+- [ ] Licencje modeli obok paczek: `podstawowy-LICENSE.txt` (Apache 2.0 z repozytorium
+      bardsai), `rozszerzony-LICENSE.txt` (LFM Open License v1.0 z repozytorium LiquidAI)
+      i `NOTICE.txt` z informacją, że pliki ONNX powstały z tych modeli przez eksport
+      (i kwantyzację Q4 dla LFM2.5). Wymagają tego obie licencje.
 - [ ] Klucz prywatny nie opuścił magazynu sekretów (nigdy: repo, CI cache, log).

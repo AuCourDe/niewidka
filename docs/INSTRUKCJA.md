@@ -96,7 +96,9 @@ oba pliki i kliknij **Przywróć dane**. Dostaniesz dokument w tym samym formaci
 
 ## Ustawienia
 
-**Pakiety modeli.** Pobieranie i usuwanie modeli, licencje.
+**Pakiety modeli.** Pobieranie i usuwanie modeli, licencje. Komputer bez internetu: wklej
+w pole nad listą ścieżkę do folderu z plikami pakietów od IT i kliknij „Zainstaluj z folderu”
+przy pakiecie.
 
 **Aktualizacje modeli.** Domyślnie program raz na dobę sprawdza, czy są nowe wersje.
 Pobiera tylko wykaz wersji i nigdy nie wysyła Twoich dokumentów. Nowa wersja zainstaluje

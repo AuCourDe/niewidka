@@ -3,6 +3,8 @@ name = "niewidka"
 version = "0.1.0"
 description = "Lokalne ukrywanie danych osobowych (pseudonimizacja) w polskich tekstach i dokumentach"
 requires-python = ">=3.11"
+license = "MIT"
+readme = "README.md"
 dependencies = [
     "cryptography>=50.0.2",
     "fastapi>=0.162.0",

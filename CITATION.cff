@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "Jeśli korzystasz z Niewidki w publikacji albo raporcie, podaj źródło."
+title: "Niewidka"
+abstract: "Lokalne ukrywanie danych osobowych w polskich tekstach i dokumentach przed wysłaniem do czatu AI."
+type: software
+authors:
+  - alias: AuCourDe
+repository-code: "https://github.com/AuCourDe/niewidka"
+license: MIT
+keywords:
+  - anonimizacja
+  - dane osobowe
+  - RODO
+  - PII

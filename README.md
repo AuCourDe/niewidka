@@ -58,12 +58,14 @@ NIEWIDKA_KLUCZ_PLIK=~/.config/niewidka/klucz uv run python -m niewidka.api
 
 ## Dokumentacja
 
+- `docs/PRZEWODNIK.md`: co program umie, jak działa i jak go wdrożyć.
 - `docs/INSTRUKCJA.md`: obsługa programu krok po kroku.
 - `docs/KONFIGURACJA.md`: wszystkie ustawienia, plik `niewidka.toml` i zmienne środowiskowe.
 - `docs/SERWER-INFERENCJI.md`: wspólny serwer modeli w sieci lokalnej.
-- `docs/LICENCJE-MODELI.md`: licencje modeli.
 - `docs/MODELE.md`: modele, poziomy jakości i wyniki pomiarów.
+- `docs/LICENCJE.md`: licencje modeli i bibliotek.
 - `docs/WYDANIE.md`: wydawanie i podpisywanie pakietów modeli.
+- `docs/rozwoj/`: projekt techniczny, pomiary i notatki z budowy.
 
 ## Budowa programu ze źródeł (Windows)
 
@@ -79,3 +81,14 @@ Skrypt zainstaluje zależności, uruchomi testy i zbuduje `Niewidka.exe` oraz pa
 Paczka nie zawiera modeli. Program pobierze je przy pierwszym uruchomieniu.
 
 Testy: `uv run pytest`. Sprawdzenie kodu: `uv run ruff check`.
+
+## Licencja
+
+Kod programu jest na licencji MIT (`LICENSE`). Możesz go używać, zmieniać i rozpowszechniać,
+także w urzędzie i w firmie. Licencja MIT nie obejmuje modeli. Modele pobierasz osobno
+i obowiązują je licencje ich twórców: pakiet podstawowy Apache 2.0, pakiet rozszerzony
+LFM Open License v1.0, która ogranicza użycie komercyjne. Szczegóły: `docs/LICENCJE.md`.
+
+Program używa modeli statystycznych i nie wykrywa wszystkich danych osobowych w każdym
+tekście. Przed przekazaniem dokumentu dalej sprawdź wynik. Autor nie odpowiada za skutki
+niepełnego ukrycia danych. Luki w zabezpieczeniach zgłaszaj według `SECURITY.md`.
