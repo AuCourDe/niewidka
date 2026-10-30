@@ -279,5 +279,5 @@
   - [ ] bramka: pytest, ruff, GUI; push
   - [ ] repo publiczne
 - [~] (właściciel) „czy na githubie można używać słów kluczowych? np data anonimization, anonimizacja danych itp? Aha przygotuj readme w dwóch wersjach, polskiej i angielskiej!!!”
-  - [ ] tematy (topics) repozytorium na GitHubie, po polsku i angielsku
-  - [ ] README.en.md (angielski) + przełącznik języka w obu README
+  - [x] tematy (topics) repozytorium na GitHubie, po polsku i angielsku — 20 tematów + opis PL/EN (gh repo view)
+  - [x] README.en.md (angielski) + przełącznik języka w obu README — commit „README po angielsku”
