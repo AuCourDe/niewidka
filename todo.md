@@ -267,13 +267,14 @@
   - [x] docs/INSTRUKCJA.md: obsługa krok po kroku
   - [x] docs/KONFIGURACJA.md + konfiguracja/niewidka.przyklad.toml: wszystkie opcje; przykład wczytany daje dokładnie Konfig() (sprawdzone)
   - [x] redakcja z Argonem, 6 z 7 uwag wdrożonych, zero półpauz i pauz (grep) — docs/konsultacje/2026-10-30-argon-dokumentacja.md
-  - [~] znalezione: interfejs mówi o wgrywaniu pakietów z katalogu, a przycisku nie ma (tylko API); właściciel 2026-10-30: „tak” = wariant a (przycisk)
+  - [x] znalezione: interfejs mówi o wgrywaniu pakietów z katalogu, a przycisku nie ma (tylko API); właściciel 2026-10-30: „tak” = wariant a (przycisk) — `ebba1f4`
 - [~] (właściciel) „zhardenuj ten projekt, tak, aby był logiczny, dodaj licencję na samą aplikację jako MIT … czy wypada zostawić citation z nazwą repo / imieniem / nazwiskiem? Zapytaj Argona, wygładź wszystko, wrzucaj na GitHub przetestowane rozwiązanie, zrób przegląd kodu Codexem, żeby było jak najmniej ai-slop-code, potem wypchnij aktualizacje, zrób dodatek obok readme jak używać z opisem funkcjonalności … jak już to zrobisz to otwórz repo na świat. Komentarze w kodzie minimalistyczne, tylko tam gdzie są niezbędne”
-  - [ ] wariant a: „Zainstaluj z folderu” przy pakietach modeli w Ustawieniach (test)
+  - [x] wariant a: „Zainstaluj z folderu” przy pakietach modeli w Ustawieniach — `ebba1f4`; Playwright na prawdziwych plikach: pusta ścieżka i zły folder dają komunikat, dobry folder → „Zainstalowany i gotowy”, ukrycie działa
+  - [x] znalezione przy teście: od ee980bb przyciski pakietów i aktualizacji wysyłały JSON zakodowany dwa razy → 500; naprawione + `_obiekt_json` (422) + testy — `ebba1f4`
   - [ ] utwardzenie i spójność: audyt przed publikacją (sekrety, nazwa klienta, dane osobowe w historii, ścieżki prywatne), porządek w docs
-  - [ ] LICENSE MIT + decyzja o CITATION po konsultacji z Argonem
-  - [ ] komentarze w kodzie odchudzone do niezbędnych
-  - [ ] przegląd kodu Codexem (wywołanie 3 z 4) pod kątem ai-slop, poprawki
-  - [ ] docs/PRZEWODNIK.md: funkcje i użycie, między instrukcją a konfiguracją
+  - [x] LICENSE MIT, CITATION.cff z pseudonimem AuCourDe, SECURITY.md, docs/LICENCJE.md (modele + biblioteki) — `d16e8a7`, Argon: docs/rozwoj/konsultacje/2026-10-30-argon-licencja.md
+  - [x] komentarze w kodzie odchudzone do niezbędnych — `f7081a1`, `866bc38` (AST bez zmian, pytest 678 passed)
+  - [~] przegląd kodu Codexem (wywołanie 3 z 4) pod kątem ai-slop, poprawki
+  - [x] docs/PRZEWODNIK.md: funkcje i użycie, między instrukcją a konfiguracją — `d16e8a7` (twierdzenia sprawdzone w kodzie)
   - [ ] bramka: pytest, ruff, GUI; push
   - [ ] repo publiczne
