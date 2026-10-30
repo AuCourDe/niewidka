@@ -279,7 +279,7 @@
   - [x] bramka: pytest 693 passed/26 skipped, ruff czysty, GUI e2e 19/19 (Chrome), API e2e na prawdziwych modelach bez regresji (znany „Piotr Wrona” poz. 1-2); świeży klon z GitHuba: 677 passed (bez opcjonalnej grupy onnx)
   - [x] repo publiczne: visibility public, licencja MIT rozpoznana, prywatne zgłaszanie luk włączone, strona 200 bez logowania
   - [x] EXE przebudowany z publicznego repo (`a744dd2`): Windows pytest 669 passed, EXE: strona 200, nowy apka.js, instaluj z folderu 202, ukryj 200 z OSOBA/PESEL; ZIP w Desktop/C
-  - [ ] wydanie (release) z pakietami modeli i licencjami: bez niego przycisk „Pobierz” nie ma skąd pobrać modeli; decyzja właściciela
+  - [~] wydanie (release) z pakietami modeli i licencjami; właściciel 2026-10-30: „a” (po sprawdzeniu licencji: obie pozwalają, warunki LICENSE + NOTICE)
 - [~] (właściciel) „czy na githubie można używać słów kluczowych? np data anonimization, anonimizacja danych itp? Aha przygotuj readme w dwóch wersjach, polskiej i angielskiej!!!”
   - [x] tematy (topics) repozytorium na GitHubie, po polsku i angielsku — 20 tematów + opis PL/EN (gh repo view)
   - [x] README.en.md (angielski) + przełącznik języka w obu README — commit „README po angielsku”
