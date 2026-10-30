@@ -1,5 +1,7 @@
 # Niewidka
 
+**Polski** · [English](README.en.md)
+
 Niewidka ukrywa dane osobowe w polskich tekstach i dokumentach. Działa na Twoim komputerze.
 Nic nie wysyła do internetu.
 
