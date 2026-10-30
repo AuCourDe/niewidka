@@ -1,8 +1,4 @@
-"""K4b — naprawy 15 znalezisk audytu bezpieczeństwa (docs/konsultacje/06-przeglad-codex-astra-1.md).
-
-Każdy test najpierw odtwarzał atak z audytu (RED), potem dostawał poprawkę (GREEN).
-Kolejność sekcji = priorytet zlecenia K4b.
-"""
+"""Testy odporności: blokada wyniku, DOCX, ZIP, limity żądań, wiązanie mapy z dokumentem."""
 
 from __future__ import annotations
 
@@ -92,12 +88,12 @@ def _docx_z_peselem_w_czesci() -> bytes:
     )
 
 
-# --- pkt 1: blokada = brak dokumentu w odpowiedzi ------------------------------
+# --- blokada = brak dokumentu w odpowiedzi ------------------------------
 
 
 @pytest.mark.anyio
 async def test_pkt1_blokada_422_bez_dokumentu(konfig):
-    """„Zablokowany" wynik nie wraca jako 200 z dokumentem (audyt pkt 1):
+    """„Zablokowany" wynik nie wraca jako 200 z dokumentem:
     422 z listą typów, bez fragmentów i bez jakichkolwiek bajtów dokumentu."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
@@ -111,7 +107,7 @@ async def test_pkt1_blokada_422_bez_dokumentu(konfig):
     tresc = odpowiedz.json()
     assert tresc["status"] == "zablokowany"
     assert tresc["typy"] == {"PESEL": 1}
-    # zlecenie 2026-10-29 (poprawki w podglądzie): blokada niesie miejsca do decyzji,
+    # blokada niesie miejsca do decyzji,
     # fragment tylko w polu `miejsca` odpowiedzi do interfejsu, w niczym innym
     assert [m["typ"] for m in tresc["miejsca"]] == ["PESEL"]
     assert tresc["podglad"] is None  # DOCX nie ma podglądu tekstu
@@ -128,14 +124,14 @@ def test_pkt1_ui_blokada_wylacza_pobieranie_i_kopiowanie():
     assert '"x-niewidka-status"' not in apka  # wynik 200 nigdy nie jest zablokowany
 
 
-# --- pkt 2: obrazy usuwane, niezweryfikowane części binarne = blokada ----------
+# --- obrazy usuwane, niezweryfikowane części binarne = blokada ----------
 
 from niewidka.formaty import ElementNieobslugiwany
 from niewidka.rdzen import ukryj
 
 
 def test_pkt2_obrazy_usuwane_z_uwaga_w_raporcie():
-    """K4b pkt 2: bez OCR obraz nie daje się sprawdzić — domyślnie USUWANY,
+    """Bez OCR obraz nie daje się sprawdzić — domyślnie USUWANY,
     w jego miejscu neutralny tekst, raport ma uwagę, status zostaje czysty."""
     wynik, _, raport = ukryj(
         _wzorzec_docx(), "docx", 1, detektor=RegulyDetektor(), max_rozpakowane_bajtow=200 * _MB
@@ -149,7 +145,7 @@ def test_pkt2_obrazy_usuwane_z_uwaga_w_raporcie():
 
 @pytest.mark.anyio
 async def test_pkt2_niezweryfikowana_czesc_binarna_blokada(konfig):
-    """K4b pkt 2: word/media/*.bin nie da się zweryfikować bez OCR ani skanu — blokada."""
+    """Word/media/*.bin nie da się zweryfikować bez OCR ani skanu — blokada."""
     app = create_app(konfig, detektor=RegulyDetektor())
     dane = _docx_przebuduj(_wzorzec_docx(), dodaj={"word/media/skrytka.bin": b"\x00\x01\x02dane"})
     async with _klient(app) as klient:
@@ -163,7 +159,7 @@ async def test_pkt2_niezweryfikowana_czesc_binarna_blokada(konfig):
 
 
 def test_pkt2_polityka_obrazow_z_konfiguracji():
-    """K4b pkt 2: polityka obrazów konfigurowalna — „zostaw" zachowuje obraz,
+    """Polityka obrazów konfigurowalna — „zostaw" zachowuje obraz,
     ale raport ostrzega; „blokuj" podnosi ElementNieobslugiwany."""
     wynik, _, raport = ukryj(
         _wzorzec_docx(),
@@ -194,11 +190,11 @@ def test_pkt2_konfig_wcztuje_polityke_obrazow():
         wczytaj_konfig(env={"NIEWIDKA_OBRAZY": "czarodziejka"})
 
 
-# --- pkt 3: skan także e.tail (itertext) ---------------------------------------
+# --- skan także e.tail (itertext) ---------------------------------------
 
 
 def test_pkt3_pesel_w_ogonie_xml_blokuje():
-    """K4b pkt 3: PESEL w ogonku elementu (tekst ZA znacznikiem) omijał skan."""
+    """PESEL w ogonku elementu (tekst ZA znacznikiem) omijał skan."""
     from niewidka.kontrola import kontroluj
 
     dane = _docx_przebuduj(
@@ -211,11 +207,11 @@ def test_pkt3_pesel_w_ogonie_xml_blokuje():
     ), f"skan nie widzi ogonka elementu: {uwagi}"
 
 
-# --- pkt 4: błąd parsowania zachowanej części XML = blokada (fail-closed) ------
+# --- błąd parsowania zachowanej części XML = blokada (fail-closed) ------
 
 
 def test_pkt4_nieprawidlowy_xml_zachowanej_czesci_blokuje():
-    """K4b pkt 4: niedomknięty XML w zachowywanej części to fail-closed,
+    """Niedomknięty XML w zachowywanej części to fail-closed,
     nie ciche „continue" — treści, której nie da się przeskanować, nie wysyłamy."""
     from niewidka.kontrola import kontroluj
 
@@ -229,7 +225,7 @@ def test_pkt4_nieprawidlowy_xml_zachowanej_czesci_blokuje():
     ), f"błąd parsowania przeszedł cicho: {uwagi}"
 
 
-# --- pkt 5: skan nazw części ZIP + neutralizacja nazw media ---------------------
+# --- skan nazw części ZIP + neutralizacja nazw media ---------------------
 
 
 def _docx_z_media_o_pieselowej_nazwie() -> bytes:
@@ -253,7 +249,7 @@ def _docx_z_media_o_pieselowej_nazwie() -> bytes:
 
 
 def test_pkt5_pii_w_nazwie_czesci_blokuje():
-    """K4b pkt 5: kontrola skanuje też NAZWY części — PESEL w nazwie = znalezisko."""
+    """Kontrola skanuje też NAZWY części — PESEL w nazwie = znalezisko."""
     from niewidka.kontrola import kontroluj
 
     dane = _docx_przebuduj(
@@ -266,7 +262,7 @@ def test_pkt5_pii_w_nazwie_czesci_blokuje():
 
 
 def test_pkt5_media_przemianowane_a_relacje_zaktualizowane():
-    """K4b pkt 5: nazwa media z PII znika z wyniku; obraz zostaje pod neutralną
+    """Nazwa media z PII znika z wyniku; obraz zostaje pod neutralną
     nazwą, relacja wskazuje nowy cel, dokument otwiera się adapterem."""
     from niewidka.formaty import adapter_dla
 
@@ -288,12 +284,12 @@ def test_pkt5_media_przemianowane_a_relacje_zaktualizowane():
     adapter_dla("w.docx").wczytaj(wynik)  # wynik pozostaje poprawnym DOCX
 
 
-# --- pkt 6: przywracanie wiąże mapę z KONKRETNYM dokumentem ---------------------
+# --- przywracanie wiąże mapę z KONKRETNYM dokumentem ---------------------
 
 
 @pytest.mark.anyio
 async def test_pkt6_mapa_z_innego_dokumentu_tej_sesji_422(konfig):
-    """K4b pkt 6: mapa B podsunięta do wyniku A (obie z tej samej sesji, więc stara
+    """Mapa B podsunięta do wyniku A (obie z tej samej sesji, więc stara
     kontrola identyfikatorów przechodzi) = 422, nigdy przywrócenie cudzych danych."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
@@ -333,7 +329,7 @@ def test_pkt6_dopisek_zawiera_identyfikator():
     assert wynik.decode().startswith(DOPISEK)
 
 
-# --- pkt 7: identyfikator ≥128 bit + rejestr skrótów wydanych szyfrogramów ------
+# --- identyfikator ≥128 bit + rejestr skrótów wydanych szyfrogramów ------
 
 
 def test_pkt7_identyfikator_ma_128_bit():
@@ -344,7 +340,7 @@ def test_pkt7_identyfikator_ma_128_bit():
 
 @pytest.mark.anyio
 async def test_pkt7_cudzy_szyfrogram_nie_odszyfrowuje(klucz_plik):
-    """K4b pkt 7: sesja rejestruje skróty WYDANYCH szyfrogramów. Szyfrogram
+    """Sesja rejestruje skróty WYDANYCH szyfrogramów. Szyfrogram
     przechwycony z INNEJ sesji (nawet gdy atakujący wygrał kolizję identyfikatora —
     symulujemy to wpisem do zbioru sesji) nie podlega odszyfrowaniu."""
     app_nadawca = create_app(Konfig(klucz_plik=klucz_plik), detektor=RegulyDetektor())
@@ -387,12 +383,12 @@ async def test_pkt7_krotki_id_w_nazwach_plikow(konfig):
     assert not [n for n in nazwy if identyfikator in n], "pełny id wycieka do nazw plików"
 
 
-# --- pkt 8: nagłówki X-Niewidka-* bez fragmentów i nazw części ------------------
+# --- nagłówki X-Niewidka-* bez fragmentów i nazw części ------------------
 
 
 @pytest.mark.anyio
 async def test_pkt8_naglowki_bez_fragmentow(klucz_plik):
-    """K4b pkt 8: nawet przy kontrola_blokada=False nagłówki niosą wyłącznie
+    """Nawet przy kontrola_blokada=False nagłówki niosą wyłącznie
     typy i liczniki — zero fragmentów danych i zero nazw części."""
     import json
 
@@ -416,12 +412,12 @@ async def test_pkt8_naglowki_bez_fragmentow(klucz_plik):
     assert ostrzezenia == {"PESEL": 1}  # typy + liczniki
 
 
-# --- pkt 9: licznik bajtów PRZED parserem (chunked), limit w /przywroc ----------
+# --- licznik bajtów PRZED parserem (chunked), limit w /przywroc ----------
 
 
 @pytest.mark.anyio
 async def test_pkt9_chunked_ponad_limit_413_bez_spoolowania(konfig, monkeypatch):
-    """K4b pkt 9: upload bez Content-Length ponad limit → 413, zanim JAKIKOLWIEK
+    """Upload bez Content-Length ponad limit → 413, zanim JAKIKOLWIEK
     bajt trafi do parsera formularza; rollover na dysk nigdy nie następuje."""
     import tempfile
 
@@ -452,7 +448,7 @@ async def test_pkt9_chunked_ponad_limit_413_bez_spoolowania(konfig, monkeypatch)
 
 @pytest.mark.anyio
 async def test_pkt9_przywroc_ma_limit_przed_buforowaniem(konfig):
-    """K4b pkt 9: /api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
+    """/api/przywroc ma ten sam licznik — chunked ponad limit = 413."""
 
     async def strumien():
         kawalek = b"m" * 65536
@@ -469,7 +465,7 @@ async def test_pkt9_przywroc_ma_limit_przed_buforowaniem(konfig):
     assert odpowiedz.status_code == 413
 
 
-# --- pkt 10: ZIP — odczyt porcjami z budżetem, weryfikacja długości, metody -----
+# --- ZIP — odczyt porcjami z budżetem, weryfikacja długości, metody -----
 
 import struct
 
@@ -507,7 +503,7 @@ def test_pkt10_klamliwy_naglowek_wiekszy_niz_strumien():
 
 
 def test_pkt10_klamliwy_naglowek_mniejszy_niz_strumien():
-    """Nagłówek deklaruje MNIEJ, niż strumień ma (wektor audytu): po deklaracji
+    """Nagłówek deklaruje MNIEJ, niż strumień ma: po deklaracji
     strumień wciąż ma dane → odmowa zamiast cichego ucięcia treści."""
     with pytest.raises(BladArchiwum):
         wczytaj_czesci(_kłamliwy_zip(roznica=-500))
@@ -547,12 +543,12 @@ async def test_pkt10_bomba_przez_api_413(konfig):
     assert odpowiedz.status_code == 413
 
 
-# --- pkt 11: slot zwalniany dopiero po faktycznym końcu pracy -------------------
+# --- slot zwalniany dopiero po faktycznym końcu pracy -------------------
 
 
 @pytest.mark.anyio
 async def test_pkt11_timeout_zostawia_slot_zajety_do_konca_pracy(klucz_plik):
-    """K4b pkt 11: timeout zwraca 503, ale wątek pracuje dalej i slot zostaje
+    """Timeout zwraca 503, ale wątek pracuje dalej i slot zostaje
     zajęty do faktycznego końca — następne żądanie NIE wchodzi równolegle."""
     konfig = Konfig(klucz_plik=klucz_plik, kolejka=0, timeout_s=1)
     start = threading.Event()
@@ -591,12 +587,12 @@ async def test_pkt11_timeout_zostawia_slot_zajety_do_konca_pracy(klucz_plik):
         assert trzecie.status_code == 200, "po realnym końcu pracy slot wolny"
 
 
-# --- pkt 12: limit równoczesnych żądań przed parsowaniem body --------------------
+# --- limit równoczesnych żądań przed parsowaniem body --------------------
 
 
 @pytest.mark.anyio
 async def test_pkt12_nadmiarowe_zlecenie_503_zanim_czyta_tresc(klucz_plik):
-    """K4b pkt 12: żądanie ponad limit równoczesnych dostaje 503 ZANIM jakikolwiek
+    """Żądanie ponad limit równoczesnych dostaje 503 ZANIM jakikolwiek
     bajt jego treści dotrze do aplikacji (stare: parser wisiał na treści bez końca)."""
     from dataclasses import replace as podmien_konfig
 
@@ -638,12 +634,12 @@ async def test_pkt12_nadmiarowe_zlecenie_503_zanim_czyta_tresc(klucz_plik):
         assert (await pierwsze).status_code == 200
 
 
-# --- pkt 13: regex e-maila liniowy ------------------------------------------------
+# --- regex e-maila liniowy ------------------------------------------------
 
 
 def test_pkt13_regex_email_liniowy():
-    """K4b pkt 13: długi ciąg bez @ nie może uruchamiać kwadratowego cofania —
-    100 tys. znaków poniżej 50 ms (audyt: 0,24 s już przy 16 tys., GIL zajęty)."""
+    """Długi ciąg bez @ nie może uruchamiać kwadratowego cofania —
+    100 tys. znaków poniżej 50 ms."""
     import time
 
     from niewidka.reguly import znajdz
@@ -652,7 +648,7 @@ def test_pkt13_regex_email_liniowy():
     start_pomiar = time.perf_counter()
     wynik = znajdz(tekst)
     czas = time.perf_counter() - start_pomiar
-    # Próg 0.1 s: WSL ~0.03-0.05 s; Windows (bieg budowy K7b) 0.055 s na brzegu
+    # Próg 0.1 s: WSL ~0.03-0.05 s; Windows 0.055 s na brzegu
     # starego progu. Celem testu jest obrona przed regresją kwadratową (było
     # 7,15 s), nie tuning liniowego kosztu.
     assert czas < 0.1, f"regex e-maila kwadratowy: {czas:.3f} s na 100 tys. znaków"
@@ -668,11 +664,11 @@ def test_pkt13_email_nadal_wykrywany():
     assert tekst[trafienia[0].start : trafienia[0].koniec] == "jan.kowalski@example.com.pl"
 
 
-# --- pkt 14: nasłuch wyłącznie na loopbacku ---------------------------------------
+# --- nasłuch wyłącznie na loopbacku ---------------------------------------
 
 
 def test_pkt14_konfig_odrzuca_host_poza_loopbackiem():
-    """K4b pkt 14: host poza loopbackiem = jawny błąd startu; nasłuch LAN
+    """Host poza loopbackiem = jawny błąd startu; nasłuch LAN
     udostępniałby odszyfrowanie bez uwierzytelnienia użytkownika."""
     from niewidka.konfig import wczytaj_konfig
 
@@ -689,12 +685,12 @@ def test_pkt14_loopback_dozwolony():
     assert wczytaj_konfig(env={"NIEWIDKA_HOST": "::1"}).host == "::1"
 
 
-# --- pkt 15: odpowiedzi błędów bez odbicia danych wejściowych ---------------------
+# --- odpowiedzi błędów bez odbicia danych wejściowych ---------------------
 
 
 @pytest.mark.anyio
 async def test_pkt15_415_bez_nazwy_pliku(konfig):
-    """K4b pkt 15: osobowa nazwa pliku (bez rozszerzenia) nie wraca w 415."""
+    """Osobowa nazwa pliku (bez rozszerzenia) nie wraca w 415."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz = await klient.post(
@@ -709,7 +705,7 @@ async def test_pkt15_415_bez_nazwy_pliku(konfig):
 
 @pytest.mark.anyio
 async def test_pkt15_nieobslugiwane_elementy_bez_nazw_czesci(konfig):
-    """K4b pkt 15: 422 dla nieobsługiwanych części nie wypisuje ich nazw
+    """422 dla nieobsługiwanych części nie wypisuje ich nazw
     (PESEL potrafi siedzieć w nazwie części archiwum)."""
     app = create_app(konfig, detektor=RegulyDetektor())
     dane = _docx_przebuduj(_wzorzec_docx(), dodaj={"word/obcy/44051401359.xml": b"<root/>"})
@@ -727,8 +723,7 @@ async def test_pkt15_nieobslugiwane_elementy_bez_nazw_czesci(konfig):
 
 @pytest.mark.anyio
 async def test_pkt15_walidacja_bez_pola_input(konfig):
-    """K4b pkt 15: RequestValidationError nie odbija wartości wejściowych
-    (audyt: poziom=44051401359-test wracał w polu input)."""
+    """RequestValidationError nie odbija wartości wejściowych."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz = await klient.post(
@@ -744,7 +739,7 @@ async def test_pkt15_walidacja_bez_pola_input(konfig):
 
 @pytest.mark.anyio
 async def test_pkt7_mapa_przywraca_sie_po_restarcie_z_rejestrem(klucz_plik, tmp_path):
-    """2026-10-29 (przegląd Codex P1): okno zamknięte = koniec sesji, a mapa wydana
+    """Okno zamknięte = koniec sesji, a mapa wydana
     wcześniej ma dać się przywrócić po ponownym uruchomieniu. Rejestr skrótów w pliku
     (bez danych osobowych); mapa spoza rejestru nadal odrzucana."""
     rejestr = tmp_path / "wydane-mapy.jsonl"

@@ -1,4 +1,4 @@
-"""Poprawki w podglądzie: „Ukryj wszędzie” i „To nie dane” (docs/MAPY-I-AKTUALIZACJE.md §4, §8, §9).
+"""Poprawki w podglądzie: „Ukryj wszędzie” i „To nie dane”.
 
 Atrapa detektora liczy wywołania: poprawka NIE może uruchamiać modelu ponownie.
 """

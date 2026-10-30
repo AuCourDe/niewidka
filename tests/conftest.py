@@ -1,4 +1,4 @@
-"""Wspólne fixture testów; wagi modeli poza repo (K2)."""
+"""Wspólne fixture testów; wagi modeli poza repo."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def model_bardsai(katalog_modeli: Path):
 
 @pytest.fixture(scope="session")
 def wagi_lfm25(katalog_modeli: Path) -> Path:
-    """Katalog wag, gdy wyeksportowany ONNX LFM2.5 jest; inaczej skok (K2b)."""
+    """Katalog wag, gdy wyeksportowany ONNX LFM2.5 jest; inaczej skok."""
     if not (katalog_modeli / "lfm25" / "int8" / "model.onnx").is_file():
         pytest.skip("ONNX LFM2.5 niewyeksportowany (narzedzia/eksport_lfm25.py)")
     return katalog_modeli
@@ -41,7 +41,7 @@ def model_lfm25(wagi_lfm25: Path):
 
 
 class PamięciowyBackend(keyring.backend.KeyringBackend):
-    """Backend testowy keyringa (K6): hasła tylko w słowniku procesu."""
+    """Backend testowy keyringa: hasła tylko w słowniku procesu."""
 
     priority = 1
 

@@ -1,4 +1,4 @@
-"""Testy kalibracji R95 (K2, LLD §11) i odczytu w jakosc (struktura per poziom, K2d)."""
+"""Testy kalibracji R95 i odczytu w jakosc (struktura per poziom)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from niewidka.jakosc import r95_poziomy, r95_z_kalibracji
 
 
 class TestZbudujWpis:
-    """K5c: N i k (liczba przykładów i pominięć) lecą do r95.json — bez zmyślania."""
+    """N i k (liczba przykładów i pominięć) lecą do r95.json — bez zmyślania."""
 
     def test_wpis_ma_r95_i_probe(self):
         wyniki = {"PESEL": WynikTypu(tp=7, fn=0), "OSOBA": WynikTypu(tp=110, fn=2)}

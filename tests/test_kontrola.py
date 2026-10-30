@@ -1,4 +1,4 @@
-"""Kontrola zapisu (LLD §10): weryfikacja ZAWSZE, każdy poziom suwaka (Astra pkt 8)."""
+"""Kontrola zapisu: weryfikacja ZAWSZE, każdy poziom suwaka."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ class RegulyAtrapa:
         return scal(tekst, znajdz_reguly(tekst))
 
 
-# --- skan surowy archiwum (K3b): kontrola NIEZALEŻNA od adaptera --------------
+# --- skan surowy archiwum: kontrola NIEZALEŻNA od adaptera --------------
 
 import io
 import zipfile
@@ -116,14 +116,14 @@ def _fonttable_z_karta(numer: str) -> bytes:
 
 
 def _fonttable_z_panose() -> bytes:
-    """Typowa wartość panose z żywego DOCX (K7b): 16 cyfr, Luhn błędny."""
+    """Typowa wartość panose z żywego DOCX: 16 cyfr, Luhn błędny."""
     return _fonttable_z_karta("0502020204030204")
 
 
 class TestSkanSurowy:
     """Kontrola skanuje SUROWO każdą część archiwum, także tę, której adapter
-    nie parsuje (Gemini: notka pod przeglądem — kontrola przez ten sam adapter
-    ma te same martwe punkty)."""
+    nie parsuje (kontrola przez ten sam adapter
+    miałaby te same martwe punkty)."""
 
     def test_pesel_w_atrybucie_czesci_nieczytanej_przez_adapter(self):
         dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
@@ -137,8 +137,7 @@ class TestSkanSurowy:
 
     def test_podejrzana_karta_w_metadanych_nie_blokuje(self):
         """Panose w fontTable.xml (16 cyfr, błędny Luhn) to typografia, nie wyciek:
-        karta z błędną sumą pomijana w skanie surowym jak DATA (żywy bieg K7b:
-        wzorcowy DOCX padał zablokowany przez word/fontTable.xml)."""
+        karta z błędną sumą pomijana w skanie surowym jak DATA (wzorcowy DOCX padał zablokowany przez word/fontTable.xml)."""
         dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
         brudny = _docx_przebuduj(dane, podmien={"word/fontTable.xml": _fonttable_z_panose()})
 
@@ -221,9 +220,8 @@ _WZORZEC_ATRAPY = re.compile(r"\[[^\]]*\]|\d{8,}")
 
 
 class DetektorNaZnacznikach:
-    """Atrapa modelu, który odpala OSOBA na tekście znacznika (znalezione E2E K5b:
-    bardsai klasyfikuje „[OSOBA_1_F1]" jako osobę) i na długich liczbach. Kontrola
-    ma znaczniki POMIJAĆ („znaleziska niebędące znacznikami", LLD §10), bo w
+    """Atrapa modelu, który odpala OSOBA na tekście znacznika (bardsai klasyfikuje „[OSOBA_1_F1]" jako osobę) i na długich liczbach. Kontrola
+    ma znaczniki POMIJAĆ („znaleziska niebędące znacznikami"), bo w
     znaczniku nie ma oryginału; prawdziwe wycieki mają zostać."""
 
     nazwa = "atrapa-znaczniki"
@@ -251,7 +249,7 @@ class TestKontrolaZnaczniki:
 
 
 class TestSkanSurowyReguly:
-    """K5b: skan surowy używa WYŁĄCZNIE reguł + oryginałów z mapy, niezależnie od
+    """Skan surowy używa WYŁĄCZNIE reguł + oryginałów z mapy, niezależnie od
     przekazanego detektora. Model ONNX na każdej części XML = 219 s na wzorcu
     (timeout API 120 s, 500 fail-closed) i fałszywe blokady z metadanych XML."""
 
@@ -277,7 +275,7 @@ class TestSkanSurowyReguly:
 class TestWydajnoscKontroli:
     @pytest.mark.model
     def test_ukrycie_docx_poziom3_ponizej_timeoutu_api(self, katalog_modeli, tmp_path):
-        """Zlecenie K5b: ukrycie wzorcowego DOCX na poziomie 3 trwa < 10 s
+        """Ukrycie wzorcowego DOCX na poziomie 3 trwa < 10 s
         (limit API 120 s). Przed naprawą: 219 s."""
         from narzedzia.generator_dokumentow import zapisz_podstawowy
         from niewidka.konfig import Konfig
@@ -295,7 +293,7 @@ class TestWydajnoscKontroli:
 
 
 def test_nazwa_typu_danych_to_nie_wyciek():
-    """Testy API 2026-10-29: model w kontroli brał samo „PESEL" (etykieta przed
+    """Model w kontroli brał samo „PESEL" (etykieta przed
     zamaskowanym numerem) za osobę; pętla dokładała je i wynik był blokowany."""
     from niewidka.model import TypEncji, Zakres
 

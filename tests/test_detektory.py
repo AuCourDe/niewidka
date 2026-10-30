@@ -1,4 +1,4 @@
-"""Testy detektorów (LLD §4): okna przesuwne, dekodowanie BIO, mapowanie etykiet.
+"""Testy detektorów: okna przesuwne, dekodowanie BIO, mapowanie etykiet.
 
 Testy okien i BIO działają na atrapach — bez modelu i onnxruntime. Testy na żywym
 modelu mają marker `model` i są pomijane, gdy wag nie ma w katalogu modeli.
@@ -132,7 +132,7 @@ class TestZdekodujBio:
         assert zakresy[0][3] == pytest.approx(0.40)
 
 
-# --- Krok G (K2b): BIOES — schemat LFM2.5 (B/I/E/S) ---
+# --- Krok G: BIOES — schemat LFM2.5 (B/I/E/S) ---
 
 class TestZdekodujBioes:
     mapa: ClassVar[dict] = {("PERSON_NAME",): TypEncji.OSOBA}
@@ -454,7 +454,7 @@ class TestDetektorKompozyt:
         assert DetektorKompozyt("poziom1", []).znajdz("cokolwiek") == []
 
 
-# --- Krok H (K2b): adapter LFM2.5 — mapowanie etykiet, poziom 2 ---
+# --- Krok H: adapter LFM2.5 — mapowanie etykiet, poziom 2 ---
 
 class TestAdapterLfm25:
     def test_osoba_we_wszystkich_literach_bioes(self):
@@ -466,7 +466,7 @@ class TestAdapterLfm25:
 
     def test_pozostale_typy_pomijane(self):
         # reguły mają PESEL/NIP/IBAN/telefon/e-mail z dokładnymi granicami (pewność 1.0);
-        # modelowe odpowiedniki rozmyłyby granice (unia scalania, KRYTERIA §1.3)
+        # modelowe odpowiedniki rozmyłyby granice (unia scalania)
         for etykieta in (
             "B-identity.national_id",
             "B-identity.tax_id",
@@ -492,7 +492,7 @@ class TestWczytajLfm25:
 
     @pytest.mark.model
     @pytest.mark.xfail(reason="LFM2.5 degraduje na powtarzalnych długich tekstach "
-                             "(pomiar K2b: docs/WYNIK-K2b.md); kompozyt poziomu 2 nie "
+                             "kompozyt poziomu 2 nie "
                              "wychodzi, mechanizm okien pokryty atrapami", strict=False)
     def test_zywy_model_dlugi_tekst_okna(self, model_lfm25):
         tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokenów
@@ -539,7 +539,7 @@ class TestRozciagnijDoSlow:
         assert rozciagnij_do_slow([(0, 3)], "Jan, Kowalski i in.") == [(0, 3)]
 
     def test_nie_przekracza_tekstu(self):
-        # po trimie whitespace (K2b) końcowa spacja nie wchodzi w zakres
+        # po trimie whitespace końcowa spacja nie wchodzi w zakres
         assert rozciagnij_do_slow([(0, 4)], "Jan ") == [(0, 3)]
 
     def test_diacritiki_i_cyfry(self):
@@ -550,7 +550,7 @@ class TestRozciagnijDoSlow:
 
 
 class TestRozciagnijDoSlowTrim:
-    """Tokeny BPE (LFM2.5, K2b) mają offsety z wiodącą spacją ('ĠPiot' -> (14,19));
+    """Tokeny BPE (LFM2.5) mają offsety z wiodącą spacją ('ĠPiot' -> (14,19));
     bez przycięcia whitespace rozciągnięcie ucieka na poprzednie słowo."""
 
     def test_offset_z_wiodaca_spacja_nie_ucieka_na_poprzednie_slowo(self):
@@ -568,7 +568,7 @@ class TestRozciagnijDoSlowTrim:
         assert rozciagnij_do_slow([(0, 12)], tekst) == [(0, 12)]
 
 
-# --- K2d (wariant A/B): próg pewności OSOBA, półkrokowe okna, słownik imion ---
+# --- próg pewności OSOBA, półkrokowe okna, słownik imion ---
 
 from niewidka.detektory import SlownikImionDetektor
 
@@ -614,7 +614,7 @@ class TestProgPewnosciOSOBA:
 
     def test_bez_progu_zachowanie_niezmienione(self, tmp_path):
         d = zbuduj_onnx(tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN))
-        assert d.znajdz("Jan biegł") == []  # argmax = O -> bez detekcji, jak przed K2d
+        assert d.znajdz("Jan biegł") == []  # argmax = O -> bez detekcji
 
     def test_kontynuacja_kleje_b_i_i(self, tmp_path):
         logity = {1: {0: 4.5, 1: 4.0}, 2: {0: 4.5, 1: 4.0}}
@@ -683,7 +683,7 @@ class TestSlownikImion:
         assert [(z.start, z.koniec) for z in d.znajdz("biegł Jan Kowalski.")] == [(6, 18)]
 
     def test_imie_z_malej_litery_to_nie_imie(self, tmp_path):
-        # pismo właściciela 2026-10-28: „marki Skoda" → OSOBA (rdzeń jak „Marek")
+        # „marki Skoda" → OSOBA (rdzeń jak „Marek")
         # „marki" ma rdzeń „mark" jak imię „Marko" ze słownika GUS
         d = SlownikImionDetektor(plik=mini_slownik(tmp_path, "Marko\t90\n"))
         assert d.znajdz("pojazd marki Skoda Octavia") == []
@@ -724,7 +724,7 @@ class TestSlownikImion:
             SlownikImionDetektor(plik=tmp_path / "nie-ma.txt")
 
 
-# --- wpięcie poziomów do produktu (K2d): jedna funkcja składająca poziom ---
+# --- wpięcie poziomów do produktu: jedna funkcja składająca poziom ---
 
 from niewidka.detektory import zbuduj_poziom
 
@@ -758,7 +758,7 @@ class TestZbudujPoziom:
         assert d.czesci[0] is reguly
 
 
-# --- K7b: pakiet Rozszerzony (LFM2.5 tylko dla IP/KARTA/SWIFT/LOGIN) -----------
+# --- pakiet Rozszerzony (LFM2.5 tylko dla IP/KARTA/SWIFT/LOGIN) -----------
 
 from niewidka.detektory import (
     ADAPTER_LFM25_ROZSZERZONY,
@@ -862,7 +862,7 @@ def test_poziom3_z_pakietem_rozszerzonym(katalog_modeli):
     assert TypEncji.SWIFT in d.typy and TypEncji.OSOBA in d.typy
 
 
-# --- K7c pkt 2/3: zaufany katalog pakietów + ładowanie zweryfikowanych bajtów ---
+# --- zaufany katalog pakietów + ładowanie zweryfikowanych bajtów ---
 
 from niewidka.detektory import wczytaj_bardsai
 
@@ -904,7 +904,7 @@ class _AtrapaSesji:
 
 
 def test_wczytaj_bardsai_laduje_zweryfikowane_bajty(monkeypatch, tmp_path):
-    """K7c (audyt #2/#3): bardsai ładuje DOKŁADNIE te bajty, które przeszły
+    """Bardsai ładuje DOKŁADNIE te bajty, które przeszły
     weryfikację SHA-256 względem ZAUFANEGO pakiety.json (koniec okna sprawdź-użyj)."""
     import onnxruntime
     import tokenizers
@@ -926,7 +926,7 @@ def test_wczytaj_bardsai_laduje_zweryfikowane_bajty(monkeypatch, tmp_path):
 
 
 def test_wczytaj_bardsai_podmieniony_model_z_pustym_manifestem_odpada(tmp_path):
-    """Audyt #2: manifest.json = {} przechodził bez sprawdzenia choć jednego hasza;
+    """Manifest.json = {} przechodził bez sprawdzenia choć jednego hasza;
     zaufany katalog pakietów ma DECYDOWAĆ o oczekiwanych sumach, nie lokalny manifest."""
     katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
     (katalog / "model.onnx").write_bytes(b"PODMIENIONE WAGI")
@@ -953,7 +953,7 @@ def test_wczytaj_bardsai_symlink_zamiast_pliku_odpada(tmp_path):
 
 
 class TestSwiftWNaglowku:
-    """Pismo właściciela 2026-10-28: LFM2.5 brał „WARSZAWY" z nagłówka
+    """LFM2.5 brał „WARSZAWY" z nagłówka
     „URZĄD MIASTA STOŁECZNEGO WARSZAWY" za kod SWIFT."""
 
     class Atrapa:

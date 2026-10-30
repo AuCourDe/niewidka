@@ -1,4 +1,4 @@
-"""Testy klucza mapy (K4, LLD §8): plik base64 32 B z 0600 albo keyring; zero fallbacku.
+"""Testy klucza mapy: plik base64 32 B z 0600 albo keyring; zero fallbacku.
 
 Klucz NIE może trafić do logów, wyjątków ani repr (treść sekretu = wyciek).
 """
@@ -41,7 +41,7 @@ def test_klucz_z_pliku_ok(tmp_path: Path):
 
 
 def test_klucz_z_pliku_z_nowa_linia(tmp_path: Path):
-    # plik z `base64` / `echo` kończy się "\n" (e2e 2026-10-29: 500 na każdym ukryciu)
+    # plik z `base64` / `echo` kończy się "\n" (e2e 500 na każdym ukryciu)
     konfig = Konfig(klucz_plik=_plik_klucza(tmp_path, zawartosc=base64.b64encode(KLUCZ) + b"\r\n"))
     assert pobierz_klucz(konfig, z_keyringa=lambda usluga: None) == KLUCZ
 
@@ -77,7 +77,7 @@ def test_zbyt_otwarte_uprawnienia_pliku(tmp_path: Path):
 
 def test_windows_ignoruje_uprawnienia_pliku(tmp_path, monkeypatch):
     """Windows: chmod ma tylko bit tylko-do-odczytu (plik zgłasza 0o666); kontrola
-    0600 nie może blokować klucza (LLD §8, Gemini pkt 10) — inaczej desktop
+    0600 nie może blokować klucza — inaczej desktop
     odrzucałby każdy klucz z pliku. Podmieniamy os TYLKO w module klucze: globalna
     zmiana os.name przekłamałaby też pathlib (Path wybiera wariant wg os.name)."""
 
@@ -128,7 +128,7 @@ def test_cli_do_keyringa(keyring_pamieciowy):
     assert len(base64.b64decode(keyring.get_password("niewidka", klucze.KONTO))) == 32
 
 
-# --- K6 (desktop): jawne utworzenie klucza wprost do keyringa; bez nadpisywania ---
+# --- jawne utworzenie klucza wprost do keyringa; bez nadpisywania ---
 
 
 def test_utworz_klucz_w_keyringu_zapisuje_32_bajty(keyring_pamieciowy):

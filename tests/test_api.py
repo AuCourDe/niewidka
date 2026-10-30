@@ -1,4 +1,4 @@
-"""Testy API FastAPI (K4, LLD §12): ukryj/przywroc/stan, token sesji, limity, kolejka.
+"""Testy API FastAPI: ukryj/przywroc/stan, token sesji, limity, kolejka.
 
 Testy bez wag: detektor (reguły albo atrapa) wstrzyknięty przez zależność.
 """
@@ -223,7 +223,7 @@ async def test_zmieniony_bajt_mapy_422(konfig):
 
 @pytest.mark.anyio
 async def test_niezgodny_identyfikator_422(klucz_plik):
-    """Mapa z innej sesji (ten sam klucz) = cudze personaliów — odrzucenie (Astra pkt 3)."""
+    """Mapa z innej sesji (ten sam klucz) = cudze personaliów — odrzucenie."""
     app_nadawca = create_app(Konfig(klucz_plik=klucz_plik), detektor=RegulyDetektor())
     app_odbiorca = create_app(Konfig(klucz_plik=klucz_plik), detektor=RegulyDetektor())  # świeża sesja
     async with _klient(app_nadawca) as klient:
@@ -338,7 +338,7 @@ async def test_zly_origin_403(konfig):
 
 @pytest.mark.anyio
 async def test_stan_wymaga_tokenu_a_z_tokenu_ma_pola(konfig):
-    """K7c pkt 5 (audyt): GET /api/stan pilnuje tokenu jak POST-y."""
+    """GET /api/stan pilnuje tokenu jak POST-y."""
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         assert (await klient.get("/api/stan")).status_code == 403
@@ -348,7 +348,7 @@ async def test_stan_wymaga_tokenu_a_z_tokenu_ma_pola(konfig):
     assert stan["wersja"]
     assert "reguly" in stan["modele"]
     assert stan["poziom"] == konfig.poziom
-    assert stan["poziomy"] == [1, 2, 3]  # dostępne poziomy suwaka (K2d wpięte do produktu)
+    assert stan["poziomy"] == [1, 2, 3]  # dostępne poziomy suwaka
     assert isinstance(stan["r95"], dict)  # R95 per poziom dla interfejsu
     assert stan["limity"]["rozmiar_mb"] == konfig.max_rozmiar_mb
     assert stan["kolejka"]["maks"] == konfig.kolejka
@@ -372,7 +372,7 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
     identyfikator_bledu = odpowiedz.json()["blad"]
     assert len(identyfikator_bledu) == 32  # UUID błędu, nie traceback
     assert "symulowana awaria" not in odpowiedz.text
-    # logi bez treści dokumentu i bez klucza (Gemini pkt 15)
+    # logi bez treści dokumentu i bez klucza
     assert "Jan Kowalski" not in caplog.text
     assert "44051401359" not in caplog.text
     assert base64.b64encode(KLUCZ).decode() not in caplog.text
@@ -382,10 +382,8 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
 @pytest.mark.model
 @pytest.mark.anyio
 async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik):
-    """Suwak poziomów zmienia detekcję w API. Korekta K7c: wagi produktu to
-    teraz bardsai Q4 bl32 z zaufanego pakiety.json (pkt 2/3) — Q4 na poziomie 1
-    łapie cały „Piotrowi Wiśniewskiemu" (próbka osoba-011 z K2d mierzona była
-    na INT8), więc różnicującą próbką jest inst-061 z korpusu: słownik imion
+    """Suwak poziomów zmienia detekcję w API. Q4 na poziomie 1 łapie cały
+    „Piotrowi Wiśniewskiemu" (próbka osoba-011), więc różnicującą próbką jest inst-061 z korpusu: słownik imion
     poziomu 3 dodaje „Adama Mickiewicza", poziom 1 go pomija."""
     from niewidka.mapa import odszyfruj
 
@@ -408,7 +406,7 @@ async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik)
     assert [wyst.oryginal for wyst in mapa.wystapienia] == ["Adama Mickiewicza"]
 
 
-# --- K7b: pakiety modeli przez API -------------------------------------------
+# --- pakiety modeli przez API -------------------------------------------
 
 import json as _json
 
@@ -571,7 +569,7 @@ async def test_pakiety_instaluj_offline_z_katalogu(konfig, tmp_path):
             json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
             headers=_naglowki(app),
         )
-        assert odpowiedz.status_code == 202  # K7c pkt 8: instalacja w tle
+        assert odpowiedz.status_code == 202  # instalacja w tle
         menedzer.czekaj()
         stan = (await klient.get("/api/pakiety", headers=_naglowki(app))).json()
         assert stan["pakiety"][0]["stan"] == "zainstalowany"
@@ -588,7 +586,7 @@ async def test_pakiety_instaluj_offline_z_katalogu(konfig, tmp_path):
 
 @pytest.mark.anyio
 async def test_ukryj_bez_wymaganego_pakietu_409_jasny_blad(konfig, tmp_path):
-    """Poziom bez wymaganego pakietu = jasny błąd (polecenie K7b pkt 3), nie 500."""
+    """Poziom bez wymaganego pakietu = jasny błąd, nie 500."""
     app = create_app(konfig, detektor=None, menedzer_pakietow=_menedzer_testowy(tmp_path))
     async with _klient(app) as klient:
         odpowiedz = await klient.post(
@@ -616,7 +614,7 @@ async def test_stan_z_pakietami_poziomy_dostepne(konfig, tmp_path):
 
 @pytest.mark.anyio
 async def test_stan_bez_detektora_wstaje_i_mowi_o_braku(konfig, tmp_path):
-    """K7b: łagodny start bez wag — /api/stan odpowiada, modele = [] (żywy bieg exe:
+    """Łagodny start bez wag — /api/stan odpowiada, modele = [] (żywy bieg exe:
     None.nazwa wywalał endpoint na 500)."""
     app = create_app(konfig, detektor=None, menedzer_pakietow=_menedzer_testowy(tmp_path))
     async with _klient(app) as klient:
@@ -631,10 +629,9 @@ async def test_stan_bez_detektora_wstaje_i_mowi_o_braku(konfig, tmp_path):
 async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
     katalog_modeli, klucz_plik, tmp_path
 ):
-    """K7c pkt 1: zainstalowany pakiet Rozszerzony MUSI wykrywać LOGIN na poziomie 3,
+    """Zainstalowany pakiet Rozszerzony MUSI wykrywać LOGIN na poziomie 3,
     a zmiana stanu pakietów MUSI unieważnić cache detektorów (to samo app).
-    Ścieżka przez API i menedżera pakietów, bez ręcznych flag (audyt #1: rdzeń
-    nie przekazywał pakiet_rozszerzony=True i login zostawał w tekście)."""
+    Ścieżka przez API i menedżera pakietów, bez ręcznych flag."""
     import shutil
 
     menedzer_katalog = tmp_path / "wagi"
@@ -653,7 +650,7 @@ async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
             json={"akcja": "instaluj", "pakiet": "podstawowy", "katalog": str(lustro)},
             headers=_naglowki(app),
         )
-        assert odpowiedz.status_code == 202  # K7c pkt 8: instalacja w tle
+        assert odpowiedz.status_code == 202  # instalacja w tle
         menedzer.czekaj()
         bez = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "3"}, headers=_naglowki(app)
@@ -681,7 +678,7 @@ async def test_pakiet_rozszerzony_uczestniczy_w_anonimizacji_przez_api(
 
 @pytest.mark.anyio
 async def test_get_pakiety_i_stan_wymagaja_tokenu_hosta_origin(konfig, tmp_path):
-    """K7c pkt 5 (audyt): GET /api/pakiety ujawniał postep.blad (z hasłem lustra
+    """GET /api/pakiety ujawniał postep.blad (z hasłem lustra
     w URL) bez tokenu; teraz te GET-y pilnują tokenu i Host/Origin jak POST."""
     app = create_app(
         konfig, detektor=RegulyDetektor(), menedzer_pakietow=_menedzer_testowy(tmp_path)
@@ -705,7 +702,7 @@ async def test_get_pakiety_i_stan_wymagaja_tokenu_hosta_origin(konfig, tmp_path)
 async def test_detektor_poziomu3_nie_zostaje_ze_starego_stanu_pakietu(
     konfig, tmp_path, monkeypatch
 ):
-    """Odbiór K7c: cache detektorów był kluczowany samym poziomem. Detektor poziomu 3
+    """Cache detektorów był kluczowany samym poziomem. Detektor poziomu 3
     zbudowany zanim pierwsza weryfikacja SHA po starcie skończy się (stan „brak”)
     albo przy NIEWIDKA_POZIOM=3 zostawał bez LFM2.5, choć pakiet był zainstalowany,
     bo start nie zgłasza zmiany. Stan pakietu MUSI być częścią klucza cache."""
@@ -734,7 +731,7 @@ async def test_detektor_poziomu3_nie_zostaje_ze_starego_stanu_pakietu(
 
 
 def test_bez_katalogu_modeli_detektor_i_menedzer_uzywaja_tej_samej_sciezki(monkeypatch, tmp_path):
-    # przegląd Codex 2026-10-29 (P1): menedżer pobierał do katalogu domyślnego,
+    # menedżer pobierał do katalogu domyślnego,
     # a detektor miał modele_katalog=None → po instalacji każde ukrycie 500
     monkeypatch.setattr(api, "katalog_modeli", lambda: tmp_path / "modele")
     app = api.create_app(Konfig(), detektor=None)
@@ -744,7 +741,7 @@ def test_bez_katalogu_modeli_detektor_i_menedzer_uzywaja_tej_samej_sciezki(monke
 
 @pytest.mark.anyio
 async def test_strona_glowna_nie_wydaje_tokenu_obcemu_hostowi(konfig):
-    # przegląd Codex 2026-10-29: GET / z Host: evil.example zwracał token (DNS rebinding)
+    # GET / z Host: evil.example zwracał token (DNS rebinding)
     app = create_app(konfig, detektor=RegulyDetektor())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://evil.example") as k:
         odpowiedz = await k.get("/")
@@ -754,7 +751,7 @@ async def test_strona_glowna_nie_wydaje_tokenu_obcemu_hostowi(konfig):
 
 @pytest.mark.anyio
 async def test_uszkodzony_docx_daje_422_nie_500(konfig):
-    # testy GUI 2026-10-29 (S-WSP-37): tekst w pliku .docx kończył się 500
+    # tekst w pliku .docx kończył się 500
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz = await klient.post(

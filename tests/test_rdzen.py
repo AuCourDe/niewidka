@@ -1,4 +1,4 @@
-"""Testy rdzenia ukryj/przywroc (K4): jedna para funkcji dla API i desktopu.
+"""Testy rdzenia ukryj/przywroc: jedna para funkcji dla API i desktopu.
 
 Detektor wstrzykiwany przez zależność — testy bez wag używają reguł albo atrapy.
 """
@@ -126,7 +126,7 @@ def test_przywroc_znacznik_bez_wpisu_i_wpis_niewykorzystany():
 
 
 def test_przywroc_odpowiedz_ai_bez_dopisku_z_ostrzezeniem():
-    # odpowiedź czatu AI zwykle nie powtarza dopisku z identyfikatorem mapy (Argon, 2026-10-29)
+    # odpowiedź czatu AI zwykle nie powtarza dopisku z identyfikatorem mapy
     wynik, mapa, _ = ukryj(TEKST, "txt", 1, detektor=RegulyDetektor())
     _, tresc = wynik.decode().split("\n", 1)
     odpowiedz_ai = f"Oto odpowiedź na pismo. Numer {tresc.strip()}".encode()
@@ -190,7 +190,7 @@ def test_kontrola_nowe_znajdziska_blokuja_status():
 
 
 class DetektorZaleznyOdKontekstu:
-    """Jak bardsai na piśmie właściciela (2026-10-28): „Anna Kwiatkowska" widać
+    """Jak bardsai: „Anna Kwiatkowska" widać
     dopiero, gdy „Jan Nowak" jest już zamaskowany (inny kontekst/okno modelu)."""
 
     nazwa = "atrapa-kontekst"
@@ -228,7 +228,7 @@ def test_kontrola_osoba_obejmuje_nazwisko_za_imionami():
 
 
 def test_kontrola_nie_pokazuje_modelowi_losowego_identyfikatora_mapy():
-    """2026-10-28: losowy identyfikator w dopisku zmieniał kontekst modelu przy
+    """Losowy identyfikator w dopisku zmieniał kontekst modelu przy
     każdym biegu, więc ten sam dokument raz przechodził z jawnym nazwiskiem, raz nie."""
 
     class Zapisujacy:
@@ -255,7 +255,7 @@ def test_kontrola_nie_pokazuje_modelowi_losowego_identyfikatora_mapy():
      ("Jan Marek O’Neill", "Neill"), ("Jan Marek Nowak-Jeziorańska", "Jeziorańska")],
 )
 def test_kontrola_dopelnienie_osoby_po_pelnych_slowach(podpis, nazwisko):
-    """Przegląd Codex 2026-10-29: „Jan Marek" + „ Mc" zostawiało „Donald" jawne."""
+    """„Jan Marek" + „ Mc" zostawiało „Donald" jawne."""
 
     class TylkoImiona(DetektorZaleznyOdKontekstu):
         def znajdz(self, tekst: str) -> list[Zakres]:
@@ -270,7 +270,7 @@ def test_kontrola_dopelnienie_osoby_po_pelnych_slowach(podpis, nazwisko):
 
 
 def test_znaczniki_w_tresci_wejscia_odrzucone():
-    """Przegląd Codex 2026-10-29: „[PESEL_1]" w wejściu kolidował z nadanym znacznikiem
+    """„[PESEL_1]" w wejściu kolidował z nadanym znacznikiem
     i przywrócenie po cichu wstawiało PESEL w miejsce tekstu."""
     from niewidka.rdzen import ZnacznikiWTresci
 
@@ -279,7 +279,7 @@ def test_znaczniki_w_tresci_wejscia_odrzucone():
 
 
 def test_oryginal_z_mapy_ukryty_takze_tam_gdzie_model_go_przeoczyl():
-    """Testy API 2026-10-29: „Anna Nowak" ukryta w jednym miejscu, w drugim model jej
+    """„Anna Nowak" ukryta w jednym miejscu, w drugim model jej
     nie widział → skan surowy zgłaszał ORYGINAL i cały wynik był blokowany."""
 
     class RazTak:
@@ -300,7 +300,7 @@ def test_oryginal_z_mapy_ukryty_takze_tam_gdzie_model_go_przeoczyl():
 
 
 def test_inne_formy_znanej_osoby_ukryte_na_kazdym_poziomie():
-    """Testy API 2026-10-29: „Marek Zawadzki-Herbert" ukryty, a „Markowi
+    """„Marek Zawadzki-Herbert" ukryty, a „Markowi
     Zawadzkiemu-Herbertowi" i „z Beatą Sokołowską" zostawały jawne."""
     tekst = (
         "Najemca: Marek Zawadzki-Herbert. Obecna Beata Sokołowska z lokalu 7.\n"
@@ -316,9 +316,8 @@ def test_inne_formy_znanej_osoby_ukryte_na_kazdym_poziomie():
 
 
 def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
-    """K3b: PESEL schowany w części, której adapter nie parsuje i nie czyści
-    (media), omija wykrywanie i zamianę — kontrola z oryginałami mapy go zgłasza.
-    (Pierwotna pułapka w settings.xml przestała wyciekać po naprawie Gemini pkt 8.)"""
+    """PESEL schowany w części, której adapter nie parsuje i nie czyści
+    (media), omija wykrywanie i zamianę — kontrola z oryginałami mapy go zgłasza."""
     import io
     import zipfile
 
@@ -332,7 +331,7 @@ def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
         for nazwa, zawartosc in czesci.items():
             paczka.writestr(nazwa, zawartosc)
 
-    # polityka "zostaw": od K4b pkt 2 domyślnie obrazy są usuwane (wyciek znikałby
+    # polityka "zostaw": domyślnie obrazy są usuwane (wyciek znikałby
     # zanim kontrola zdąży go zgłosić); testujemy tu SKAN SUROWY części nie-XML,
     # więc obraz świadomie zostaje w wyniku
     _wynik, mapa, raport = ukryj(
@@ -341,7 +340,7 @@ def test_kontrola_oryginal_z_mapy_w_czesci_nieczytanej_blokuje(tmp_path):
 
     oryginaly = [w.oryginal for w in mapa.wystapienia]
     assert "44051401359" in oryginaly
-    # K4b pkt 5: część ma neutralną nazwę (skrytka.png → obrazN.png), a kontrola
+    # część ma neutralną nazwę (skrytka.png → obrazN.png), a kontrola
     # i tak zgłasza ORYGINAL w części media
     assert any(
         o.typ == "ORYGINAL" and o.fragment == "44051401359" and o.czesc.startswith("word/media/")
@@ -384,9 +383,8 @@ def test_zbuduj_detektor_poziomy_2_i_3_roznia_sie_od_1(katalog_modeli):
 
 @pytest.mark.model
 def test_poziom3_lapie_co_poziom1_przeoczy(katalog_modeli):
-    """Suwak zmienia detekcję. Korekta K7c: wagi produktu to bardsai Q4 bl32 z
-    zaufanego pakiety.json (K7c pkt 2/3) — na Q4 poziomy 1 i 2 wykrywają osoba-011
-    identycznie (różnica K2d była kalibrowana na INT8), a realną różnicę daje
+    """Suwak zmienia detekcję. Na Q4 poziomy 1 i 2 wykrywają osoba-011
+    identycznie, a realną różnicę daje
     słownik imion poziomu 3 na próbce inst-061 z korpusu."""
     konfig = Konfig(modele_katalog=katalog_modeli)
     tekst = "Muzeum im. Adama Mickiewicza zaprasza."
@@ -406,7 +404,7 @@ def test_filtr_bez_daty():
 
 
 def test_zbuduj_detektor_przekazuje_stan_pakietu_rozszerzonego(monkeypatch, tmp_path):
-    """K7c pkt 1: rdzeń przekazuje zweryfikowany stan pakietu Rozszerzonego do
+    """Rdzeń przekazuje zweryfikowany stan pakietu Rozszerzonego do
     budowy poziomu (bez tego zainstalowany LFM2.5 nigdy nie uczestniczy w detekcji)."""
     from niewidka import rdzen
 

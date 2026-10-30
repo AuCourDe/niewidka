@@ -1,4 +1,4 @@
-"""Mapowanie klas LFM2.5 -> typy Niewidki (K2e, detektory.mapuj_typ_lfm25)."""
+"""Mapowanie klas LFM2.5 -> typy Niewidki."""
 
 from niewidka.detektory import mapuj_typ_lfm25
 from niewidka.model import TypEncji

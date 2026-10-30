@@ -1,4 +1,4 @@
-"""Testy scalania kandydatów (LLD §5 + przegląd Astry pkt 1)."""
+"""Testy scalania kandydatów."""
 
 import random
 from itertools import pairwise
@@ -23,7 +23,7 @@ def test_dotykajace_sie_nie_lacza():
 
 
 def test_nakladajace_sie_maskowane_unia_bez_dziury():
-    # Przegląd Astry pkt 1: wybór jednego zwycięzcy z [0,12) i [8,20)
+    # wybór jednego zwycięzcy z [0,12) i [8,20)
     # zostawiłby jawne 12-20 — maskowana jest cała unia.
     kandydaci = [
         _zakres(0, 12, TypEncji.PESEL, 1.0, suma=True),
@@ -47,7 +47,7 @@ def test_dluzszy_wygrywa_gdy_bez_sum():
 
 
 def test_pelne_pokrycie_roznych_typow_etykieta_wewnetrznego():
-    # LLD §5: nazwisko w środku adresu — wygrywa bardziej specyficzny typ;
+    # nazwisko w środku adresu — wygrywa bardziej specyficzny typ;
     # maskowana i tak jest cała unia, wybieramy tylko etykietę.
     kandydaci = [
         _zakres(0, 20, TypEncji.ADRES),
@@ -91,7 +91,7 @@ def test_wynik_sortowany_wg_pozycji():
 
 
 def test_własność_maskowanie_to_unia_wejścia():
-    # Własność (przegląd Astry pkt 1): dla dowolnego zestawu kandydatów maskowane
+    # Własność: dla dowolnego zestawu kandydatów maskowane
     # znaki = suma znaków wejściowych — żadna grupa nakładań nie zostawia dziury,
     # wynik rozłączny i posortowany. Przypadek graniczny [0,12)+[8,20) → [0,20)
     # jest zamknięty testem test_nakladajace_sie_maskowane_unia_bez_dziury.
@@ -131,7 +131,7 @@ def test_sama_podejrzana_przechodzi_z_flaga():
 
 def test_podejrzana_nakryta_sumą_traci_etykietę_a_obszar_zostaje():
     # Etykieta zwycięska jest pewna, ale maskowany obszar i tak obejmuje całą unię —
-    # podejrzany fragment nie może zostać odsłonięty (przegląd Astry pkt 1 + 14).
+    # podejrzany fragment nie może zostać odsłonięty.
     kandydaci = [
         _zakres(0, 20, TypEncji.PESEL, 0.5, podejrzana=True),
         _zakres(4, 14, TypEncji.NIP, 1.0, suma=True),

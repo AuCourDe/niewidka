@@ -1,4 +1,4 @@
-"""Testy webu lokalnego (K5, LLD §13): strona serwowana przez api.py, token w treści.
+"""Testy webu lokalnego: strona serwowana przez api.py, token w treści.
 
 Strona z tokenem sesji w meta, zasoby (apka.js, styl.css, fonty) wyłącznie lokalne —
 nic nie sięga po sieć, bo narzędzie ma działać na komputerze bez internetu.
@@ -113,7 +113,7 @@ async def test_strona_mieci_elementy_funkcjonalne(klient):
 
 @pytest.mark.anyio
 async def test_api_trasy_priorytet_przed_statycznymi(klient, app):
-    """K7c pkt 5: /api/stan pilnuje tokenu (jak POST-y); UI wysyła go w meta."""
+    """/api/stan pilnuje tokenu (jak POST-y); UI wysyła go w meta."""
     odpowiedz = await klient.get("/api/stan", headers={"X-Niewidka-Token": app.state.token})
     assert odpowiedz.status_code == 200
     assert odpowiedz.json()["wersja"]
@@ -121,7 +121,7 @@ async def test_api_trasy_priorytet_przed_statycznymi(klient, app):
 
 @pytest.mark.anyio
 async def test_bez_polpauz_i_pauz_w_tekstach(klient):
-    """Zlecenie właściciela (12:55 / K5b): zero półpauz i pauz (– —) w tekstach
+    """Zero półpauz i pauz (– —) w tekstach
     widocznych dla użytkownika: strona, skrypt i dopisek w plikach wynikowych."""
     from niewidka.znaczniki import DOPISEK, dopisek
 
@@ -137,7 +137,7 @@ async def test_bez_polpauz_i_pauz_w_tekstach(klient):
 
 @pytest.mark.anyio
 async def test_podglad_zwija_dopisek_a_ryzyko_przychodzi_z_serwera(klient):
-    """K5c: dopisek z identyfikatorem mapy zwija się w podglądzie do
+    """Dopisek z identyfikatorem mapy zwija się w podglądzie do
     „ZANONIMIZOWANY. …" (pełny zostaje w pliku wynikowym); etykiety ryzyka
     (w tym próg małej próby) podaje serwer w gotowym tekście."""
     apka = (await klient.get("/apka.js")).text
@@ -148,7 +148,7 @@ async def test_podglad_zwija_dopisek_a_ryzyko_przychodzi_z_serwera(klient):
 
 @pytest.mark.anyio
 async def test_pakiety_elementy_funkcjonalne(klient):
-    """K7b: ekran pierwszego uruchomienia (3 opcje) i Ustawienia z pakietami."""
+    """Ekran pierwszego uruchomienia (3 opcje) i Ustawienia z pakietami."""
     strona = (await klient.get("/")).text
     apka = (await klient.get("/apka.js")).text
     for wyraz in (
@@ -170,7 +170,7 @@ async def test_pakiety_elementy_funkcjonalne(klient):
 
 @pytest.mark.anyio
 async def test_gety_pakietow_i_stanu_wysylaja_token(klient):
-    """K7c pkt 5 (audyt): GET /api/pakiety i /api/stan wymagają tokenu, więc UI
+    """GET /api/pakiety i /api/stan wymagają tokenu, więc UI
     MUSI wysyłać nagłówki sesji też w tych odpytaniach (nie tylko w POST-ach)."""
     apka = (await klient.get("/apka.js")).text
     assert 'fetch("/api/pakiety", { headers: NAGLOWKI })' in apka
@@ -179,7 +179,7 @@ async def test_gety_pakietow_i_stanu_wysylaja_token(klient):
 
 @pytest.mark.anyio
 async def test_ui_ponawia_pobieranie_po_bledzie(klient):
-    """K7c pkt 11 (audyt): po błędzie pobierania przyciski mają wracać (sterują
+    """Po błędzie pobierania przyciski mają wracać (sterują
     nimi stan postep.pakiet z API) i komunikat błędu ma być widoczny."""
     apka = (await klient.get("/apka.js")).text
     assert "przycisk.disabled = stanPakietow.postep.pakiet !== null" in apka, (
@@ -199,7 +199,7 @@ async def test_ui_instaluje_pakiet_z_folderu(klient):
 
 @pytest.mark.anyio
 async def test_kontrola_jakosci_tekst_uczciwy(klient):
-    """K7c pkt 12 (obserwacja orkiestratora): wynik z niewykrytym SWIFT i loginem
+    """Wynik z niewykrytym SWIFT i loginem
     ogłaszał «nie znalazło żadnych danych osobowych». Uczciwie: program nie
     znalazł danych, które UMIE wykrywać, a użytkownik ma przejrzeć wynik."""
     apka = (await klient.get("/apka.js")).text
@@ -214,7 +214,7 @@ async def test_kontrola_jakosci_tekst_uczciwy(klient):
 
 @pytest.mark.anyio
 async def test_przywroc_ma_tryb_wklejenia_i_liste_zadan(klient):
-    """docs/MAPY-I-AKTUALIZACJE.md §1: domyślnie wklejanie odpowiedzi AI z wyborem
+    """Domyślnie wklejanie odpowiedzi AI z wyborem
     zadania; plik mapy to opcja odsłaniana przyciskiem."""
     strona = (await klient.get("/")).text
     apka = (await klient.get("/apka.js")).text
@@ -228,7 +228,7 @@ async def test_przywroc_ma_tryb_wklejenia_i_liste_zadan(klient):
 
 @pytest.mark.anyio
 async def test_wynik_ukrywania_mowi_o_zapisanej_mapie(klient):
-    """§1: użytkownik nie musi pobierać pliku; mapę zapisze program na tym komputerze."""
+    """Użytkownik nie musi pobierać pliku; mapę zapisze program na tym komputerze."""
     apka = (await klient.get("/apka.js")).text
     strona = (await klient.get("/")).text
     assert 'id="mapa-zapisana"' in strona
@@ -239,7 +239,7 @@ async def test_wynik_ukrywania_mowi_o_zapisanej_mapie(klient):
 
 @pytest.mark.anyio
 async def test_ustawienia_zapisane_mapy_z_usuwaniem(klient):
-    """§2: lista zapisanych map w Ustawieniach, Usuń przy każdej, Usuń wszystkie
+    """Lista zapisanych map w Ustawieniach, Usuń przy każdej, Usuń wszystkie
     z potwierdzeniem, zdanie o okresie przechowywania."""
     strona = (await klient.get("/")).text
     apka = (await klient.get("/apka.js")).text
@@ -257,7 +257,7 @@ async def test_ustawienia_zapisane_mapy_z_usuwaniem(klient):
 
 @pytest.mark.anyio
 async def test_wybierz_mape_prowadzi_do_listy_zadan(klient):
-    """§3: 422 z kodem wybierz_mape nie zostaje błędem ogólnym; interfejs pokazuje
+    """422 z kodem wybierz_mape nie zostaje błędem ogólnym; interfejs pokazuje
     komunikat i prowadzi do listy zadań."""
     apka = (await klient.get("/apka.js")).text
     assert 'wybierz_mape' in apka
@@ -267,7 +267,7 @@ async def test_wybierz_mape_prowadzi_do_listy_zadan(klient):
 
 @pytest.mark.anyio
 async def test_przywrocony_tekst_w_podgladzie_z_kopiowaniem(klient):
-    """§1: wynik przywrócenia z wklejonego tekstu widać w podglądzie z Kopiuj;
+    """Wynik przywrócenia z wklejonego tekstu widać w podglądzie z Kopiuj;
     dla pliku pozostaje pobranie."""
     strona = (await klient.get("/")).text
     apka = (await klient.get("/apka.js")).text
@@ -280,7 +280,7 @@ async def test_przywrocony_tekst_w_podgladzie_z_kopiowaniem(klient):
 
 @pytest.mark.anyio
 async def test_mapa_niezapisana_i_licznik_zlecen(klient):
-    """sekcja 9 pkt 5: błąd zapisu mapy = wynik wydany z nagłówkiem „blad” i
+    """Błąd zapisu mapy = wynik wydany z nagłówkiem „blad” i
     komunikatem „Pobierz mapę”; odpowiedzi starszych żądań są odrzucane."""
     apka = (await klient.get("/apka.js")).text
     assert "Pobierz mapę, bo nie została zapisana." in apka

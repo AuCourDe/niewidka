@@ -1,4 +1,4 @@
-"""Testy systemu aktualizacji modeli (docs/MAPY-I-AKTUALIZACJE.md §5, §8 w. 7-8, §9 w. 6).
+"""Testy systemu aktualizacji modeli.
 
 - Dobry podpis, zły podpis, podmieniony bajt, rotacja (kilka kluczy w pliku)
 - Ochrona przed rollbackiem (wersja_katalogu <= znanej)
@@ -223,14 +223,14 @@ def test_start_z_uszkodzonym_katalogiem_w_danych(srodowisko_testowe):
 
     menedzer = _menedzer(srodowisko_testowe, klucze_publiczne=[publiczny])
 
-    # fail-closed do katalogu wbudowanego, ale stan błędu jest widoczny (§8 w. 7)
+    # fail-closed do katalogu wbudowanego, ale stan błędu jest widoczny
     assert menedzer.stan == "blad_integralnosci"
     assert "Błąd integralności" in menedzer.blad
     assert menedzer.katalog_aktywny_plik == pakiety.KATALOG_PAKIETOW
 
 
 def test_start_nie_obniza_progu_najwyzszej_wersji(srodowisko_testowe):
-    """§9 w. 6: najwyższa przyjęta wersja zapisana osobno w ustawienia.json;
+    """Najwyższa przyjęta wersja zapisana osobno w ustawienia.json;
     brak pliku katalogu w danych nie cofa progu."""
     zapisz_ustawienia(srodowisko_testowe["dane"], {"najwyzsza_wersja_katalogu": 7})
     menedzer = _menedzer(srodowisko_testowe)
@@ -330,7 +330,7 @@ def test_instalacja_aktualizacji_i_cofniecie(srodowisko_testowe, tmp_path):
     dane = menedzer.sprawdz_aktualizacje()
     assert dane["wersja_katalogu"] == 2
     assert menedzer.stan == "dostepna_aktualizacja"
-    # przyjęty katalog zapisany w katalogu danych i próg podniesiony (§9 w. 6)
+    # przyjęty katalog zapisany w katalogu danych i próg podniesiony
     assert (srodowisko_testowe["dane"] / "katalog-pakietow.json").is_file()
     assert menedzer.najwyzsza_wersja_katalogu == 2
 

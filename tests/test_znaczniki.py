@@ -1,4 +1,4 @@
-"""Testy znaczników [TYP_N] (LLD §7, przegląd Gemini pkt 7)."""
+"""Testy znaczników [TYP_N]."""
 
 import pytest
 
@@ -23,7 +23,7 @@ def test_numeracja_per_typ_a_osoby_wspolnie():
     ]
     nadaj_oznaczenia(encje)
     assert [e.oznaczenie for e in encje] == ["PESEL_1", "OSOBA_1", "OSOBA_1", "PESEL_2"]
-    # Stabilny wariant formy (Astra pkt 2, Gemini pkt 3): każdy kształt powierzchniowy
+    # Stabilny wariant formy: każdy kształt powierzchniowy
     # osoby ma swój numer Fk; pozostale typy bez wariantu.
     assert encje[1].wariant == "F1"
     assert encje[2].wariant == "F2"
@@ -32,7 +32,7 @@ def test_numeracja_per_typ_a_osoby_wspolnie():
 
 def test_ta_sama_wartosc_ten_sam_znacznik():
     """Powtórzony PESEL albo telefon to jedna wartość: jeden znacznik, inaczej chmurowe AI
-    widzi trzy różne numery (zrzut okna 2026-10-29: PESEL_1, PESEL_2, PESEL_3)."""
+    widzi trzy różne numery (PESEL_1, PESEL_2, PESEL_3)."""
     encje = [
         _encja(TypEncji.PESEL, "44051401359", 0),
         _encja(TypEncji.TELEFON, "600 100 200", 20),
@@ -92,5 +92,5 @@ def test_bez_oznaczen_jawny_blad():
 
 
 def test_dopisek_bez_nawiasow_kwadratowych():
-    # Gemini #7: literał [TYP_N] w dopisku zostałby złapany przez kontrolę wyniku.
+    # literał [TYP_N] w dopisku zostałby złapany przez kontrolę wyniku.
     assert "[" not in DOPISEK and "]" not in DOPISEK

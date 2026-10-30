@@ -1,4 +1,4 @@
-"""Testy konfiguracji (K4, LLD §14): TOML + env, env ma pierwszeństwo, nic na sztywno."""
+"""Testy konfiguracji: TOML + env, env ma pierwszeństwo, nic na sztywno."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def test_domyslne_wg_lld_14():
     assert k.kolejka == 4
     assert k.timeout_s == 120
     assert k.wykrywaj_date is True
-    assert k.prog_osoba == 0.2  # K2d wariant A; pomiar docs/WYNIK-K2d.md
+    assert k.prog_osoba == 0.2
 
 
 def test_toml_nadaje_domyslne(tmp_path: Path):
@@ -57,7 +57,7 @@ blokada = false
         encoding="utf-8",
     )
     k = wczytaj_konfig(plik, env={})
-    assert k.host == "127.0.0.1"  # K4b pkt 14: tylko loopback
+    assert k.host == "127.0.0.1"  # tylko loopback
     assert k.port == 9000
     assert k.poziom == 2
     assert k.modele_katalog == Path("/wagi")
@@ -76,7 +76,7 @@ blokada = false
 def test_env_wygra_z_toml(tmp_path: Path):
     plik = tmp_path / "niewidka.toml"
     plik.write_text("[serwer]\nport = 9000\n", encoding="utf-8")
-    # K4b pkt 14: host poza loopbackiem odrzucany przy starcie, więc precedencja
+    # host poza loopbackiem odrzucany przy starcie, więc precedencja
     # env nad TOML dowodzi port (host dozwolony tylko z loopbacku)
     k = wczytaj_konfig(plik, env={"NIEWIDKA_PORT": "9100", "NIEWIDKA_HOST": "127.0.0.1"})
     assert k.port == 9100
@@ -125,7 +125,7 @@ def test_zla_liczba_w_env_jawny_blad():
 
 
 def test_prog_osoba_toml_a_env_wygra(tmp_path: Path):
-    """Próg pewności OSOBA (poziomy 2/3) z konfiguracji, nie na sztywno (K2d)."""
+    """Próg pewności OSOBA (poziomy 2/3) z konfiguracji, nie na sztywno."""
     plik = tmp_path / "niewidka.toml"
     plik.write_text("[detekcja]\nprog_osoba = 0.35\n", encoding="utf-8")
     assert wczytaj_konfig(plik, env={}).prog_osoba == 0.35
@@ -142,14 +142,14 @@ def test_zly_prog_osoba_jawny_blad():
         raise AssertionError("brak błędu dla złego progu")
 
 
-# --- magazyn map (docs/MAPY-I-AKTUALIZACJE.md §2) -----------------------------
+# --- magazyn map -----------------------------
 
 
 def test_mapy_domyslne():
     k = wczytaj_konfig(env={})
     assert k.mapy_retencja_dni == 30  # RODO: rozsądny domyślny okres przechowywania
     assert k.mapy_katalog is None  # dopiero create_app podstawia katalog_danych()/"mapy"
-    assert k.mapy_uniewaznij_pobrane is False  # pobrana kopia działa dalej (przegląd Argona pkt 3)
+    assert k.mapy_uniewaznij_pobrane is False  # pobrana kopia działa dalej
 
 
 def test_mapy_toml(tmp_path: Path):

@@ -1,4 +1,4 @@
-"""Testy generatora ikony (K6): .ico z osadzonymi PNG, czysty stdlib."""
+"""Testy generatora ikony: .ico z osadzonymi PNG, czysty stdlib."""
 
 from __future__ import annotations
 

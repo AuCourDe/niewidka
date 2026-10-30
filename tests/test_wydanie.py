@@ -1,4 +1,4 @@
-"""Testy wydania (K7c pkt 6/7, audyt): akcje przypięte do pełnych SHA, podział
+"""Testy wydania: akcje przypięte do pełnych SHA, podział
 uprawnień (budowa read / publikacja write), lockfile z haszami wspólny dla
 workflow i skryptu budowy Windows."""
 
@@ -20,7 +20,7 @@ def _tresc(sciezka: Path, komentarze: str = "utf-8") -> str:
 
 
 def test_akcje_przypiete_do_pelnych_sha_z_komentarzem_wersji():
-    """Audyt #6: ruchomy tag akcji = kod trzeci z contents: write po przejęciu."""
+    """Ruchomy tag akcji = kod trzeci z contents: write po przejęciu."""
     tresc = _tresc(WORKFLOW)
     wiersze_uses = [w for w in tresc.splitlines() if re.search(r"uses:\s*\S+@", w)]
     assert wiersze_uses, "workflow bez akcji?"

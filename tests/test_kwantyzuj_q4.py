@@ -1,4 +1,4 @@
-"""Testy kwantyzacji int4 weight-only (K7a): malutki ONNX z MatMul, bez sieci i wag."""
+"""Testy kwantyzacji int4 weight-only: malutki ONNX z MatMul, bez sieci i wag."""
 
 from __future__ import annotations
 

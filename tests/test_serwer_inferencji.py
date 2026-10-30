@@ -1,4 +1,4 @@
-"""Centralny serwer inferencji i klient (docs/SERWER-INFERENCJI.md), bez prawdziwych wag.
+"""Centralny serwer inferencji i klient, bez prawdziwych wag.
 
 Serwer dostaje atrapę detektora; test pełnej drogi (aplikacja użytkownika -> HTTP ->
 serwer) uruchamia serwer na loopbacku w wątku (uvicorn), bez kontenerów.

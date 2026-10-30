@@ -1,4 +1,4 @@
-"""Testy desktopu (K6): okno.py — API w wątku, wolny port, wagi obok aplikacji,
+"""Testy desktopu: okno.py — API w wątku, wolny port, wagi obok aplikacji,
 klucz mapy w magazynie systemowym (pierwsze uruchomienie = jawny ekran konfiguracji),
 zamknięcie okna = zatrzymanie serwera. pywebview mockowany; serwer realny na 127.0.0.1.
 """
@@ -71,7 +71,7 @@ class AtrapaWebview:
         if not url:
             return
         try:
-            # K7c pkt 5: API pilnuje tokenu także na GET /api/stan i /api/pakiety,
+            # API pilnuje tokenu także na GET /api/stan i /api/pakiety,
             # więc atrapa bierze token z meta jak prawdziwa przeglądarka
             zadanie = urllib.request.Request(
                 f"{url}api/stan", headers={"X-Niewidka-Token": _token_z_strony(url)}
@@ -196,7 +196,7 @@ def test_most_blad_magazynu_jest_jawny(srodowisko, keyring_pamieciowy):
 
 
 def test_uruchom_bez_wag_aplikacja_wstaje_z_ekranem_pakietow(srodowisko, keyring_pamieciowy):
-    """K7b: brak wag NIE zabija startu — aplikacja wstaje, a brak pakietu
+    """Brak wag NIE zabija startu — aplikacja wstaje, a brak pakietu
     prowadzi do ekranu pierwszego uruchomienia w web (GET /api/pakiety = brak)."""
     keyring.set_password(USLUGA, "mapa", KLUCZ)
 
@@ -330,7 +330,7 @@ def test_teksty_gui_bez_polpauz_i_pauz():
 
 
 def test_most_wystawia_tylko_dwie_metody(tmp_path):
-    """Żywy bieg EXE (odbiór K7c): pywebview przegląda rekurencyjnie publiczne atrybuty
+    """Żywy bieg EXE: pywebview przegląda rekurencyjnie publiczne atrybuty
     js_api z wątku spoza UI; publiczne `okno` prowadziło do obiektów WebView2 (.NET)
     i zakleszczało cały proces (serwer i pobieranie pakietów stawały)."""
     most = okno.Most(Konfig(klucz_plik=tmp_path / "k"), "http://127.0.0.1:1/")
@@ -357,7 +357,7 @@ class AtrapaWebviewZOrigin(AtrapaWebview):
 
 
 def test_okno_na_wolnym_porcie_przyjmuje_origin_wlasnej_strony(srodowisko, keyring_pamieciowy):
-    # 2026-10-28: serwer okna stał na wolnym porcie, a create_app znał tylko
+    # serwer okna stał na wolnym porcie, a create_app znał tylko
     # konfig.port (8390) → każdy POST z okna 403 „niedozwolony Origin"
     keyring.set_password(USLUGA, "mapa", KLUCZ)
     atrapa = AtrapaWebviewZOrigin()
@@ -366,7 +366,7 @@ def test_okno_na_wolnym_porcie_przyjmuje_origin_wlasnej_strony(srodowisko, keyri
 
 
 def test_okno_pozwala_pobierac_pliki(srodowisko, keyring_pamieciowy):
-    # przegląd Codex 2026-10-29 (P1): pywebview domyślnie ma ALLOW_DOWNLOADS=False
+    # pywebview domyślnie ma ALLOW_DOWNLOADS=False
     # i WebView2 anulował pobranie wyniku, mapy i przywróconego dokumentu
     keyring.set_password(USLUGA, "mapa", KLUCZ)
     atrapa = AtrapaWebview()

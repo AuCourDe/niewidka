@@ -1,4 +1,4 @@
-"""Testy katalogu i pobierania pakietów modeli (K7b).
+"""Testy katalogu i pobierania pakietów modeli.
 
 Pobieranie na httpx.MockTransport (bez sieci); struktura katalogu wag zgodna z
 adapterami detektorów (bardsai w katalogu głównym, LFM2.5 w lfm25/q4-bl32/).
@@ -261,7 +261,7 @@ def test_instaluj_z_katalogu_zly_plik_zglasza_blad(tmp_path):
 
 
 
-# --- K7b: MenedzerPakietow (stan dla API/UI, jedno pobieranie naraz) ----------
+# --- MenedzerPakietow (stan dla API/UI, jedno pobieranie naraz) ----------
 
 from niewidka.pakiety import MenedzerPakietow
 
@@ -368,12 +368,12 @@ def test_menedzer_instaluj_z_katalogu(menedzer, katalog_testowy, tmp_path):
                 lustro.mkdir(parents=True, exist_ok=True)
                 (lustro / plik.zrodlo).write_bytes(tresc)
     menedzer.instaluj("podstawowy", lustro)
-    menedzer.czekaj()  # K7c pkt 8: instalacja idzie w tle
+    menedzer.czekaj()  # instalacja idzie w tle
     wpisy = {w["id"]: w for w in menedzer.lista()}
     assert wpisy["podstawowy"]["stan"] == "zainstalowany"
 
 
-# --- K7c pkt 1: stan pakietu dla rdzenia + zwrot zmiany (invalidacja cache) ---
+# --- stan pakietu dla rdzenia + zwrot zmiany (invalidacja cache) ---
 
 def test_menedzer_stan_pakietu(menedzer):
     assert menedzer.stan_pakietu("podstawowy") == "brak"
@@ -397,7 +397,7 @@ def test_menedzer_on_zmiana_po_kazdej_operacji(katalog_testowy, tmp_path):
     menedzer.czekaj()
     menedzer.usun("podstawowy")
     menedzer.instaluj("podstawowy", _lustro(katalog_testowy, tmp_path))
-    menedzer.czekaj()  # K7c pkt 8: instalacja idzie w tle
+    menedzer.czekaj()  # instalacja idzie w tle
     assert zmiany == ["zmiana", "zmiana", "zmiana"]
 
 
@@ -409,10 +409,10 @@ def _lustro(katalog_testowy, tmp_path):
     return lustro
 
 
-# --- K7c pkt 4: dowiązania nie prowadzą poza katalog modeli -------------------
+# --- dowiązania nie prowadzą poza katalog modeli -------------------
 
 def test_pobierz_nie_niszczy_ofiary_przez_symlink_czesciowego(katalog_testowy, tmp_path):
-    """Audyt #4: model.onnx.częściowy podstawiony jako symlink do pliku ofiary;
+    """Model.onnx.częściowy podstawiony jako symlink do pliku ofiary;
     instalacja NIE wolno otworzyć ofiary do nadpisania."""
     pakiet = katalog_testowy["lista"][0]
     katalog = tmp_path / "m"
@@ -473,7 +473,7 @@ def test_pobierz_odrzucca_symlink_w_sciezce_podkatalogu(katalog_testowy, tmp_pat
 
 
 def test_blad_pobierania_kontrolowany_bez_hasla_i_url(tmp_path, katalog_testowy):
-    """K7c pkt 5 (audyt): 503 z lustra nie może wynieść URL z login:hasło do
+    """503 z lustra nie może wynieść URL z login:hasło do
     postep.blad (czytanego przez GET /api/pakiety)."""
     def handler_503(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503)
@@ -493,7 +493,7 @@ def test_blad_pobierania_kontrolowany_bez_hasla_i_url(tmp_path, katalog_testowy)
     assert "podstawowy" in blad and "503" in blad
 
 
-# --- K7c pkt 8: twarde limity pobierania i instalacji w tle -------------------
+# --- twarde limity pobierania i instalacji w tle -------------------
 
 def test_limit_czasu_z_env():
     assert pakiety.limit_czasu_domyslny({}) == 1800
@@ -503,7 +503,7 @@ def test_limit_czasu_z_env():
 
 
 def test_pobierz_twardy_limit_bajtow(katalog_testowy, tmp_path):
-    """Audyt #8: serwer deklaruje 1 B, wysyła megabajty; zapis ma pilnować
+    """Serwer deklaruje 1 B, wysyła megabajty; zapis ma pilnować
     rozmiaru z katalogu PRZED każdym zapisem."""
     pakiet = katalog_testowy["lista"][0]
     plik = pakiet.pliki[0]
@@ -541,7 +541,7 @@ def test_pobierz_limit_bajtow_przy_wznowieniu(katalog_testowy, tmp_path):
 
 
 def test_pobierz_calkowity_limit_czasu(katalog_testowy, tmp_path):
-    """Audyt #8: timeout odczytu dotyczy fragmentu, nie całego transferu —
+    """Timeout odczytu dotyczy fragmentu, nie całego transferu —
     strumień wysyłający kawałki częściej niż timeout ma zostać przerwany."""
     pakiet = katalog_testowy["lista"][0]
     tresc = katalog_testowy["tresci"][pakiet.pliki[0].zrodlo]
@@ -578,7 +578,7 @@ def test_instaluj_z_katalogu_odrzuca_plik_inny_niz_w_katalogu(tmp_path, katalog_
 
 
 def test_menedzer_instaluj_w_tle_anulowanie(katalog_testowy, tmp_path):
-    """K7c pkt 8: instalacja offline idzie do wątku tła (nie blokuje pętli API)
+    """Instalacja offline idzie do wątku tła (nie blokuje pętli API)
     z tym samym limitem bajtów; anulowanie kończy operację."""
     import threading as _threading
 
@@ -632,13 +632,13 @@ def test_menedzer_anuluj_pobieranie(katalog_testowy, tmp_path):
     menedzer.anuluj()
     menedzer.czekaj()
     assert "przerwan" in (menedzer.postep.blad or "")
-    assert menedzer.postep.pakiet is None  # można ponowić (pkt 11)
+    assert menedzer.postep.pakiet is None  # można ponowić
 
 
-# --- K7c pkt 9: zapamiętany stan, weryfikacja w tle ---------------------------
+# --- zapamiętany stan, weryfikacja w tle ---------------------------
 
 def test_menedzer_lista_z_cache_bez_haszowania(menedzer, monkeypatch):
-    """Audyt #9: GET /api/pakiety haszował ~600 MB przy KAŻDYM żądaniu (0,43 s);
+    """GET /api/pakiety haszował ~600 MB przy KAŻDYM żądaniu (0,43 s);
     polling UI potrafił zagłodzić całe API. Stan ma być zapamiętany: liczony
     przy starcie i po zmianie, nie na żądanie."""
     menedzer.czekaj()  # pierwsze przeliczenie w tle po starcie
@@ -670,7 +670,7 @@ def test_menedzer_zmiana_z_zewnatrz_odswiezana_w_tle(menedzer, katalog_testowy, 
     assert odpalone == [1], "zmiana obecności plików ma odpalać odświeżenie w tle"
 
 
-# --- K7c pkt 10: przekierowania pod kontrolą ----------------------------------
+# --- przekierowania pod kontrolą ----------------------------------
 
 def _transport_przekierowanie(dokad, trafione: list[str]):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -687,7 +687,7 @@ def katalog_testowy_naglowkowy(katalog_testowy):
 
 
 def test_przekierowanie_do_loopback_odrzucone(katalog_testowy, tmp_path):
-    """Audyt #10: przejęte lustro odsyła 302 na http://127.0.0.1:12345/private;
+    """Przejęte lustro odsyła 302 na http://127.0.0.1:12345/private;
     pobieranie nie może wykonać ślepego żądania do lokalnej usługi."""
     pakiet = katalog_testowy["lista"][0]
     trafione: list[str] = []
@@ -723,7 +723,7 @@ def test_przekierowanie_do_sieci_prywatnej_przez_https_odrzucone(katalog_testowy
 
 def test_przekierowanie_wewnatrz_lustra_http_dopuszczone(katalog_testowy, tmp_path):
     """Lustro IT (NIEWIDKA_MODELE_ZRODLO, także http i loopback) może przekierowywać
-    w obrębie własnego hosta — scenariusz z K7b (python -m http.server na 127.0.0.1)."""
+    w obrębie własnego hosta (np. python -m http.server na 127.0.0.1)."""
     pakiet = katalog_testowy["lista"][0]
     tresci = katalog_testowy["tresci"]
     skoki = 0
@@ -760,10 +760,10 @@ def test_przekierowanie_do_publicznego_https_dopuszczone(katalog_testowy, tmp_pa
     assert pakiety.stan(pakiet, katalog) == "zainstalowany"
 
 
-# --- K7c pkt 11: błąd pobierania nie blokuje ponowienia -----------------------
+# --- błąd pobierania nie blokuje ponowienia -----------------------
 
 def test_blad_404_potem_poprawne_ponowienie(tmp_path, katalog_testowy):
-    """Audyt #11: po jednym błędzie lustra UI do końca życia wyłączał przyciski
+    """Po jednym błędzie lustra UI do końca życia wyłączał przyciski
     (postep.pakiet został ustawiony). Stan operacji ma się czyścić także przy błędzie."""
     serwer_dziala = {"ok": False}
 
@@ -816,7 +816,7 @@ def test_oserror_przez_strumien_kontrolowany_i_do_ponowienia(tmp_path, katalog_t
 
 
 def test_koniec_operacji_widoczny_dopiero_gdy_mozna_zaczac_nastepna():
-    # przegląd Codex 2026-10-29: postep.pakiet=None przed zwolnieniem _w_toku →
+    # postep.pakiet=None przed zwolnieniem _w_toku →
     # UI zaczynało drugi pakiet („Pobierz wszystko") i dostawało 409
     import inspect
 
@@ -827,7 +827,7 @@ def test_koniec_operacji_widoczny_dopiero_gdy_mozna_zaczac_nastepna():
 
 
 def test_katalog_podaje_pochodzenie_i_licencje_modeli():
-    """Przed pobraniem użytkownik widzi adres modelu na Hugging Face i typ licencji (2026-10-29)."""
+    """Przed pobraniem użytkownik widzi adres modelu na Hugging Face i typ licencji."""
     for pakiet in pakiety.wczytaj_pakiety():
         assert pakiet.model_hf and pakiet.model_hf.startswith("https://huggingface.co/")
         assert pakiet.licencja and pakiet.licencja_url and pakiet.licencja_uwagi

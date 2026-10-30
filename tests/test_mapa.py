@@ -1,4 +1,4 @@
-"""Testy mapy i szyfrowania (K4, LLD §8): format JSON, AES-256-GCM, przywracanie
+"""Testy mapy i szyfrowania: format JSON, AES-256-GCM, przywracanie
 po parze (oznaczenie, wariant) — niezależne od pozycji, odporne na przestawienie zdań."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Walidacja korpusu testowego (K0).
+"""Walidacja korpusu testowego.
 
 Sprawdza format próbek, offsety, sumy kontrolne (przez python-stdnum i
 algorytm dowodu) oraz wymagane pokrycie typów. Celowo NIE importuje pakietu
@@ -18,7 +18,7 @@ from narzedzia.numery import waliduj_dowod
 
 KORPUS = Path(__file__).parent / "korpus"
 TYPY = {"OSOBA", "PESEL", "NIP", "REGON", "ADRES", "TELEFON", "EMAIL", "IBAN", "DOKUMENT", "DATA", "INNE"}
-# Klasy LFM2.5 bez odpowiednika w Niewidce (K2e) — tylko w probki_nowe_typy.jsonl.
+# Klasy LFM2.5 bez odpowiednika w Niewidce — tylko w probki_nowe_typy.jsonl.
 TYPY_NOWE = {
     "contact.ip_address",
     "financial.credit_card",

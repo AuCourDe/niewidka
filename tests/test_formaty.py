@@ -1,7 +1,7 @@
-"""Testy adapterów formatów (K3, LLD §9): rejestr, cięcia runów, txt, docx.
+"""Testy adapterów formatów: rejestr, cięcia runów, txt, docx.
 
 Round-trip: wczytaj → wykryj → znaczniki → zapisz → ponowne wczytanie i skan
-(weryfikacja zapisu ZAWSZE, przegląd Astry pkt 8).
+(weryfikacja zapisu ZAWSZE).
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class TestPodzielSegment:
         assert fragmenty == [("[X]", 0), (" ", 0), ("CD", 1)]
 
     def test_zamiana_przez_granice_runu_nie_przepisuje_koncowki(self):
-        """Gemini pkt 1: encja rozbita na dwa runy, granica runu WEWNĄTRZ zamiany —
+        """Encja rozbita na dwa runy, granica runu WEWNĄTRZ zamiany —
         część za granicą nie może wrócić jako jawny tekst."""
         segment = Segment(
             tekst="Jan Kowalski",
@@ -161,7 +161,7 @@ class TestWstawZnaczniki:
         assert segment.starts == [0, 6, 15]  # 6 + len("[PESEL_1]")
 
 
-# --- adapter DOCX (K3) -------------------------------------------------------
+# --- adapter DOCX -------------------------------------------------------
 
 import io
 import zipfile
@@ -256,7 +256,7 @@ class TestAdapterDocxRoundTrip:
         self._zakryj_regulami(adapter, dok)
         wynik = adapter.zapisz(dok)
 
-        # weryfikacja zapisu ZAWSZE: ponowne wczytanie i skan (Astra pkt 8)
+        # weryfikacja zapisu ZAWSZE: ponowne wczytanie i skan
         dok2 = adapter.wczytaj(wynik)
         nowe = [
             z
@@ -385,7 +385,7 @@ class TestContentTypesIPola:
         assert "Robocza" not in wynik
 
 
-# --- pułapki K3b: 15 punktów przeglądu DOCX (docs/konsultacje/05) -------------
+# --- pułapki DOCX -------------
 
 from lxml import etree
 
@@ -422,21 +422,21 @@ def _document_xml(wynik: bytes) -> str:
 
 class TestPulapkiK3b:
     def test_instrText_usuniete_wynik_pola_zostaje(self, pulapki):
-        """Gemini pkt 2: instrukcja pola złożonego z PII — usuwana; wynik pola zostaje."""
+        """Instrukcja pola złożonego z PII — usuwana; wynik pola zostaje."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "instrText" not in xml, "instrukcja pola z PII wycieka"
         assert "Jan Kowalski" in xml  # wynik pola (w:t) zostaje jako tekst
 
     def test_fldSimple_bez_instr(self, pulapki):
-        """Gemini pkt 3: atrybut w:instr pola prostego czyszczony."""
+        """Atrybut w:instr pola prostego czyszczony."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert 'w:instr="' not in xml, "w:instr pola prostego wycieka"
         assert "Anna Nowak" in xml  # wynik pola zostaje
 
     def test_ins_osierocone_wt_wchodzi_do_segmentow(self, pulapki):
-        """Gemini pkt 4: w:t bez w:r w w:ins — po normalizacji trafia do segmentów."""
+        """W:t bez w:r w w:ins — po normalizacji trafia do segmentów."""
         dok = AdapterDocx().wczytaj(pulapki)
         calosc = "\n".join(s.tekst for s in dok.segmenty)
         assert "PESEL 44051401359 poza runem" in calosc, "osierocone w:t omija detekcję"
@@ -444,7 +444,7 @@ class TestPulapkiK3b:
         assert "44051401359 poza runem" not in _document_xml(wynik)
 
     def test_atrybuty_rewizji_czyste(self, pulapki):
-        """Gemini pkt 5: w:author/w:date/w:initials ze śledzonych zmian usunięte."""
+        """W:author/w:date/w:initials ze śledzonych zmian usunięte."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "w:author=" not in xml, "tożsamość autora rewizji wycieka"
@@ -453,7 +453,7 @@ class TestPulapkiK3b:
         assert "Anna Zielińska" not in xml
 
     def test_komorka_po_del_ma_akapit_i_plik_poprawny(self, pulapki):
-        """Gemini pkt 6: komórka z samym w:del nie może zostać pustą w:tc."""
+        """Komórka z samym w:del nie może zostać pustą w:tc."""
         wynik = _zakryj(pulapki)
         drzewo = etree.fromstring(_document_xml(wynik).encode())
         puste = [tc for tc in drzewo.iter(f"{W_NS}tc") if tc.find(f"{W_NS}p") is None]
@@ -463,7 +463,7 @@ class TestPulapkiK3b:
         Otworz(io.BytesIO(wynik))  # plik otwiera się bez "unreadable content"
 
     def test_rels_usuwanych_czesci_nie_blokuja_i_znikaja(self, tmp_path):
-        """Gemini pkt 7: word/_rels/header1.xml.rels — obsłużone, nie blokada."""
+        """Word/_rels/header1.xml.rels — obsłużone, nie blokada."""
         sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="header")
         adapter = AdapterDocx()
         dok = adapter.wczytaj(sciezka.read_bytes())
@@ -471,7 +471,7 @@ class TestPulapkiK3b:
         assert "word/_rels/header1.xml.rels" not in zipfile.ZipFile(io.BytesIO(wynik)).namelist()
 
     def test_settings_czyste(self, tmp_path):
-        """Gemini pkt 8: attachedTemplate, documentProtection, writeProtection, rsids."""
+        """AttachedTemplate, documentProtection, writeProtection, rsids."""
         sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="settings")
         wynik = _zakryj(sciezka.read_bytes())
         paczka = zipfile.ZipFile(io.BytesIO(wynik))
@@ -487,7 +487,7 @@ class TestPulapkiK3b:
         ).decode()
 
     def test_zakladki_i_anchor_neutralne(self, pulapki):
-        """Gemini pkt 9+14: nazwy zakładek i kotwice → neutralne _Bm1.."""
+        """Nazwy zakładek i kotwice → neutralne _Bm1.."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "Jan_Kowalski_PESEL_44051401359" not in xml, "nazwa zakładki wycieka"
@@ -495,7 +495,7 @@ class TestPulapkiK3b:
         assert xml.count('"_Bm1"') >= 2  # zakładka + kotwica wskazują tę samą
 
     def test_sdt_alias_tag_czyste(self, pulapki):
-        """Gemini pkt 10: alias/tag kontrolki treści usunięte."""
+        """Alias/tag kontrolki treści usunięte."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "w:alias" not in xml, "alias SDT wycieka"
@@ -503,7 +503,7 @@ class TestPulapkiK3b:
         assert "44051401359" not in xml
 
     def test_query_string_w_rels_obciete(self, pulapki):
-        """Gemini pkt 11: zewnętrzny URL bez query stringa z PII."""
+        """Zewnętrzny URL bez query stringa z PII."""
         wynik = _zakryj(pulapki)
         rels = zipfile.ZipFile(io.BytesIO(wynik)).read("word/_rels/document.xml.rels").decode("utf-8")
         assert "44051401359" not in rels, "query string z PESEL wycieka"
@@ -511,7 +511,7 @@ class TestPulapkiK3b:
         assert "https://portal.firma.pl/ankieta" in rels  # domena zostaje
 
     def test_docpr_i_vml_czyste(self, pulapki):
-        """Gemini pkt 12: name/title docPr i title/alt VML czyszczone."""
+        """Name/title docPr i title/alt VML czyszczone."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "Skan_Jan_Kowalski" not in xml, "docPr name wycieka"
@@ -519,7 +519,7 @@ class TestPulapkiK3b:
         assert "44051401359.png" not in xml
 
     def test_people_custom_glossary_usuwane(self, tmp_path):
-        """Gemini pkt 13: people.xml, docProps/custom.xml, word/glossary — usuwane."""
+        """People.xml, docProps/custom.xml, word/glossary — usuwane."""
         sciezka = zapisz_pulapki(tmp_path / "p.docx", paczkowe="usuwane")
         adapter = AdapterDocx()
         dok = adapter.wczytaj(sciezka.read_bytes())
@@ -544,7 +544,7 @@ class TestPulapkiK3b:
         assert "glossary" not in typy
 
     def test_smarttag_rozpakowany(self, pulapki):
-        """Gemini pkt 15: smartTag rozpakowany, smartTagPr z w:attr usunięty."""
+        """SmartTag rozpakowany, smartTagPr z w:attr usunięty."""
         wynik = _zakryj(pulapki)
         xml = _document_xml(wynik)
         assert "smartTagPr" not in xml, "atrybuty smart taga wycieka"
@@ -552,7 +552,7 @@ class TestPulapkiK3b:
         assert 'w:val="Jan"' not in xml
 
 
-# --- poprawność wyników (K3b krok 3): plik otwiera się, XML poprawny, w:tc ma w:p
+# --- poprawność wyników: plik otwiera się, XML poprawny, w:tc ma w:p
 
 
 class TestPoprawnoscWyniku:

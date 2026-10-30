@@ -1,4 +1,4 @@
-"""Testy pobierania modeli (K2): httpx, manifest SHA-256 — bez sieci (MockTransport)."""
+"""Testy pobierania modeli: httpx, manifest SHA-256 — bez sieci (MockTransport)."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ class TestSpecModelu:
         }
 
     def test_bardsai_fp32_podkatalog(self):
-        """K7a: nieskwantyzowany ONNX z repo — wejście kwantyzacji int4."""
+        """Nieskwantyzowany ONNX z repo — wejście kwantyzacji int4."""
         spec = spec_modelu("bardsai-fp32")
         assert spec.repo == "bardsai/eu-pii-anonimization-multilang"
         assert spec.podkatalog == "bardsai-fp32"
@@ -109,7 +109,7 @@ class TestSpecModelu:
         spec = spec_modelu("lfm25")
         assert spec.repo == "LiquidAI/LFM2.5-Encoder-350M-PII-Detector"
         assert spec.podkatalog == "lfm25"
-        # wagi + konfiguracja + KOD CUSTOM (przeglądany przed użyciem, K2b)
+        # wagi + konfiguracja + KOD CUSTOM
         assert set(spec.pliki) == {
             "model.safetensors",
             "config.json",

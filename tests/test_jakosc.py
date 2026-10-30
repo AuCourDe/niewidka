@@ -1,4 +1,4 @@
-"""Testy opisu ryzyka (K5c): próg próby, uczciwe teksty, odmiana liczebników.
+"""Testy opisu ryzyka: próg próby, uczciwe teksty, odmiana liczebników.
 
 Etykieta z R95 ("podwyższone" itd.) ma sens tylko przy dostatecznie dużej próbie.
 Przy małej próbie (typy regułowe w korpusie mają po kilka-kilkanaście przykładów)

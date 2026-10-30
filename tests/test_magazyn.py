@@ -1,9 +1,9 @@
-"""Testy magazynu map z retencją (docs/MAPY-I-AKTUALIZACJE.md §1-3, §8: wiersze 2, 3, 9, 10).
+"""Testy magazynu map z retencją.
 
 Zegar wstrzyknięty: testy retencji bez czekania. Dziennik JSONL bez danych
 osobowych. Usunięcie/wygaśnięcie skreśla mapę z rejestru wydanych map wyłącznie
-gdy `uniewaznij_pobrane` (przegląd Argona pkt 3). Jedna blokada na rejestr,
-dziennik i magazyn (przegląd Argona pkt 9).
+gdy `uniewaznij_pobrane`. Jedna blokada na rejestr,
+dziennik i magazyn.
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ def test_uprawnienia_plikow_0600_na_posix(magazyn):
 
 
 def test_jedna_blokada_na_magazyn_dziennik_i_rejestr(magazyn):
-    # przegląd Argona pkt 9: jedna blokada (RLock, by API trzymało ją wokół całej
+    # jedna blokada (RLock, by API trzymało ją wokół całej
     # sekwencji magazyn+dziennik+rejestr); inny wątek pod nią nie wejdzie
     with magazyn.blokada:
         wynik = []
@@ -346,7 +346,7 @@ async def test_przywroc_przez_tekst_bez_dopisku_z_polem_identyfikator(konfig_api
 
 @pytest.mark.anyio
 async def test_przywroc_dopisek_wygrywa_z_polem_identyfikator(konfig_api):
-    # przegląd Argona pkt 10: stary wybór z listy + nowy tekst z dopiskiem = dopisek wygrywa
+    # stary wybór z listy + nowy tekst z dopiskiem = dopisek wygrywa
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         pierwsza, _czesci_1 = await _ukryj(klient, app)
@@ -386,7 +386,7 @@ async def test_przywroc_bez_wskazania_mapy_wybierz_mape(konfig_api):
 
 @pytest.mark.anyio
 async def test_przywroc_bez_dopisku_jeden_kandydat_z_kompletem_znacznikow(konfig_api):
-    # przegląd Argona pkt 2: dokładnie jeden kandydat ze WSZYSTKIMI znacznikami = wybrany
+    # dokładnie jeden kandydat ze WSZYSTKIMI znacznikami = wybrany
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz, czesci = await _ukryj(klient, app)
@@ -450,7 +450,7 @@ async def test_przywroc_plikiem_mapy_jak_dawniej(konfig_api):
 
 @pytest.mark.anyio
 async def test_przywroc_plik_mapy_z_dopiskiem_innej_mapy_odmowa(konfig_api):
-    # dopisek w tekście ≠ identyfikator dostarczonej mapy = odmowa (K4b pkt 6, nadal)
+    # dopisek w tekście ≠ identyfikator dostarczonej mapy = odmowa
     konfig = replace(konfig_api, mapy_retencja_dni=0)
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
@@ -517,7 +517,7 @@ async def test_delete_mapy_zly_identyfikator_422(konfig_api):
 
 @pytest.mark.anyio
 async def test_usuniecie_domyslnie_nie_skresla_pobranej_kopii(konfig_api):
-    # przegląd Argona pkt 3: retencja i ręczne Usuń dotyczą magazynu; pobrana kopia działa
+    # retencja i ręczne Usuń dotyczą magazynu; pobrana kopia działa
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz, czesci = await _ukryj(klient, app)
@@ -709,7 +709,7 @@ def test_kontekst_z_pakietami_trafia_do_dziennika(tmp_path, zegar):
 
 @pytest.mark.anyio
 async def test_blad_zapisu_magazynu_wynik_wydany_z_naglowkiem_blad(konfig_api, klucz_plik, tmp_path):
-    # sekcja 9 pkt 5: mapa zapisywana przed odpowiedzią; błąd zapisu nie zabija
+    # mapa zapisywana przed odpowiedzią; błąd zapisu nie zabija
     # ukrywania - wynik wraca, nagłówek mówi „blad", UI każe pobrać mapę
     przeszkoda = tmp_path / "magazyn"
     przeszkoda.write_text("to plik, nie katalog", encoding="utf-8")  # mkdir padnie
@@ -723,7 +723,7 @@ async def test_blad_zapisu_magazynu_wynik_wydany_z_naglowkiem_blad(konfig_api, k
 
 @pytest.mark.anyio
 async def test_dziennik_api_ma_kontekst_srodowiska(konfig_api):
-    # sekcja 9 pkt 10 przez API: użytkownik, wersja programu, pole pakietów
+    # użytkownik, wersja programu, pole pakietów
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         await _ukryj(klient, app)

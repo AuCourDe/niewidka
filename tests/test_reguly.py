@@ -1,4 +1,4 @@
-"""Testy reguł detekcji (LLD §3): wyrażenia regularne + sumy kontrolne."""
+"""Testy reguł detekcji: wyrażenia regularne + sumy kontrolne."""
 
 from niewidka.model import TypEncji
 from niewidka.reguly import znajdz
@@ -24,7 +24,7 @@ def test_pesel_poprawny_znaleziony():
 
 
 def test_pesel_bledna_suma_podejrzany_nie_odrzucony():
-    # Przegląd Astry pkt 14: błędna suma = encja z flagą „podejrzana", nie
+    # błędna suma = encja z flagą „podejrzana", nie
     # odrzucenie — literówka w prawdziwym numerze nie może zniknąć cicho.
     wynik = znajdz("PESEL: 44051401358, wniosek.")
     assert [(z.start, z.koniec) for z in wynik] == [(7, 18)]
@@ -43,7 +43,7 @@ def test_pesel_poprawny_nie_jest_podejrzany():
 
 def test_pesel_w_dluzszej_liczbie_nie_znaleziony():
     # PESEL-kształt zanurzony w dłuższym ciągu nie jest PESEL-em; ciąg 16 cyfr
-    # z poprawną sumą Luhna (K7b) jest natomiast legalną kartą płatniczą
+    # z poprawną sumą Luhna jest natomiast legalną kartą płatniczą
     wynik = _zakresy("Id transakcji 1234405140135977 end.")
     assert TypEncji.PESEL not in [z[2] for z in wynik]
 
@@ -164,7 +164,7 @@ def test_sygnatura_nie_jest_datą():
     assert _znalezione("Sygn. 1234.05.1982 sprawa.", TypEncji.DATA) == []
 
 
-# --- K2b: FN z rozszerzonego korpusu (tel-085, tel-086, data-094) ---
+# --- FN z rozszerzonego korpusu (tel-085, tel-086, data-094) ---
 
 def test_telefon_stacjonarny_3_3_3_pierwsza_cyfra_1_4():
     assert _znalezione("Tel.: +48 123 456 789.", TypEncji.TELEFON) == ["+48 123 456 789"]
@@ -172,7 +172,7 @@ def test_telefon_stacjonarny_3_3_3_pierwsza_cyfra_1_4():
 
 
 def test_telefon_stacjonarny_wymaga_separatorow():
-    # 9 cyfr bez separatorów to pułapka na REGON — nie telefon (K2b, decyzja reguły).
+    # 9 cyfr bez separatorów to pułapka na REGON — nie telefon.
     assert _znalezione("REGON 123456789 wpisano błędnie.", TypEncji.TELEFON) == []
 
 
@@ -184,7 +184,7 @@ def test_data_iso_nie_zagniezdrza_sie_w_innych_liczbach():
     assert _znalezione("Kod 12345-05-13-6789 pozycja.", TypEncji.DATA) == []
 
 
-# --- K2e: ADRES obejmuje kod pocztowy z miejscowością (błąd z żywego UI) ---
+# --- ADRES obejmuje kod pocztowy z miejscowością (błąd z żywego UI) ---
 
 def test_adres_ulica_z_kodem_i_miejscowoscia():
     # Kod pocztowy z miejscowością to quasi-identyfikator — zostawienie go
@@ -232,7 +232,7 @@ def test_adres_kod_nie_pochlania_dalej_bez_miejscowosci():
     assert _znalezione("Paczka z kodem 12-345 w dzienniku.", TypEncji.ADRES) == []
 
 
-# --- cykl G (K7b): adres IP v4/v6 --------------------------------------------
+# --- cykl G: adres IP v4/v6 --------------------------------------------
 
 def test_ip_v4_poprawny_znaleziony():
     # offsety = próbka nowe-ip-1 z tests/korpus/probki_nowe_typy.jsonl
@@ -271,7 +271,7 @@ def test_czas_i_wersja_nie_sa_ip():
     assert [z for z in znajdz("Ciąg 1.2.3.4.5 w opisie.") if z.typ is TypEncji.IP] == []
 
 
-# --- cykl H (K7b): karta płatnicza z sumą Luhna ------------------------------
+# --- cykl H: karta płatnicza z sumą Luhna ------------------------------
 
 def test_karta_poprawna_luhn_z_spacjami():
     tekst = "Karta płatnicza ma numer 4556 7788 9901 2232."
@@ -328,13 +328,13 @@ def test_iban_wygrywa_z_karta():
 
 
 def test_adres_miejscowosc_nie_przechodzi_do_nastepnej_linii():
-    # pismo właściciela 2026-10-28: „Warszawa\n\nDotyczy:" znikało w [ADRES_2]
+    # „Warszawa\n\nDotyczy:" znikało w [ADRES_2]
     tekst = "ul. Różana 8/24\n02-562 Warszawa\n\nDotyczy: wezwania"
     assert _znalezione(tekst, TypEncji.ADRES) == ["ul. Różana 8/24\n02-562 Warszawa"]
     assert _znalezione("00-108 Warszawa\nTel. 22 555", TypEncji.ADRES) == ["00-108 Warszawa"]
 
 
 def test_adres_miejscowosc_ze_spacja_nierozdzielajaca():
-    # przegląd Codex 2026-10-29: NBSP w „Nowy Dwór Mazowiecki" zostawiał „Dwór Mazowiecki"
+    # NBSP w „Nowy Dwór Mazowiecki" zostawiał „Dwór Mazowiecki"
     tekst = "ul. Długa 5, 05-100 Nowy\u00a0Dwór\u00a0Mazowiecki"
     assert _znalezione(tekst, TypEncji.ADRES) == [tekst]

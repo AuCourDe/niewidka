@@ -1,8 +1,7 @@
-/* atrybut hidden wygrywa z display:grid/flex komponentów (Codex 2026-10-29) */
+/* atrybut hidden wygrywa z display:grid/flex komponentów */
 [hidden] { display: none !important; }
 
-/* Niewidka — web lokalny (K5). Papierowa biel, atrament, jedna kolumna.
-   Fonty z katalogu fonty/ (OFL) — strona działa w pełni offline. */
+/* Niewidka: papierowa biel, atrament. Fonty z katalogu fonty/ (OFL), strona działa offline. */
 
 @font-face {
   font-family: "Lato";
@@ -105,8 +104,7 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* logo (znak czapki + napis) zamiast tekstowego h1; K5c: wysokość 48 px, żeby napis
-   „Niewidka” w logo miał rozmiar dawnego tytułu (viewBox SVG przycięty do treści) */
+/* logo (znak czapki + napis) zamiast tekstowego h1 */
 .nazwa img { display: block; width: auto; height: 32px; max-width: 100%; }
 
 h1, h2, h3 { text-wrap: balance; }
@@ -436,7 +434,7 @@ summary:focus-visible {
   line-height: 1.9;
 }
 
-/* dopisek w podglądzie (K5c): zwinięty do „ZANONIMIZOWANY. …”, rozwijany */
+/* dopisek w podglądzie: zwinięty do „ZANONIMIZOWANY. …”, rozwijany */
 .dopisek { margin: 0 0 0.6rem; }
 
 .dopisek summary {
@@ -610,7 +608,7 @@ mark.watpliwe {
   * { transition: none !important; animation: none !important; }
 }
 
-/* --- Pakiety modeli (K7b): ekran pierwszego uruchomienia i Ustawienia --- */
+/* --- Pakiety modeli: ekran pierwszego uruchomienia i Ustawienia --- */
 
 .ekran-pakietow-wybor { display: grid; gap: 0.7rem; max-width: 30rem; }
 .ekran-pakietow-wybor .podpowiedz { margin: 0.3rem 0 0; }
@@ -654,7 +652,7 @@ progress {
 .postep-pakietu { margin-top: 1rem; }
 .postep-pakietu p { margin: 0 0 0.4rem; font-size: 0.92rem; color: var(--atrament-slaby); }
 
-/* --- Aktualizacje modeli (K7/akt): tryb, stan, instalacja z folderu --- */
+/* --- Aktualizacje modeli: tryb, stan, instalacja z folderu --- */
 
 .aktualizacje-tryb { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
 .aktualizacje-tryb select {
@@ -688,7 +686,7 @@ progress {
 .lista-stala { min-height: 7rem; }
 
 /* ======================================================================
-   Układ dwupanelowy (2026-10-29). Wysokość okna, płynne skalowanie:
+   Układ dwupanelowy. Wysokość okna, płynne skalowanie:
    lewy panel wejścia, prawy wynik. Od 900 px i 600 px wysokości strona
    nie przewija się: przewija się podgląd (i ewentualnie lewy panel).
    ====================================================================== */

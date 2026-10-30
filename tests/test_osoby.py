@@ -1,4 +1,4 @@
-"""Testy grupowania osób po odmianach (LLD §6, przegląd Gemini pkt 13)."""
+"""Testy grupowania osób po odmianach."""
 
 from niewidka.model import Encja, TypEncji, Zakres
 from niewidka.osoby import pogrupuj, rdzen_nazwiska
@@ -31,14 +31,14 @@ def test_rozne_imiona_to_rozne_osoby():
 
 
 def test_inicjaly_nie_lacza_sie_z_imieniem():
-    # Przegląd Astry pkt 10: niejednoznacznych domyślnie nie łączymy.
+    # niejednoznacznych domyślnie nie łączymy.
     encje = [_osoba("Jan Kowalski"), _osoba("J. Kowalski")]
     pogrupuj(encje)
     assert encje[0].klucz_grupy != encje[1].klucz_grupy
 
 
 def test_inicjaly_przy_dwoch_imionach_osobne_od_obu():
-    # Kontrprzykład (Astra pkt 10): inicjał nie dołącza do żadnego z dwóch
+    # Kontrprzykład: inicjał nie dołącza do żadnego z dwóch
     # kandydatów o tym samym rdzeniu — zostaje osobną grupą.
     encje = [_osoba("Jan Kowalski"), _osoba("Piotr Kowalski"), _osoba("J. Kowalski")]
     pogrupuj(encje)
@@ -53,7 +53,7 @@ def test_dwa_same_nazwiska_bez_imion_to_osobne_grupy():
 
 
 def test_samo_nazwisko_łączy_sie_z_jedynym_inicjałem():
-    # Granica reguły Astry pkt 10: asocjacja wsteczna (Gemini pkt 13) działa
+    # Granica reguły: asocjacja wsteczna działa
     # przy DOKŁADNIE jednym kandydacie o rdzeniu — inicjał nim jest.
     encje = [_osoba("J. Kowalski"), _osoba("najemca Kowalskiego")]
     pogrupuj(encje)
@@ -74,7 +74,7 @@ def test_janina_to_inna_osoba_niz_jan():
 
 
 def test_samo_nazwisko_dolacza_do_jedynej_osoby():
-    # Przegląd Gemini pkt 13: „wniosek Kowalskiego" przy jednej osobie o tym rdzeniu.
+    # „wniosek Kowalskiego" przy jednej osobie o tym rdzeniu.
     encje = [_osoba("Jan Kowalski"), _osoba("wniosek Kowalskiego")]
     pogrupuj(encje)
     assert encje[0].klucz_grupy == encje[1].klucz_grupy

@@ -1,4 +1,4 @@
-"""Listy stałe „Zawsze ukrywaj” / „Nigdy nie ukrywaj” (niewidka/listy.py, decyzja 1a 2026-10-29)."""
+"""Listy stałe „Zawsze ukrywaj” / „Nigdy nie ukrywaj” (niewidka/listy.py)."""
 
 from __future__ import annotations
 

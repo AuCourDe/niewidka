@@ -1,4 +1,4 @@
-"""Testy narzędzia pomiaru recall/precision (K0, KRYTERIA.md §1)."""
+"""Testy narzędzia pomiaru recall/precision."""
 
 from pathlib import Path
 
@@ -21,7 +21,7 @@ PROBKA_PESEL = Probka(
     encje=[Oczekiwana(typ="PESEL", start=6, koniec=17, tekst="44051401359", suma=True)],
 )
 
-# Pułapka: numer z błędną sumą kontrolną, bez oczekiwanej encji (KRYTERIA §5).
+# Pułapka: numer z błędną sumą kontrolną, bez oczekiwanej encji.
 PROBKA_PULAPKA = Probka(id="y", opis="pułapka", tekst="PESEL 44051401358.", encje=[])
 
 
@@ -60,7 +60,7 @@ def test_detekcja_złego_typu_to_fp_oraz_fn():
 
 
 def test_detekcja_podejrzana_nie_jest_fp():
-    # KRYTERIA §1.3: podejrzane nadmaskowanie (PN) liczone osobno, nie jako FP.
+    # podejrzane nadmaskowanie (PN) liczone osobno, nie jako FP.
     detektor = DetektorStałozakresowy([Zakres(6, 17, TypEncji.PESEL, 0.5, "regula", False, True)])
     wyniki = zmierz([PROBKA_PULAPKA], detektor)
     assert wyniki["PESEL"] == WynikTypu(tp=0, fp=0, fn=0, pn=1)
@@ -80,7 +80,7 @@ def test_wczytywanie_jsonl(tmp_path: Path):
     assert probki[0].encje[0].suma is True
 
 
-# --- K2: budowa detektorów + czas na próbkę ---
+# --- budowa detektorów + czas na próbkę ---
 
 import pytest
 
@@ -116,7 +116,7 @@ def test_zmierz_z_czasem_zwraca_czasy():
     assert wyniki["PESEL"].fn == 1
 
 
-# --- K2b: poziom 2 (reguły + bardsai + LFM2.5) ---
+# --- poziom 2 (reguły + bardsai + LFM2.5) ---
 
 def test_zbuduj_detektor_poziom2_bez_katalogu_blad():
     with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
@@ -139,14 +139,14 @@ def test_zbuduj_detektor_lfm25_wariant_fp32(wagi_lfm25):
 @pytest.mark.model
 @pytest.mark.parametrize("wariant", ["q4-bl32", "q4-bl128"])
 def test_zbuduj_detektor_lfm25_wariant_q4(katalog_modeli, wariant):
-    """K7a: kwantyzacja int4 (narzedzia/kwantyzuj_q4.py); skok, gdy jej nie ma."""
+    """Kwantyzacja int4 (narzedzia/kwantyzuj_q4.py); skok, gdy jej nie ma."""
     if not (katalog_modeli / "lfm25" / wariant / "model.onnx").is_file():
         pytest.skip(f"wariant {wariant} niekwantyzowany (narzedzia/kwantyzuj_q4.py)")
     d = zbuduj_detektor("lfm25", katalog_modeli, wariant=wariant)
     assert d.nazwa == "onnx:lfm25"
 
 
-# --- K2d: warianty A (próg + półkrok) i B (+ słownik imion) ---
+# --- warianty A (próg + półkrok) i B (+ słownik imion) ---
 
 def test_zbuduj_detektor_poziom2_a_bez_katalogu_blad():
     with pytest.raises(Exception, match="NIEWIDKA_MODELE_KATALOG"):
@@ -160,7 +160,7 @@ def test_zbuduj_detektor_poziom2_b_bez_katalogu_blad():
 
 @pytest.mark.model
 def test_zbuduj_detektor_poziom2_a(katalog_modeli):
-    """poziom2-a = produktowy poziom 2 (wariant A, K2d); domyślny próg 0.2 jak w produkcie."""
+    """Poziom2-a = produktowy poziom 2 (wariant A); domyślny próg 0.2 jak w produkcie."""
     d = zbuduj_detektor("poziom2-a", katalog_modeli)
     assert d.nazwa == "poziom2"
     assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai"]
@@ -196,7 +196,7 @@ def test_poziomy_produktu_ida_przez_zbuduj_poziom(monkeypatch):
 
 @pytest.mark.model
 def test_zbuduj_detektor_poziom3_rozszerzony(katalog_modeli):
-    """K7b: poziom 3 z pakietem Rozszerzonym składa się TYM SAMYM zbuduj_poziom."""
+    """Poziom 3 z pakietem Rozszerzonym składa się TYM SAMYM zbuduj_poziom."""
     from pathlib import Path
 
     if not (Path(katalog_modeli) / "lfm25" / "q4-bl32" / "model.onnx").is_file():

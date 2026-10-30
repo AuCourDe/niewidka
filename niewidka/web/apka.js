@@ -1,7 +1,5 @@
-/* Niewidka: web lokalny (K5). Jedna strona, bez zależności, wszystko offline.
- * Token sesji przychodzi w meta (wstrzyknięty przez api.py przy serwowaniu strony),
- * nigdy w URL i nigdy w zasobach statycznych.
- */
+/* Niewidka: web lokalny, jedna strona, bez zależności, offline.
+ * Token sesji przychodzi w meta (wstrzykuje go api.py), nigdy w URL ani w zasobach statycznych. */
 
 "use strict";
 
@@ -72,8 +70,6 @@ function etykietaZadania(wpis) {
   return `${kiedy(new Date(wpis.utworzono))} · ${opisStatystyk(wpis.statystyki)}`;
 }
 
-/* Sekcja „Jak to działa”: wykrywane dane. Nazwy typów pochodzą z ETYKIETY
-   (jedno źródło z wynikiem); opisy i przykłady tylko tutaj. */
 const TYPY_WYKRYWANE = [
   ["OSOBA", "imiona i nazwiska, także odmienione przez przypadki. Na przykład Jan Kowalski, Jana Kowalskiego, Janowi Kowalskiemu."],
   ["PESEL", "na przykład 85041212345."],
@@ -194,9 +190,8 @@ async function otworzZip(blob) {
 const WZORZEC_ZNACZNIKA = /\[([A-Z]+)_(\d+)(?:_F\d+)?\]/g;
 const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 
-// surowy tekst wyniku do „Kopiuj": podgląd pokazuje znaczniki jako plakietki
-// („OSOBA 1"), a skopiowany tekst musi mieć prawdziwe [OSOBA_1_F2], inaczej mapa
-// go nie przywróci (przegląd Codex 2026-10-29, P1)
+// surowy tekst wyniku do „Kopiuj": podgląd pokazuje plakietki („OSOBA 1"),
+// a skopiowany tekst musi mieć prawdziwe [OSOBA_1_F2], inaczej mapa go nie przywróci
 let tekstPodgladu = "";
 
 function wypelnijPodglad(tekst, idMiejsca, klikalne = false, watpliwe = []) {
@@ -251,8 +246,7 @@ async function skopiujDoSchowka(tekst, przycisk) {
   setTimeout(() => { przycisk.textContent = "Kopiuj"; }, 2500);
 }
 
-/* K5c: pełny dopisek z identyfikatorem mapy zostaje w pliku wynikowym; w podglądzie
-   zwinięty do pierwszych słów, żeby długim kodem mapy nie przysłaniać tekstu. */
+/* Pełny dopisek zostaje w pliku wynikowym; w podglądzie zwinięty, żeby kod mapy nie przysłaniał tekstu. */
 function pokazDopisek(miejsce, tresc) {
   const koniecLinii = tresc.indexOf("\n");
   const linia = koniecLinii === -1 ? tresc : tresc.slice(0, koniecLinii);
@@ -314,7 +308,6 @@ function komunikat(statusId, klasa, naglowek, tresc) {
 function komunikatOdpowiedzi(statusId, status, blad, calosc) {
   const przepis = KOMUNIKATY[status];
   if (calosc && calosc.kod === "serwer_modeli" && blad) {
-    // 503 z centralnego serwera inferencji: komunikat serwera zamiast ogólnego „zajęty”
     komunikat(statusId, "komunikat-blad", "Nie udało się", blad);
     return;
   }
@@ -323,8 +316,7 @@ function komunikatOdpowiedzi(statusId, status, blad, calosc) {
 }
 
 function pokazBlokade(statusId, typy) {
-  /* K4b pkt 1: zablokowany wynik przychodzi jako 422 bez dokumentu. Nie ma
-     czego pobierać ani kopiować, więc pokazuję tylko STOP z typami znalezisk. */
+  /* Zablokowany wynik przychodzi jako 422 bez dokumentu: pokazuję tylko STOP z typami znalezisk. */
   const pole = document.getElementById(statusId);
   pole.innerHTML = "";
   const blok = document.createElement("div");
@@ -365,7 +357,6 @@ function pokazWynik(naglowki, czesci) {
   poleStatusu.hidden = false;
   poleStatusu.innerHTML = "";
   const blok = document.createElement("div");
-  // „zaliczona" tylko przy pustej liście ostrzeżeń (przegląd Codex 2026-10-29, P2)
   const zaliczona = Object.keys(ostrzezenia).length === 0;
   blok.className = zaliczona ? "komunikat komunikat-ok" : "komunikat komunikat-ostrzezenie";
   const tytul = document.createElement("h3");
@@ -399,7 +390,6 @@ function pokazWynik(naglowki, czesci) {
   const blokRyzyka = document.getElementById("blok-ryzyka");
   const listaRyzyka = document.getElementById("lista-ryzyka");
   listaRyzyka.innerHTML = "";
-  /* K5c: teksty ryzyka przychodzą gotowe z serwera (próg małej próby liczy serwer) */
   const oszacowane = Object.entries(r95).filter(([, wpis]) => wpis && wpis.opis != null);
   for (const [typ, wpis] of oszacowane) {
     const wiersz = document.createElement("li");
@@ -426,7 +416,7 @@ function pokazWynik(naglowki, czesci) {
   const listaOstrzezenia = document.getElementById("lista-ostrzezenia");
   listaOstrzezenia.innerHTML = "";
   for (const [typ, ile] of Object.entries(ostrzezenia)) {
-    /* K4b pkt 8: nagłówek niesie wyłącznie typy i liczniki, nigdy fragmenty danych */
+    /* nagłówek niesie wyłącznie typy i liczniki, nigdy fragmenty danych */
     const wiersz = document.createElement("li");
     wiersz.textContent = `W wyniku zostały dane przypominające oryginalne: ${etykieta(typ, ile)}. Zobacz, gdzie dokładnie, zanim dokument opuści ten komputer.`;
     listaOstrzezenia.append(wiersz);
@@ -442,9 +432,7 @@ function pokazWynik(naglowki, czesci) {
 
   document.getElementById("blok-pobrania").hidden = false;
 
-  /* docs/MAPY-I-AKTUALIZACJE.md §1: mapa zapisuje się sama; nagłówek jest wtedy,
-     gdy program próbował: z datą wygaśnięcia albo „blad", gdy zapisać się nie dało
-     (§9 pkt 5: wynik i tak wydany, ale mapę trzeba pobrać). */
+  /* Nagłówek mapy: data wygaśnięcia albo „blad", gdy zapis się nie udał (wynik i tak wydany, mapę trzeba pobrać). */
   const blokMapy = document.getElementById("mapa-zapisana");
   const zapisanaDo = naglowki.get("x-niewidka-mapa-zapisana");
   blokMapy.hidden = false;
@@ -574,7 +562,7 @@ async function przelicz(zmiana, dodanyFragment = null) {
     if (mojaKolejna !== licznikZlecen) return;
     if (blad.status === 410) {
       nowePoprawki(null);
-      // podgląd zostaje z ostatnim wynikiem, który już ma wcześniejsze poprawki (przegląd Argona pkt 6)
+      // podgląd zostaje z ostatnim wynikiem, który już ma wcześniejsze poprawki
       komunikatPoprawek("Minął czas na poprawki. Tekst w podglądzie ma wszystkie wcześniejsze poprawki, "
         + "ale tej ostatniej nie dodano. Żeby poprawiać dalej, ukryj dokument ponownie.");
       return;
@@ -868,10 +856,8 @@ function inicjalizujWejscie() {
 /* ---------- formularze ---------- */
 
 // trwające zlecenie blokuje „Ukryj" także przy odświeżaniu pakietów w tle
-// (Codex 2026-10-29: polling postępu odblokowywał przycisk w trakcie ukrywania)
 let trwaZlecenie = false;
-// sekcja 9 pkt 5: numerowane żądania - odpowiedź starszego zlecenia nie renderuje
-// się, gdy użytkownik zdążył już wysłać nowsze
+// numerowane żądania: odpowiedź starszego zlecenia nie renderuje się po wysłaniu nowszego
 let licznikZlecen = 0;
 
 function ustawTrwa(pole, trwa) {
@@ -897,7 +883,7 @@ async function wyslij(url, dane) {
     } catch {
       /* odpowiedź błędu bez JSON: użyję samego kodu */
     }
-    // FastAPI HTTPException zwraca „detail", nasze odpowiedzi „blad" (Codex 2026-10-29)
+    // FastAPI HTTPException zwraca „detail", nasze odpowiedzi „blad"
     const opis = tresc.blad || (typeof tresc.detail === "string" ? tresc.detail : "");
     const wyjatek = new Error(opis || String(odpowiedz.status));
     wyjatek.status = odpowiedz.status;
@@ -1083,8 +1069,7 @@ function inicjalizujPrzywracanie() {
       }
       document.getElementById("blok-rozbieznosci").hidden = lista.children.length === 0;
 
-      /* jawnie: z której zapisanej mapy wróciły dane (przegląd Argona pkt 2); przy
-         mapie z pliku .nwidka źródło jest oczywiste, więc komunikat zbędny */
+      /* jawnie: z której zapisanej mapy wróciły dane; przy mapie z pliku .nwidka źródło jest oczywiste */
       const blokAuto = document.getElementById("mapa-wybrana-auto");
       const wpisMapy = (mapyZapisane.mapy || []).find(
         (m) => m.id === odpowiedz.headers.get("x-niewidka-identyfikator"),
@@ -1115,7 +1100,6 @@ function inicjalizujPrzywracanie() {
     } catch (blad) {
       if (mojaKolejna !== licznikZlecen) return;
       if (blad.odpowiedz && blad.odpowiedz.kod === "wybierz_mape") {
-        /* docs/MAPY-I-AKTUALIZACJE.md §3: komunikat prowadzi do listy zadań */
         komunikat("status-przywroc", "komunikat-ostrzezenie", "Wskaż mapę", `${blad.blad} Wybierz zadanie z listy.`);
         document.getElementById("lista-zadan").focus();
       } else {
@@ -1218,7 +1202,7 @@ function inicjalizujListy() {
     zapiszListy(wierszeListy("lista-zawsze"), wierszeListy("lista-nigdy")));
 }
 
-/* ---------- zapisane mapy (docs/MAPY-I-AKTUALIZACJE.md §1-2) ---------- */
+/* ---------- zapisane mapy ---------- */
 
 async function odswiezMapy() {
   try {
@@ -1249,7 +1233,7 @@ function wypelnijListeZadan() {
     const opcja = document.createElement("option");
     opcja.value = wpis.id;
     opcja.textContent = etykietaZadania(wpis);
-    if (i === 0) opcja.selected = true; // domyślnie najnowsze
+    if (i === 0) opcja.selected = true;
     lista.append(opcja);
   }
 }
@@ -1303,7 +1287,7 @@ function inicjalizujMapy() {
   });
 }
 
-/* ---------- pakiety modeli (K7b) ---------- */
+/* ---------- pakiety modeli ---------- */
 
 let stanPakietow = { pakiety: [], poziomy_dostepne: [], postep: { pakiet: null, blad: null } };
 let ekranPakietowOdrzucony = false; // „Później" w tej sesji
@@ -1343,7 +1327,7 @@ function odswiezSuwakZPakietow() {
   }
 }
 
-/* Informacja o modelu i licencji: tylko napis, bez blokady (polecenie właściciela 2026-10-29).
+/* Informacja o modelu i licencji: tylko napis, bez blokady.
    Odnośniki otwierają się w przeglądarce systemowej (pywebview: OPEN_EXTERNAL_LINKS_IN_BROWSER). */
 function odnosnik(adres, tekst) {
   if (!/^https:\/\//.test(adres || "")) return document.createTextNode(tekst);
@@ -1445,7 +1429,6 @@ function rysujListePakietow() {
 }
 
 // postęp i błąd widać i w Ustawieniach, i na ekranie pierwszego uruchomienia
-// (wcześniej ekran startowy nie pokazywał nic, a błąd znikał razem z postępem)
 const MIEJSCA_POSTEPU = [
   ["postep-pakietu", "postep-pakietu-pasek", "postep-pakietu-status"],
   ["ekran-pakietow-postep", "ekran-pakietow-pasek", "ekran-pakietow-status"],
@@ -1496,7 +1479,7 @@ function pollujPostep() {
   if (odpytywaniePostepu) clearInterval(odpytywaniePostepu);
   odpytywaniePostepu = setInterval(async () => {
     const stan = await odswiezPakiety();
-    if (!stan) return; // chwilowy błąd odczytu: pytamy dalej, nie ogłaszamy końca (Codex 2026-10-29)
+    if (!stan) return; // chwilowy błąd odczytu: pytamy dalej, nie ogłaszamy końca
     if (stan.postep.pakiet === null) {
       clearInterval(odpytywaniePostepu);
       odpytywaniePostepu = null;
@@ -1557,7 +1540,7 @@ function inicjalizujPakiety() {
   });
 }
 
-/* ---------- aktualizacje modeli (docs/MAPY-I-AKTUALIZACJE.md §5) ---------- */
+/* ---------- aktualizacje modeli ---------- */
 
 let stanAktualizacji = null;
 let odpytywanieAktualizacji = null;

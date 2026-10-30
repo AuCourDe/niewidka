@@ -1,4 +1,4 @@
-"""Testy modelu danych (LLD §2)."""
+"""Testy modelu danych."""
 
 from niewidka.model import Dokument, Encja, RunInfo, Segment, TypEncji, Zakres
 

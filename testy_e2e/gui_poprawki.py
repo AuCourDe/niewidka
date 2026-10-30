@@ -1,9 +1,19 @@
 """Smoke GUI poprawek w podglądzie: serwer z atrapą detektora + headless Chrome przez CDP na pipe
 (bez portu debugowania). Uruchom: .venv/bin/python testy_e2e/gui_poprawki.py (wymaga google-chrome)."""
-import base64, importlib.util, json, os, subprocess, sys, tempfile, threading, time
+import base64
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import uvicorn
+
 sp = importlib.util.spec_from_file_location("t", str(Path(__file__).resolve().parents[1] / "tests" / "test_poprawki.py"))
 t = importlib.util.module_from_spec(sp); sp.loader.exec_module(t)
 
@@ -19,7 +29,7 @@ r1, w1 = os.pipe(); r2, w2 = os.pipe()  # chrome czyta r1 (fd3), pisze w2 (fd4)
 def pre():
     os.dup2(r1, 3); os.dup2(w2, 4)
 chrome = subprocess.Popen(["google-chrome", "--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-pipe",
-                           f"--user-data-dir={tmp/'profil'}", "about:blank"], preexec_fn=pre, pass_fds=(3, 4),
+                           f"--user-data-dir={tmp/'profil'}", "about:blank"], preexec_fn=pre, pass_fds=(3, 4),  # noqa: PLW1509 - tylko os.dup2 (chrome oczekuje fd 3 i 4)
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 os.close(r1); os.close(w2)
 wej = os.fdopen(w1, "wb", buffering=0); wyj = os.fdopen(r2, "rb", buffering=0)
