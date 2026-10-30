@@ -30,8 +30,8 @@ Przy wspólnym serwerze użytkownicy nie pobierają modeli. Opis dla administrat
 
 ## Szybki start: wersja okienkowa
 
-1. Pobierz plik `Niewidka-<wersja>-windows-x64.zip`. Po publikacji repozytorium znajdziesz
-   go na stronie wydań: <https://github.com/AuCourDe/niewidka/releases>.
+1. Pobierz plik `Niewidka-<wersja>-windows-x64.zip` ze strony wydań:
+   <https://github.com/AuCourDe/niewidka/releases>.
 2. Rozpakuj plik w dowolnym folderze i uruchom `Niewidka.exe`.
 3. Kliknij „Utwórz klucz”. Klucz zapisze się w Menedżerze poświadczeń Windows.
 4. Kliknij „Pobierz podstawowy (zalecane)”. Pakiet ma około 190 MB. Pobierasz go tylko raz.

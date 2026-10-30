@@ -10,7 +10,7 @@ To nie jest porada prawna; przed wdrożeniem w organizacji licencję czyta osoba
 
 | Pakiet | Model | Licencja | Użycie komercyjne | Warunki przy rozpowszechnianiu |
 |---|---|---|---|---|
-| Podstawowy | [bardsai/eu-pii-anonimization-multilang](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (XLM-RoBERTa) | Apache 2.0 | tak, bez progów | kopia licencji, oznaczenie zmienionych plików (nasz plik to eksport ONNX, czyli zmiana) |
+| Podstawowy | [bardsai/eu-pii-anonimization-multilang](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (XLM-RoBERTa) | Apache 2.0 | tak, bez progów | kopia licencji, oznaczenie zmienionych plików (nasz plik to eksport ONNX z kwantyzacją Q4, czyli zmiana); model bazowy XLM-RoBERTa ma licencję MIT |
 | Rozszerzony | [LiquidAI/LFM2.5-Encoder-350M-PII-Detector](https://huggingface.co/LiquidAI/LFM2.5-Encoder-350M-PII-Detector) | LFM Open License v1.0 (na bazie Apache 2.0) | tylko gdy organizacja ma roczny przychód poniżej 10 mln USD (§5); ponad próg użycie komercyjne nie jest objęte licencją; organizacje non-profit bez progu dla celów niekomercyjnych | jak Apache 2.0: kopia licencji, oznaczenie zmian (nasz plik to ONNX z kwantyzacją Q4, czyli utwór zależny) |
 
 ## Co z tego wynika

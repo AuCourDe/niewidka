@@ -84,5 +84,5 @@ pliki). Nowości wersjonowane idą wyłącznie przez katalog podpisany.
 - [ ] Licencje modeli obok paczek: `podstawowy-LICENSE.txt` (Apache 2.0 z repozytorium
       bardsai), `rozszerzony-LICENSE.txt` (LFM Open License v1.0 z repozytorium LiquidAI)
       i `NOTICE.txt` z informacją, że pliki ONNX powstały z tych modeli przez eksport
-      (i kwantyzację Q4 dla LFM2.5). Wymagają tego obie licencje.
+      i kwantyzację Q4 (oba pakiety). Wzór: załącznik `NOTICE.txt` wydania 0.1.0. Wymagają tego obie licencje.
 - [ ] Klucz prywatny nie opuścił magazynu sekretów (nigdy: repo, CI cache, log).
