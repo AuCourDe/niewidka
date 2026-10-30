@@ -271,13 +271,15 @@
 - [~] (właściciel) „zhardenuj ten projekt, tak, aby był logiczny, dodaj licencję na samą aplikację jako MIT … czy wypada zostawić citation z nazwą repo / imieniem / nazwiskiem? Zapytaj Argona, wygładź wszystko, wrzucaj na GitHub przetestowane rozwiązanie, zrób przegląd kodu Codexem, żeby było jak najmniej ai-slop-code, potem wypchnij aktualizacje, zrób dodatek obok readme jak używać z opisem funkcjonalności … jak już to zrobisz to otwórz repo na świat. Komentarze w kodzie minimalistyczne, tylko tam gdzie są niezbędne”
   - [x] wariant a: „Zainstaluj z folderu” przy pakietach modeli w Ustawieniach — `ebba1f4`; Playwright na prawdziwych plikach: pusta ścieżka i zły folder dają komunikat, dobry folder → „Zainstalowany i gotowy”, ukrycie działa
   - [x] znalezione przy teście: od ee980bb przyciski pakietów i aktualizacji wysyłały JSON zakodowany dwa razy → 500; naprawione + `_obiekt_json` (422) + testy — `ebba1f4`
-  - [ ] utwardzenie i spójność: audyt przed publikacją (sekrety, nazwa klienta, dane osobowe w historii, ścieżki prywatne), porządek w docs
+  - [x] utwardzenie i spójność: audyt przed publikacją; historia przepisana (filter-repo, 0 trafień nazwy klienta w 264 commitach świeżego klonu z GitHuba), pełna kopia w prywatnym niewidka-archiwum + bundle; dokumenty robocze w docs/rozwoj
   - [x] LICENSE MIT, CITATION.cff z pseudonimem AuCourDe, SECURITY.md, docs/LICENCJE.md (modele + biblioteki) — `d16e8a7`, Argon: docs/rozwoj/konsultacje/2026-10-30-argon-licencja.md
   - [x] komentarze w kodzie odchudzone do niezbędnych — `f7081a1`, `866bc38` (AST bez zmian, pytest 678 passed)
-  - [~] przegląd kodu Codexem (wywołanie 3 z 4) pod kątem ai-slop, poprawki
+  - [x] przegląd kodu Codexem (wywołanie 3 z 4): 26 punktów, wszystkie prawdziwe i poprawione z testami — docs/rozwoj/konsultacje/08-przeglad-codex-publikacja.md, commit „Poprawki po przeglądzie Codexa”
   - [x] docs/PRZEWODNIK.md: funkcje i użycie, między instrukcją a konfiguracją — `d16e8a7` (twierdzenia sprawdzone w kodzie)
-  - [ ] bramka: pytest, ruff, GUI; push
-  - [ ] repo publiczne
+  - [x] bramka: pytest 693 passed/26 skipped, ruff czysty, GUI e2e 19/19 (Chrome), API e2e na prawdziwych modelach bez regresji (znany „Piotr Wrona” poz. 1-2); świeży klon z GitHuba: 677 passed (bez opcjonalnej grupy onnx)
+  - [x] repo publiczne: visibility public, licencja MIT rozpoznana, prywatne zgłaszanie luk włączone, strona 200 bez logowania
+  - [~] EXE przebudowany z publicznego repo (stary ZIP ma błąd przycisków pobierania)
+  - [ ] wydanie (release) z pakietami modeli i licencjami: bez niego przycisk „Pobierz” nie ma skąd pobrać modeli; decyzja właściciela
 - [~] (właściciel) „czy na githubie można używać słów kluczowych? np data anonimization, anonimizacja danych itp? Aha przygotuj readme w dwóch wersjach, polskiej i angielskiej!!!”
   - [x] tematy (topics) repozytorium na GitHubie, po polsku i angielsku — 20 tematów + opis PL/EN (gh repo view)
   - [x] README.en.md (angielski) + przełącznik języka w obu README — commit „README po angielsku”
