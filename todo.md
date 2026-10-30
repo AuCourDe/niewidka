@@ -278,3 +278,6 @@
   - [x] docs/PRZEWODNIK.md: funkcje i użycie, między instrukcją a konfiguracją — `d16e8a7` (twierdzenia sprawdzone w kodzie)
   - [ ] bramka: pytest, ruff, GUI; push
   - [ ] repo publiczne
+- [~] (właściciel) „czy na githubie można używać słów kluczowych? np data anonimization, anonimizacja danych itp? Aha przygotuj readme w dwóch wersjach, polskiej i angielskiej!!!”
+  - [ ] tematy (topics) repozytorium na GitHubie, po polsku i angielsku
+  - [ ] README.en.md (angielski) + przełącznik języka w obu README
