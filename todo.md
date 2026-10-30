@@ -259,3 +259,12 @@
   - [x] pakiety (apka.js opisLicencji): adres HF, licencja, uwaga i „Przed pobraniem zapoznaj się z licencją modelu.” na ekranie pobierania i w Ustawieniach
   - [x] pomiar scrollHeight/innerHeight (1084x821, 1440x900, 800x900) przed i po ukryciu, zrzuty uklad-po-*.png
   - [x] testy: pytest 674 passed, GUI web 27/27, audyt web-design-guidelines
+
+## 2026-10-30
+
+- [x] (właściciel) „napisz przejrzystą instrukcję obsługi, proste readme, informacje o wersji okienkowej i webowej, szybki start dla obu, szczegóły konfiguracji. Nie pisz jak model, pisz jak człowiek, przeredaguj gotowy tekst z Argonem, unikaj półpauz i argumentowania każdej wypowiedzi”
+  - [x] README.md: krótko, obie wersje, szybki start; szybki start web sprawdzony na świeżym klonie (strona 200, ukrycie 200); stare tabele modeli przeniesione do docs/MODELE.md
+  - [x] docs/INSTRUKCJA.md: obsługa krok po kroku
+  - [x] docs/KONFIGURACJA.md + konfiguracja/niewidka.przyklad.toml: wszystkie opcje; przykład wczytany daje dokładnie Konfig() (sprawdzone)
+  - [x] redakcja z Argonem, 6 z 7 uwag wdrożonych, zero półpauz i pauz (grep) — docs/konsultacje/2026-10-30-argon-dokumentacja.md
+  - [ ] znalezione: interfejs mówi o wgrywaniu pakietów z katalogu, a przycisku nie ma (tylko API); decyzja właściciela
