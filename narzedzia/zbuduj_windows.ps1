@@ -13,7 +13,7 @@ Wynik:
   <KatalogBudowy>\Niewidka-<wersja>-windows-x64.zip
 #>
 param(
-  [string]$KatalogBudowy = "C:\Users\uzytkownik\niewidka-build",
+  [string]$KatalogBudowy = (Join-Path $env:USERPROFILE "niewidka-build"),
   [string]$RepoUrl = "https://github.com/AuCourDe/niewidka.git",
   [string]$Rpo = "",
   [string]$Python = "py -3.13",
