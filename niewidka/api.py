@@ -1,11 +1,6 @@
-"""API FastAPI (K4, LLD §12): ukryj/przywroc/stan na 127.0.0.1.
-
-Bezpieczeństwo: token sesji (generowany przy starcie), walidacja Host/Origin,
-limity PRZED buforowaniem (Content-Length) i po dekompresji, pliki tylko w RAM,
-Cache-Control: no-store, logi wyłącznie z UUID błędu (Gemini pkt 15), inferencja
-w puli wątków z Semaphore(1) i timeoutem (Gemini pkt 5), pełna kolejka → 503.
-Wynik zablokowany przez kontrolę → 422 z listą typów, bez dokumentu (K4b pkt 1).
-Błędy wg LLD §15: 413/415/422/500/503; detektor fail-closed.
+"""API FastAPI: ukryj/przywroc/stan na 127.0.0.1. Token sesji, walidacja Host/Origin, limity
+przed buforowaniem i po dekompresji, pliki tylko w RAM, no-store, w logach wyłącznie UUID błędu,
+inferencja w puli wątków (Semaphore(1), timeout; pełna kolejka -> 503), detektor fail-closed.
 """
 
 from __future__ import annotations
@@ -77,11 +72,11 @@ logger = logging.getLogger("niewidka.api")
 _MB = 1024 * 1024
 _TOKEN_NAGLOWEK = "x-niewidka-token"
 _KATALOG_WEB = Path(__file__).parent / "web"
-_POZIOMY = (1, 2, 3)  # suwak jakości (K2d: 2 = wariant A, 3 = wariant B)
+_POZIOMY = (1, 2, 3)  # suwak jakości
 
 
 class BrakWymaganegoPakietu(Exception):
-    """Poziom suwaka wymaga pakietu, którego nie ma (K7b → 409 z listą pakietów)."""
+    """Poziom suwaka wymaga pakietu, którego nie ma."""
 
     def __init__(self, brakujace: list[str], nazwy: list[str] | None = None):
         self.brakujace = brakujace
@@ -94,18 +89,18 @@ class BrakWymaganegoPakietu(Exception):
 
 
 class KolejkaPelna(Exception):
-    """Wszystkie sloty zajęte i kolejka pełna (LLD §15 → 503 + Retry-After)."""
+    """Wszystkie sloty zajęte i kolejka pełna."""
 
 
 class PracaPrzekroczylaCzas(Exception):
     """Praca przekroczyła limit czasu; slot zostaje zajęty do jej faktycznego
-    końca (K4b pkt 11 → 503, nie 500)."""
+    końca."""
 
 
 class BladKontroli(Exception):
     """Kontrola zapisu zablokowała wynik (→ 422). Poza typami niesie miejsca do decyzji
     użytkownika (fragment + pozycja w podglądzie), podgląd tekstu i identyfikator zadania
-    do `/api/popraw` (docs/MAPY-I-AKTUALIZACJE.md §4). Fragmenty wyłącznie w odpowiedzi
+    do `/api/popraw`. Fragmenty wyłącznie w odpowiedzi
     do interfejsu na tym komputerze, nigdy w logach ani dzienniku."""
 
     def __init__(
@@ -127,8 +122,7 @@ class BrakZadaniaPoprawek(Exception):
 
 
 class WybierzMape(Exception):
-    """Przywracanie bez wskazania mapy: użytkownik ma wybrać z listy zadań
-    (docs/MAPY-I-AKTUALIZACJE.md §3 → 422 z kodem `wybierz_mape` i kandydatami)."""
+    """Przywracanie bez wskazania mapy: użytkownik ma wybrać z listy zadań."""
 
     def __init__(self, komunikat: str, kandydaci: list[dict]):
         self.kandydaci = kandydaci
@@ -141,7 +135,7 @@ class BrakMapyWMagazynie(Exception):
 
 
 class LicznikZlecen:
-    """K4b pkt 12: ogranicza liczbę żądań W TOKU (POST /api/ukryj i /api/przywroc)
+    """ogranicza liczbę żądań W TOKU (POST /api/ukryj i /api/przywroc)
     zanim cokolwiek przeczyta treść — nadmiar dostaje 503 natychmiast, więc
     uploady nie potrafią zająć pamięci, stojąc poza kolejką inferencji."""
 
@@ -175,7 +169,7 @@ class LicznikZlecen:
 
 
 class LimitBajtow:
-    """K4b pkt 9: liczy bajty treści żądania PRZED parserem formularza — także
+    """liczy bajty treści żądania PRZED parserem formularza — także
     przy transferze chunked, bez nagłówka Content-Length. Po przekroczeniu limitu
     aplikacja nie dostaje ani bajtu (nic nie wpada do buforów, spool na dysk nie
     zdąży się uruchomić), klient dostaje 413. Limit objęte są wszystkie POST-y,
@@ -229,7 +223,7 @@ class LimitBajtow:
 class Kolejka:
     """Jedna inferencja naraz (Semaphore w puli wątków), `kolejka` oczekujących.
 
-    K4b pkt 11: semafor trzyma ZADANIE pracy, nie czekające żądanie — po
+    semafor trzyma ZADANIE pracy, nie czekające żądanie — po
     timeoucie żądanie dostaje 503, a slot zostaje zajęty do FAKTYCZNEGO końca
     pracy (anulowanie oczekiwania nie zatrzymuje wątku executora)."""
 
@@ -280,15 +274,25 @@ def _pochlonnij_wyjatek(zadanie: asyncio.Task) -> None:
         zadanie.exception()
 
 
+async def _obiekt_json(request: Request) -> dict:
+    try:
+        tresc = await request.json()
+    except Exception:  # noqa: BLE001 — bez odbicia treści w odpowiedzi
+        raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+    if not isinstance(tresc, dict):
+        raise HTTPException(status_code=422, detail="oczekiwano obiektu JSON")
+    return tresc
+
+
 def _json_naglowek(wartosc: Any) -> str:
     # Nagłówki HTTP są latin-1: polskie znaki (fragmenty ostrzeżeń) muszą uciekać
-    # jako \uXXXX, inaczej odpowiedź ginie na UnicodeEncodeError (test suwaka K2d).
+    # jako \uXXXX, inaczej odpowiedź ginie na UnicodeEncodeError.
     return json.dumps(wartosc, ensure_ascii=True)
 
 
 def _licznik_typow(ostrzezenia: list[Ostrzezenie]) -> dict[str, int]:
     """Typy znalezisk z licznikami — nagłówki i błędy nigdy nie niosą fragmentów
-    ani nazw części (K4b pkt 8; wcześniejsze PII wyciekało nagłówkiem HTTP)."""
+    ani nazw części."""
     licznik: dict[str, int] = {}
     for ostrzezenie in ostrzezenia:
         licznik[ostrzezenie.typ] = licznik.get(ostrzezenie.typ, 0) + 1
@@ -323,7 +327,7 @@ def _dopisz_do_rejestru(plik: Path | None, skrot: str, identyfikator: str) -> No
 
 def _przepisz_rejestr(plik: Path | None, bez_identyfikatorow: set[str]) -> None:
     """Rejestr wydanych map przepisany atomowo bez skreślonych map (przegląd
-    Argona pkt 3): pobrane kopie tych map przestają działać przy przywracaniu."""
+    ): pobrane kopie tych map przestają działać przy przywracaniu."""
     if plik is None or not plik.is_file():
         return
     wiersze = []
@@ -345,21 +349,21 @@ def create_app(
     klient_inferencji: httpx.Client | None = None,
 ) -> FastAPI:
     """Aplikacja API; `detektor` wstrzyknięty (testy/desktop) albo z wag
-    (NIEWIDKA_MODELE_KATALOG). K7b: brak wag NIE zabija startu — aplikacja wstaje,
+    (NIEWIDKA_MODELE_KATALOG). Brak wag NIE zabija startu — aplikacja wstaje,
     a ukrywanie odpowiada 409 z listą brakujących pakietów (ekran pierwszego
     uruchomienia prowadzi do pobrania); `menedzer_pakietow` wstrzykiwany w testach.
     `[inferencja] adres` = wykrywanie na centralnym serwerze (`klient_inferencji`
     wstrzykiwany w testach); błędy konfiguracji klienta przerywają start."""
     konfig = konfig or wczytaj_konfig()
     if konfig.modele_katalog is None:
-        # jedna ścieżka dla menedżera pakietów i detektora (przegląd Codex 2026-10-29):
+        # jedna ścieżka dla menedżera pakietów i detektora:
         # inaczej pakiet pobierał się do katalogu domyślnego, a ukrywanie szukało wag gdzie indziej
         konfig = replace(
             konfig,
             modele_katalog=menedzer_pakietow.katalog if menedzer_pakietow else katalog_modeli(),
         )
     if konfig.mapy_katalog is None:
-        # magazyn map w katalogu danych użytkownika (przegląd Argona, docs/MAPY-I-AKTUALIZACJE.md §2)
+        # magazyn map w katalogu danych użytkownika
         konfig = replace(konfig, mapy_katalog=katalog_danych() / "mapy")
     if konfig.listy_plik is None:
         konfig = replace(konfig, listy_plik=katalog_danych() / "listy.json")
@@ -392,20 +396,20 @@ def create_app(
     app.state.klient_inferencji = klient_inferencji if zdalny else None
     app.state.kolejka = Kolejka(maks=konfig.kolejka, timeout_s=konfig.timeout_s)
     app.state.identyfikatory: set[str] = set()
-    # K4b pkt 7: skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
+    # skróty SHA-256 szyfrogramów wydanych w TEJ sesji — przy przywracaniu
     # mapa musi być jednym z nich (stare/przechwycone szyfrogramy nie podlegają odszyfrowaniu)
     app.state.szyfrogramy: dict[str, str] = {}
     _wczytaj_rejestr_map(konfig.rejestr_map, app.state.szyfrogramy, app.state.identyfikatory)
-    # magazyn map z retencją (docs/MAPY-I-AKTUALIZACJE.md §2); sprzątanie wygasłych
+    # magazyn map z retencją; sprzątanie wygasłych
     # przy starcie, zanim cokolwiek przywrócimy (SIMPLIFICATION: bez zegara w tle)
     def _kontekst_dziennika() -> dict:
-        """Audyt z kontekstem środowiska (§9 pkt 10): użytkownik, wersja programu,
+        """Audyt z kontekstem środowiska: użytkownik, wersja programu,
         wersje pakietów modeli z manifestów (jeśli manifesty je podają)."""
         pola = kontekst_domyslny()
         pola["pakiety"] = wersje_pakietow(konfig.modele_katalog)
         return pola
 
-    # wykrycia ostatnich zadań do poprawek w podglądzie: tylko RAM, krótko (§8 pkt 4)
+    # wykrycia ostatnich zadań do poprawek w podglądzie: tylko RAM, krótko
     app.state.poprawki = PamiecWykryc(konfig.poprawki_maks_zadan, konfig.poprawki_ttl_s)
     app.state.listy = ListyStale(
         konfig.listy_plik, konfig.listy_zawsze, konfig.listy_nigdy, konfig.listy_tylko_administrator
@@ -416,7 +420,7 @@ def create_app(
         numery znaczników), „Nigdy nie ukrywaj” jak „To nie dane”; jawne „Ukryj wszędzie”
         użytkownika wygrywa z „Nigdy”. Zwraca też `wlasne` przeliczone na pozycje listy
         użytkownika i znaczniki powstałe z listy „Zawsze” (znacznik → pozycja listy).
-        `odkryj`: pozycje „Zawsze” wyłączone tylko w tym dokumencie (przegląd Argona pkt 5)."""
+        `odkryj`: pozycje „Zawsze” wyłączone tylko w tym dokumencie."""
         listy = app.state.listy.razem()
         zawsze = [f for f in listy.zawsze if f not in odkryj]
         nie_dane_razem = list(nie_dane) + [z for z in listy.znaczniki_nigdy(detekcje) if z not in nie_dane]
@@ -438,10 +442,10 @@ def create_app(
     )
 
     def _skresl_z_rejestru(identyfikatory: set[str] | list[str]) -> None:
-        """Przegląd Argona pkt 3: retencja i ręczne „Usuń" dotyczą magazynu programu,
+        """Retencja i ręczne „Usuń" dotyczą magazynu programu,
         a pobrana kopia działa dalej. Dopiero opcja `mapy_uniewaznij_pobrane`
         skreśla mapę z rejestru wydanych map (pamięć i plik), więc kopie przestają
-        działać. Jedna blokada magazynu obejmuję zmianę obu miejsc (pkt 9)."""
+        działać. Jedna blokada magazynu obejmuję zmianę obu miejsc."""
         if not konfig.mapy_uniewaznij_pobrane or not identyfikatory:
             return
         identyfikatory = set(identyfikatory)
@@ -452,7 +456,7 @@ def create_app(
         _przepisz_rejestr(konfig.rejestr_map, identyfikatory)
 
     def _posprzataj() -> None:
-        """Sprzątanie wygasłych przy każdym wywołaniu ukryj/przywroc/lista (§2)."""
+        """Sprzątanie wygasłych przy każdym wywołaniu ukryj/przywroc/lista."""
         with app.state.magazyn.blokada:
             _skresl_z_rejestru(app.state.magazyn.posprzataj())
 
@@ -461,7 +465,7 @@ def create_app(
         menedzer_pakietow = MenedzerPakietow(
             wczytaj_pakiety(), konfig.modele_katalog or katalog_modeli(), zrodlo()
         )
-    # K7c pkt 1: zmiana pakietów (pobranie/usunięcie/instalacja) unieważnia cache
+    # zmiana pakietów (pobranie/usunięcie/instalacja) unieważnia cache
     # detektorów — inaczej zainstalowany pakiet Rozszerzony nie wchodzi do detekcji
     menedzer_pakietow.ustaw_zwrot_zmiany(app.state.detektory.clear)
     app.state.pakiety = menedzer_pakietow
@@ -476,10 +480,10 @@ def create_app(
     app.state.aktualizacje.sprawdz_przy_starcie()
 
     def _detektor_dla(poziom: int):
-        """Detektor wybranego poziomu suwaka (K2d). Wstrzyknięty obsługuje wszystkie
+        """Detektor wybranego poziomu suwaka. Wstrzyknięty obsługuje wszystkie
         poziomy (testy/desktop); produkcyjne budowane leniwie i cache'owane — budowa
-        i tak jest serializowana przez Semaphore(1) kolejki. K7b: brak wymaganego
-        pakietu = jasny `BrakWymaganegoPakietu` (409), nie 500. K7c (audyt #1):
+        i tak jest serializowana przez Semaphore(1) kolejki. Brak wymaganego
+        pakietu = jasny `BrakWymaganegoPakietu` (409), nie 500.
         poziom 3 dostaje zweryfikowany stan pakietu Rozszerzonego z menedżera."""
         if detektor is not None:  # wstrzyknięty obsługuje wszystkie poziomy
             return detektor
@@ -489,7 +493,7 @@ def create_app(
                 ZdalnyDetektor(poziom, app.state.klient_inferencji, konfig.wykrywaj_date),
             )
         # stan pakietu w kluczu: detektor ze stanu sprzed weryfikacji po starcie
-        # (bez zwrotu zmiany) nie zostaje w cache dla poziomu 3 (odbiór K7c)
+        # (bez zwrotu zmiany) nie zostaje w cache dla poziomu 3
         rozszerzony = poziom == 3 and app.state.pakiety.stan_pakietu("rozszerzony") == "zainstalowany"
         zbudowany = app.state.detektory.get((poziom, rozszerzony))
         if zbudowany is None:
@@ -518,11 +522,11 @@ def create_app(
     @app.middleware("http")
     async def straznik_i_limity(request: Request, call_next):
         """Token sesji + Host/Origin dla POST-ów i DELETE-ów /api/ oraz GET-ów
-        pakietów/stanu/map (K7c pkt 5: status pakietów bywa nośnikiem sekreta
+        pakietów/stanu/map (status pakietów bywa nośnikiem sekreta
         z lustra); limity przed buforowaniem treści."""
         strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy", "/api/aktualizacje", "/api/listy")
         # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
-        # (Codex 2026-10-29: GET / z obcym Host oddawał token — DNS rebinding)
+        # (obcy Host + DNS rebinding oddawałyby token)
         if (request.headers.get("host") or "").split(":")[0] not in hosty:
             return JSONResponse({"blad": "niedozwolony Host"}, status_code=403)
         if (
@@ -546,7 +550,7 @@ def create_app(
 
     @app.middleware("http")
     async def logi_bez_tresci(request: Request, call_next):
-        """Nieobsłużony wyjątek → wyłącznie UUID błędu w logu (Gemini pkt 15)."""
+        """Nieobsłużony wyjątek → wyłącznie UUID błędu w logu."""
         try:
             odpowiedz = await call_next(request)
         except Exception:  # noqa: BLE001 — łapiemy WSZYSTKO, logujemy tylko UUID (bez treści)
@@ -558,7 +562,7 @@ def create_app(
 
     @app.exception_handler(NieznanyFormat)
     async def _nieznany_format(request: Request, blad: NieznanyFormat):
-        # K4b pkt 15: nazwa pliku bywa osobowa — odpowiedź niesie tylko listę formatów
+        # nazwa pliku bywa osobowa — odpowiedź niesie tylko listę formatów
         return JSONResponse(
             {"blad": f"nieznany format pliku; obsługiwane: {', '.join(sorted(blad.wspierane))}"},
             status_code=415,
@@ -566,7 +570,7 @@ def create_app(
 
     @app.exception_handler(ElementNieobslugiwany)
     async def _element_nieobslugiwany(request: Request, blad: ElementNieobslugiwany):
-        # K4b pkt 15: nazwy części nie wracają (PII potrafi siedzieć w nazwie)
+        # nazwy części nie wracają (PII potrafi siedzieć w nazwie)
         return JSONResponse(
             {"blad": "dokument zawiera nieobsługiwane elementy", "liczba": len(blad.elementy)},
             status_code=422,
@@ -574,7 +578,7 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def _walidacja_zadania(request: Request, blad: RequestValidationError):
-        # K4b pkt 15: bez pola input i bez odbicia wartości wejściowych
+        # bez pola input i bez odbicia wartości wejściowych
         return JSONResponse({"blad": "nieprawidłowe dane żądania"}, status_code=422)
 
     @app.exception_handler(zipfile.BadZipFile)
@@ -591,7 +595,7 @@ def create_app(
 
     @app.exception_handler(WybierzMape)
     async def _wybierz_mape(request: Request, blad: WybierzMape):
-        # docs/MAPY-I-AKTUALIZACJE.md §3: interfejs prowadzi do listy zadań
+        # interfejs prowadzi do listy zadań
         return JSONResponse(
             {"kod": "wybierz_mape", "blad": str(blad), "kandydaci": blad.kandydaci},
             status_code=422,
@@ -618,7 +622,7 @@ def create_app(
 
     @app.exception_handler(BladArchiwum)
     async def _blad_archiwum(request: Request, blad: BladArchiwum):
-        # K4b pkt 10: kłamliwe nagłówki/obca kompresja = odmowa (fail-closed, 422)
+        # kłamliwe nagłówki/obca kompresja = odmowa (fail-closed, 422)
         return JSONResponse({"blad": "archiwum nieprawidłowe lub niebezpieczne"}, status_code=422)
 
     @app.exception_handler(BrakKlucza)
@@ -638,7 +642,7 @@ def create_app(
 
     @app.exception_handler(PracaPrzekroczylaCzas)
     async def _praca_przekroczyla_czas(request: Request, blad: PracaPrzekroczylaCzas):
-        # K4b pkt 11: 503 z retry-after — praca nadal trwa i trzyma slot
+        # 503 z retry-after — praca nadal trwa i trzyma slot
         return JSONResponse(
             {
                 "blad": "praca nad dokumentem przekroczyła limit czasu; "
@@ -659,7 +663,7 @@ def create_app(
 
     @app.exception_handler(BrakWymaganegoPakietu)
     async def _brak_wymaganego_pakietu(request: Request, blad: BrakWymaganegoPakietu):
-        # K7b: poziom bez wymaganego pakietu = jasny błąd z listą pakietów do pobrania
+        # poziom bez wymaganego pakietu = jasny błąd z listą pakietów do pobrania
         return JSONResponse(
             {"blad": str(blad), "brak_pakietu": blad.brakujace}, status_code=409
         )
@@ -703,7 +707,7 @@ def create_app(
 
     @app.get("/api/pakiety")
     async def endpoint_pakiety() -> dict:
-        """Stan pakietów + postęp bieżącej operacji (K7b); bez tokena: dane
+        """Stan pakietów + postęp bieżącej operacji; bez tokena: dane
         nieosobowe, ale za POST-em stoi sesyjny token jak wszędzie."""
         pakiety_stan = app.state.pakiety
         odpowiedz = {
@@ -720,13 +724,10 @@ def create_app(
 
     @app.post("/api/pakiety")
     async def endpoint_pakiety_akcja(request: Request) -> JSONResponse:
-        """pobierz (w tle, 202) | usun (200) | instaluj z katalogu IT (w tle, 202,
-        K7c pkt 8) | anuluj bieżącą operację (200). Błędy operacji w tle lądują
+        """pobierz (w tle, 202) | usun (200) | instaluj z katalogu IT (w tle, 202)
+        | anuluj bieżącą operację (200). Błędy operacji w tle lądują
         w postep.blad (GET /api/pakiety)."""
-        try:
-            zlecenie = await request.json()
-        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
-            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        zlecenie = await _obiekt_json(request)
         akcja = zlecenie.get("akcja")
         identyfikator = zlecenie.get("pakiet")
         pakiety_stan = app.state.pakiety
@@ -769,12 +770,9 @@ def create_app(
 
     @app.post("/api/aktualizacje")
     async def endpoint_aktualizacje_akcja(request: Request) -> JSONResponse:
-        """sprawdz | instaluj (w tle, 202; z folder: offline, §5) | cofnij | tryb
+        """sprawdz | instaluj (w tle, 202; z folder: offline) | cofnij | tryb
         (409, gdy tryb narzuca konfiguracja administratora)."""
-        try:
-            zlecenie = await request.json()
-        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
-            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
+        zlecenie = await _obiekt_json(request)
         akcja = zlecenie.get("akcja")
         akt = app.state.aktualizacje
         if akcja not in ("sprawdz", "instaluj", "cofnij", "tryb"):
@@ -816,7 +814,7 @@ def create_app(
 
     @app.exception_handler(BladKontroli)
     async def _blad_kontroli(request: Request, blad: BladKontroli):
-        # K4b pkt 1: zablokowany dokument NIE wraca — żadnych bajtów dokumentu,
+        # zablokowany dokument NIE wraca — żadnych bajtów dokumentu,
         # żadnych fragmentów; tylko typy znalezisk z licznikami.
         odpowiedz = {
             "blad": "kontrola znalazła w wyniku dane przypominające oryginalne, dokument zablokowany",
@@ -909,15 +907,15 @@ def create_app(
         if raport.status == "zablokowany":
             miejsca, podglad = _miejsca_do_decyzji(raport, wynik, format)
             raise BladKontroli(_licznik_typow(raport.ostrzezenia), miejsca, podglad, zadanie)
-        _posprzataj()  # sprzątanie wygasłych przy każdym wywołaniu (§2)
-        mapa_zapisana = None  # datetime wygaśnięcia albo "blad" (§9 pkt 5)
-        with app.state.magazyn.blokada:  # jedna blokada: magazyn + dziennik + rejestr (pkt 9)
+        _posprzataj()  # sprzątanie wygasłych przy każdym wywołaniu
+        mapa_zapisana = None  # datetime wygaśnięcia albo "blad"
+        with app.state.magazyn.blokada:  # jedna blokada: magazyn + dziennik + rejestr
             app.state.identyfikatory.add(mapa.identyfikator)
             skrot = hashlib.sha256(mapa_paczka).hexdigest()
             app.state.szyfrogramy[skrot] = mapa.identyfikator
             _dopisz_do_rejestru(konfig.rejestr_map, skrot, mapa.identyfikator)
             try:
-                # zapis PRZED odpowiedzią (§9 pkt 5): błąd nie zabija ukrywania,
+                # zapis PRZED odpowiedzią: błąd nie zabija ukrywania,
                 # wynik wraca z nagłówkiem „blad", a UI każe pobrać mapę
                 mapa_zapisana = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
             except (OSError, BladMapy) as blad:
@@ -925,7 +923,7 @@ def create_app(
                 app.state.identyfikatory.discard(mapa.identyfikator)
                 mapa_zapisana = "blad"
 
-        # K4b pkt 7: pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
+        # pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
         # tylko krótki skrót (nazwa pliku nie musi być niepodrabialna)
         skrot = mapa.identyfikator[:12]
         paczka = io.BytesIO()
@@ -938,10 +936,10 @@ def create_app(
             "x-niewidka-statystyki": _json_naglowek(raport.statystyki),
             "x-niewidka-ostrzezenia": _json_naglowek(_licznik_typow(raport.ostrzezenia)),
             "x-niewidka-uwagi": _json_naglowek(raport.uwagi),
-            # K5c: gotowe teksty ryzyka (próg małej próby liczy serwer), nie gołe R95
+            # gotowe teksty ryzyka (próg małej próby liczy serwer), nie gołe R95
             "x-niewidka-r95": _json_naglowek(opisy_ryzyka(raport.poziom, list(raport.statystyki))),
             "x-niewidka-status": raport.status,
-            # docs/MAPY-I-AKTUALIZACJE.md §3: obecny tylko, gdy mapa trafiła do magazynu
+            # obecny tylko, gdy mapa trafiła do magazynu
             "content-disposition": 'attachment; filename="wynik.zip"',
         }
         if wlasne is not None:
@@ -958,15 +956,12 @@ def create_app(
 
     @app.post("/api/popraw")
     async def endpoint_popraw(request: Request) -> Response:
-        """Poprawki w podglądzie bez ponownego uruchamiania modelu (§4, §8 pkt 4-5).
+        """Poprawki w podglądzie bez ponownego uruchamiania modelu.
         JSON: `zadanie` (x-niewidka-zadanie), `ukryj`, `nie_dane` (znaczniki), `zostaw`
         (miejsca wątpliwe z blokady uznane za nie-dane). Za każdym razem pełne listy:
         cofnięcie poprawki to przeliczenie bez niej."""
-        try:
-            tresc = await request.json()
-        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
-            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
-        if not isinstance(tresc, dict) or not isinstance(tresc.get("zadanie"), str):
+        tresc = await _obiekt_json(request)
+        if not isinstance(tresc.get("zadanie"), str):
             raise HTTPException(status_code=422, detail="brak identyfikatora zadania")
         lista_ukryj = sprawdz_liste("ukryj", tresc.get("ukryj"))
         lista_nie_dane = sprawdz_liste("nie_dane", tresc.get("nie_dane"))
@@ -1020,10 +1015,10 @@ def create_app(
         ]
 
     def _mapa_z_magazynu(dane: bytes, format: str, wskazanie: str | None, klucz: bytes) -> tuple[Mapa, bool]:
-        """Wybór mapy bez pliku .nwidka (docs/MAPY-I-AKTUALIZACJE.md §3, §8):
-        dopisek w treści wygrywa z polem `identyfikator` (przegląd Argona pkt 10);
+        """Wybór mapy bez pliku .nwidka:
+        dopisek w treści wygrywa z polem `identyfikator`;
         bez dopisku kandydatem jest tylko mapa z kompletem znaczników z tekstu
-        (pkt 2: dokładnie jeden = wybrany, więcej albo zero = wybierz_mape)."""
+        (dokładnie jeden = wybrany, więcej albo zero = wybierz_mape)."""
         limit = konfig.max_rozpakowane_mb * _MB
         id_z_dopisku = identyfikator_z_dopisku(dane, format, max_rozpakowane_bajtow=limit)
         wskazane = id_z_dopisku or wskazanie
@@ -1077,7 +1072,7 @@ def create_app(
         identyfikator: str | None = Form(None),
     ) -> Response:
         """Przywracanie: plik wyniku ALBO wklejony tekst; mapa z pliku, dopisku
-        w treści albo z magazynu po identyfikatorze (§3)."""
+        w treści albo z magazynu po identyfikatorze."""
         if (wynik is None) == (tekst is None):
             raise HTTPException(status_code=422, detail="podaj dokładnie jedno: plik wyniku albo tekst")
         if tekst is not None and len(tekst.encode()) > konfig.max_tekst_mb * _MB:
@@ -1093,13 +1088,13 @@ def create_app(
             format = "txt"
             dane_wyniku = tekst.encode()
         dane_mapy = await mapa.read() if mapa is not None else None
-        _posprzataj()  # sprzątanie wygasłych, zanim cokolwiek przywrócimy (§2)
+        _posprzataj()  # sprzątanie wygasłych, zanim cokolwiek przywrócimy
 
         def praca():
             klucz = pobierz_klucz(konfig)
             wybrana_automatycznie = False
             if dane_mapy is not None:
-                # K4b pkt 7: najpierw rejestr wydanych szyfrogramów, dopiero potem
+                # najpierw rejestr wydanych szyfrogramów, dopiero potem
                 # odszyfrowanie — stara mapa z trafionym identyfikatorem nie przechodzi
                 if hashlib.sha256(dane_mapy).hexdigest() not in app.state.szyfrogramy:
                     raise BladMapy("mapa nie została wydana przez ten program")
@@ -1129,7 +1124,7 @@ def create_app(
             "x-niewidka-identyfikator": identyfikator_mapy,
         }
         if wybrana_automatycznie:
-            # przegląd Argona pkt 2: jeden kandydat wybrany za użytkownika, jawnie
+            # jeden kandydat wybrany za użytkownika, jawnie
             naglowki["x-niewidka-mapa-wybrana-automatycznie"] = "1"
         if wynik is not None:
             naglowki["content-disposition"] = (
@@ -1145,7 +1140,7 @@ def create_app(
     @app.get("/api/mapy")
     async def endpoint_mapy() -> dict:
         """Zapisane mapy od najnowszej (lista wyboru „Zadanie" i Ustawienia); id to
-        pełny identyfikator - nie jest daną osobową (docs/MAPY-I-AKTUALIZACJE.md §3)."""
+        pełny identyfikator - nie jest daną osobową."""
         with app.state.magazyn.blokada:  # odczyt spójny z równoległym usuwaniem/sprzątaniem
             _posprzataj()
             return {
@@ -1194,12 +1189,7 @@ def create_app(
 
     @app.put("/api/listy")
     async def endpoint_zapisz_listy(request: Request) -> dict:
-        try:
-            tresc = await request.json()
-        except Exception:  # noqa: BLE001 — ciało bez JSON = 422 bez odbicia treści
-            raise HTTPException(status_code=422, detail="oczekiwano JSON") from None
-        if not isinstance(tresc, dict):
-            raise HTTPException(status_code=422, detail="oczekiwano obiektu z polami zawsze i nigdy")
+        tresc = await _obiekt_json(request)
         try:
             listy = app.state.listy.zapisz(tresc.get("zawsze"), tresc.get("nigdy"))
         except PermissionError:
@@ -1219,7 +1209,7 @@ def create_app(
             "modele": modele,
             "poziom": konfig.poziom,
             "poziomy": list(_POZIOMY),  # dostępne poziomy suwaka
-            # K7b: z pakietami; przy serwerze inferencji poziomy zgłasza serwer
+            # z pakietami; przy serwerze inferencji poziomy zgłasza serwer
             "poziomy_dostepne": await _poziomy_dostepne(serwer),
             "inferencja": serwer,  # None = modele lokalne
             "r95": r95_poziomy(),  # R95 per poziom — interfejs pokazuje dla wybranego
@@ -1236,7 +1226,7 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     async def strona_glowna() -> HTMLResponse:
-        """Web lokalny (K5): index.html z tokenem sesji w meta — nigdy w URL ani w zasobach.
+        """Web lokalny: index.html z tokenem sesji w meta — nigdy w URL ani w zasobach.
 
         Trasa zarejestrowana przed montażem StaticFiles, więc wygrywa z plikiem index.html.
         no-store już dokleja middleware — token nie trafia do cache przeglądarki.

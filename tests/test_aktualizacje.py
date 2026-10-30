@@ -765,3 +765,20 @@ async def test_api_instaluj_offline_dobry_podpis_koniec_na_cofniecie(
         )
         assert wstecz.status_code == 200
         assert (kat_modeli / "model.onnx").read_text(encoding="utf-8") == "stary-model"
+
+
+@pytest.mark.anyio
+async def test_api_cialo_json_ktore_nie_jest_obiektem_daje_422(srodowisko_testowe):
+    from niewidka.api import create_app
+    from niewidka.konfig import Konfig
+
+    app = create_app(Konfig(modele_katalog=srodowisko_testowe["modele"]), detektor=DetektorProbki())
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8390"
+    ) as klient:
+        for adres in ("/api/pakiety", "/api/aktualizacje", "/api/popraw", "/api/listy"):
+            metoda = klient.put if adres == "/api/listy" else klient.post
+            odpowiedz = await metoda(
+                adres, json='{"akcja": "pobierz"}', headers={"X-Niewidka-Token": app.state.token}
+            )
+            assert odpowiedz.status_code == 422, adres

@@ -362,9 +362,14 @@
   <section id="panel-ustawienia" class="panel" role="tabpanel" aria-labelledby="zakladka-ustawienia" hidden>
     <h2>Ustawienia</h2>
     <p class="wyjasnienie">Modele wykrywające dane pobierają się z internetu raz i zostają
-    na tym komputerze. Jeżeli Twoja sieć nie pozwala łączyć się z internetem, osoba
-    opiekująca się programem może wgrać pakiety z dowolnego katalogu w sieci wewnętrznej.</p>
+    na tym komputerze. Komputer bez internetu: wklej ścieżkę do folderu z plikami pakietów
+    od IT i kliknij „Zainstaluj z folderu” przy pakiecie.</p>
     <p id="linia-modeli" class="podpowiedz linia-modeli"></p>
+    <div class="aktualizacje-folder-wiersz">
+      <input type="text" id="pakiety-folder" class="pole-sciezki"
+             placeholder="Folder z pakietami, na przykład D:\pakiety-niewidka"
+             aria-label="Folder z plikami pakietów">
+    </div>
     <div id="lista-pakietow" class="lista-pakietow"></div>
     <div id="postep-pakietu" class="postep-pakietu" hidden>
       <p id="postep-pakietu-status" aria-live="polite"></p>

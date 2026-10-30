@@ -185,7 +185,16 @@ async def test_ui_ponawia_pobieranie_po_bledzie(klient):
     assert "przycisk.disabled = stanPakietow.postep.pakiet !== null" in apka, (
         "przyciski pobierania mają zależeć od aktualnego stanu operacji (po błędzie: włączone)"
     )
-    assert "Nie udało się pobrać pakietu" in apka, "błąd pobierania ma być pokazany użytkownikowi"
+    assert "`Nie udało się: ${blad}`" in apka, "błąd pobierania ma być pokazany użytkownikowi"
+
+
+@pytest.mark.anyio
+async def test_ui_instaluje_pakiet_z_folderu(klient):
+    html = (await klient.get("/")).text
+    apka = (await klient.get("/apka.js")).text
+    assert 'id="pakiety-folder"' in html
+    assert 'akcjaPakietu("instaluj", identyfikator, folder)' in apka
+    assert 'akcja === "pobierz" || akcja === "instaluj"' in apka, "instalacja ma odpytywać postęp"
 
 
 @pytest.mark.anyio
@@ -278,3 +287,9 @@ async def test_mapa_niezapisana_i_licznik_zlecen(klient):
     assert '"blad"' in apka or "'blad'" in apka
     assert "licznikZlecen" in apka
     assert "mojaKolejna !== licznikZlecen" in apka, "spóźniona odpowiedź nie renderuje się"
+
+
+@pytest.mark.anyio
+async def test_ui_nie_koduje_json_dwa_razy(klient):
+    apka = (await klient.get("/apka.js")).text
+    assert not re.search(r"wyslij\([^)]*JSON\.stringify", apka), "wyslij() sam zamienia obiekt na JSON"

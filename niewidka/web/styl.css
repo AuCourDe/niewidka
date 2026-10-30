@@ -650,7 +650,7 @@ progress {
 }
 .pakiet-stan-uszkodzony { color: var(--blad); }
 .pakiet-wiersz p { margin: 0; font-size: 0.92rem; color: var(--atrament-slaby); }
-.pakiet-akcje { display: flex; justify-content: flex-end; }
+.pakiet-akcje { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
 .postep-pakietu { margin-top: 1rem; }
 .postep-pakietu p { margin: 0 0 0.4rem; font-size: 0.92rem; color: var(--atrament-slaby); }
 

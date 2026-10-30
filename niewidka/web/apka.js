@@ -1309,6 +1309,7 @@ let stanPakietow = { pakiety: [], poziomy_dostepne: [], postep: { pakiet: null, 
 let ekranPakietowOdrzucony = false; // „Później" w tej sesji
 let odpytywaniePostepu = null;
 let kolejkaPakietow = []; // „Pobierz wszystko": rozszerzony po podstawowym
+let biezacaAkcjaPakietu = "pobierz";
 
 function sformatujRozmiar(bajty) {
   return `${Math.round(bajty / (1024 * 1024))}\u00A0MB`;
@@ -1429,8 +1430,15 @@ function rysujListePakietow() {
       przycisk.textContent = "Pobierz";
       przycisk.disabled = stanPakietow.postep.pakiet !== null;
       przycisk.addEventListener("click", () => akcjaPakietu("pobierz", pakiet.id));
+      const zFolderu = document.createElement("button");
+      zFolderu.type = "button";
+      zFolderu.className = "przycisk-wtorny";
+      zFolderu.textContent = "Zainstaluj z folderu";
+      zFolderu.disabled = przycisk.disabled;
+      zFolderu.addEventListener("click", () => instalujZFolderu(pakiet.id));
+      akcje.append(zFolderu);
     }
-    akcje.append(przycisk);
+    akcje.prepend(przycisk);
     wiersz.append(naglowek, opis, opisLicencji(pakiet, pakiet.stan === "zainstalowany"), akcje);
     lista.append(wiersz);
   }
@@ -1446,8 +1454,8 @@ const MIEJSCA_POSTEPU = [
 function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
   const procent = razem > 0 ? Math.round((pobrane / razem) * 100) : 0;
   const tekst = blad
-    ? `Nie udało się pobrać pakietu: ${blad}`
-    : `Pobieranie pakietu ${pakietId}: ${procent}%…`;
+    ? `Nie udało się: ${blad}`
+    : `${biezacaAkcjaPakietu === "instaluj" ? "Instalowanie" : "Pobieranie"} pakietu ${pakietId}: ${procent}%…`;
   for (const [idBloku, idPaska, idStatusu] of MIEJSCA_POSTEPU) {
     document.getElementById(idBloku).hidden = !pakietId && !blad;
     document.getElementById(idPaska).value = procent;
@@ -1499,12 +1507,23 @@ function pollujPostep() {
   }, 300);
 }
 
+function instalujZFolderu(identyfikator) {
+  const folder = document.getElementById("pakiety-folder").value.trim();
+  if (!folder) {
+    komunikatOdpowiedziDlaPakietow({ blad: "wklej ścieżkę do folderu z pakietami." });
+    document.getElementById("pakiety-folder").focus();
+    return;
+  }
+  akcjaPakietu("instaluj", identyfikator, folder);
+}
+
 async function akcjaPakietu(akcja, identyfikator, katalog) {
   const dane = { akcja, pakiet: identyfikator };
   if (katalog) dane.katalog = katalog;
+  biezacaAkcjaPakietu = akcja;
   try {
-    const odpowiedz = await wyslij("/api/pakiety", JSON.stringify(dane));
-    if (akcja === "pobierz") {
+    const odpowiedz = await wyslij("/api/pakiety", dane);
+    if (akcja === "pobierz" || akcja === "instaluj") {
       pollujPostep();
       odswiezPakiety();
     } else {
@@ -1691,7 +1710,7 @@ function pokazBladAktualizacji(blad) {
 
 async function akcjaAktualizacji(dane) {
   try {
-    await wyslij("/api/aktualizacje", JSON.stringify(dane));
+    await wyslij("/api/aktualizacje", dane);
   } catch (blad) {
     pokazBladAktualizacji(blad);
     odswiezAktualizacje();
@@ -1723,7 +1742,7 @@ function inicjalizujAktualizacje() {
   document.getElementById("aktualizacje-sprawdz").addEventListener("click", async () => {
     document.getElementById("aktualizacje-sprawdz").disabled = true;
     try {
-      await wyslij("/api/aktualizacje", JSON.stringify({ akcja: "sprawdz" }));
+      await wyslij("/api/aktualizacje", { akcja: "sprawdz" });
     } catch (blad) {
       pokazBladAktualizacji(blad);
     }
@@ -1731,10 +1750,7 @@ function inicjalizujAktualizacje() {
   });
   document.getElementById("aktualizacje-tryb").addEventListener("change", async (zdarzenie) => {
     try {
-      await wyslij(
-        "/api/aktualizacje",
-        JSON.stringify({ akcja: "tryb", tryb: zdarzenie.currentTarget.value }),
-      );
+      await wyslij("/api/aktualizacje", { akcja: "tryb", tryb: zdarzenie.currentTarget.value });
       zapowiedz("Zmieniono sposób sprawdzania aktualizacji");
     } catch (blad) {
       pokazBladAktualizacji(blad);
