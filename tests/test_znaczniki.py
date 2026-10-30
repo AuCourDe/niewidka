@@ -2,8 +2,10 @@
 
 import pytest
 
+from niewidka.formaty import adapter_formatu
 from niewidka.model import Encja, TypEncji, Zakres
-from niewidka.znaczniki import DOPISEK, nadaj_oznaczenia, zamien_w_segment
+from niewidka.rdzen import zloz_wynik
+from niewidka.znaczniki import DOPISEK, nadaj_oznaczenia, znacznik_encji
 
 
 def _encja(typ: TypEncji, tekst: str, start: int, klucz: str | None = None) -> Encja:
@@ -61,6 +63,13 @@ def test_osoby_bez_klucza_to_osobne_grupy():
     assert encje[0].wariant == encje[1].wariant == "F1"
 
 
+def _zloz(tekst: str, encje: list[Encja]):
+    adapter = adapter_formatu("txt")
+    dok = adapter.wczytaj(tekst.encode("utf-8"))
+    wynik, mapa, _, _ = zloz_wynik(adapter, dok, [encje], 1)
+    return wynik.decode("utf-8"), mapa
+
+
 def test_zamiana_w_segmencie():
     tekst = "Jan Kowalski, PESEL 44051401359."
     encje = [
@@ -68,27 +77,27 @@ def test_zamiana_w_segmencie():
         _encja(TypEncji.PESEL, "44051401359", 20),
     ]
     nadaj_oznaczenia(encje)
-    nowy, kolejne = zamien_w_segment(tekst, encje)
-    assert nowy == "[OSOBA_1_F1], PESEL [PESEL_1]."
-    assert kolejne == [0, 1]
+    nowy, mapa = _zloz(tekst, encje)
+    assert "[OSOBA_1_F1], PESEL [PESEL_1]." in nowy
+    assert [w.kolejny for w in mapa.wystapienia] == [0, 1]
 
 
-def test_poczatek_kolejnego_ciągiem_miedzy_segmentami():
+def test_kolejny_ciagiem_dla_kolejnych_wystapien():
     tekst = "PESEL 44051401359 oraz PESEL 55010101234."
     encje = [
         _encja(TypEncji.PESEL, "44051401359", 6),
         _encja(TypEncji.PESEL, "55010101234", 29),
     ]
     nadaj_oznaczenia(encje)
-    nowy, kolejne = zamien_w_segment(tekst, encje, poczatek_kolejnego=5)
-    assert nowy == "PESEL [PESEL_1] oraz PESEL [PESEL_2]."
-    assert kolejne == [5, 6]
+    nowy, mapa = _zloz(tekst, encje)
+    assert "PESEL [PESEL_1] oraz PESEL [PESEL_2]." in nowy
+    assert [w.kolejny for w in mapa.wystapienia] == [0, 1]
 
 
 def test_bez_oznaczen_jawny_blad():
     encja = _encja(TypEncji.PESEL, "44051401359", 0)
     with pytest.raises(ValueError):
-        zamien_w_segment("PESEL 44051401359.", [encja])
+        znacznik_encji(encja)
 
 
 def test_dopisek_bez_nawiasow_kwadratowych():

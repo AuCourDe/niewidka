@@ -71,21 +71,3 @@ def znacznik_encji(encja: Encja) -> str:
     if encja.oznaczenie is None:
         raise ValueError("encja bez oznaczenia — najpierw nadaj_oznaczenia")
     return f"[{encja.oznaczenie}]" if encja.wariant is None else f"[{encja.oznaczenie}_{encja.wariant}]"
-
-
-def zamien_w_segment(
-    segment_tekst: str, encje: list[Encja], poczatek_kolejnego: int = 0
-) -> tuple[str, list[int]]:
-    """Tekst ze znacznikami + numery „kolejny" wystąpień dla mapy.
-
-    Zamiana od końca segmentu, żeby offsety nie uciekały. `poczatek_kolejnego`
-    kontynuuje globalną numerację między segmentami.
-    """
-    wynik = segment_tekst
-    kolejne: list[int] = []
-    posortowane = sorted(encje, key=lambda e: e.zakres.start)
-    for numer, encja in enumerate(posortowane):
-        kolejne.append(poczatek_kolejnego + numer)
-    for encja in reversed(posortowane):
-        wynik = wynik[: encja.zakres.start] + znacznik_encji(encja) + wynik[encja.zakres.koniec :]
-    return wynik, kolejne

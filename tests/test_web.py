@@ -173,8 +173,9 @@ async def test_gety_pakietow_i_stanu_wysylaja_token(klient):
     """GET /api/pakiety i /api/stan wymagają tokenu, więc UI
     MUSI wysyłać nagłówki sesji też w tych odpytaniach (nie tylko w POST-ach)."""
     apka = (await klient.get("/apka.js")).text
-    assert 'fetch("/api/pakiety", { headers: NAGLOWKI })' in apka
-    assert 'fetch("/api/stan", { headers: NAGLOWKI })' in apka
+    assert 'pobierzJson("/api/pakiety")' in apka
+    assert 'pobierzJson("/api/stan")' in apka
+    assert "headers: { ...NAGLOWKI, ...(opcje.headers || {}) }" in apka, "wspólne żądanie zawsze niesie token"
 
 
 @pytest.mark.anyio
@@ -223,7 +224,7 @@ async def test_przywroc_ma_tryb_wklejenia_i_liste_zadan(klient):
     assert 'id="lista-zadan"' in strona, "lista wyboru Zadanie"
     assert "Mam plik mapy (.nwidka)" in strona, "opcja odsłaniająca pole pliku mapy"
     assert 'id="plik-mapa-tekst"' in strona, "pole pliku mapy w trybie wklejenia"
-    assert 'fetch("/api/mapy", { headers: NAGLOWKI })' in apka, "lista zadań z API, za tokenem"
+    assert 'pobierzJson("/api/mapy")' in apka, "lista zadań z API, za tokenem"
 
 
 @pytest.mark.anyio
@@ -285,8 +286,11 @@ async def test_mapa_niezapisana_i_licznik_zlecen(klient):
     apka = (await klient.get("/apka.js")).text
     assert "Pobierz mapę, bo nie została zapisana." in apka
     assert '"blad"' in apka or "'blad'" in apka
-    assert "licznikZlecen" in apka
-    assert "mojaKolejna !== licznikZlecen" in apka, "spóźniona odpowiedź nie renderuje się"
+    assert "licznikZlecen" not in apka, "wspólny licznik unieważniał niezależne formularze"
+    assert "mojaKolejna !== licznikWyniku" in apka, "spóźniona odpowiedź nie renderuje się"
+    assert "mojaKolejna !== licznikPrzywracania" in apka
+    assert "if (mojaKolejna === licznikWyniku) ustawTrwa" not in apka, "przycisk odblokowuje się zawsze"
+    assert "if (mojaKolejna === licznikPrzywracania) ustawTrwa" not in apka
 
 
 @pytest.mark.anyio

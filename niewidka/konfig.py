@@ -23,6 +23,18 @@ PROG_OSOBA_DOMYSLNY = 0.2
 POLITYKI_OBRAZOW = ("usun", "blokuj", "zostaw")
 
 
+def host_w_adresie(host: str) -> str:
+    """Host do wstawienia w URL: adresy IPv6 w nawiasach kwadratowych."""
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
+
+
+def host_z_naglowka(naglowek: str) -> str:
+    """Nazwa hosta z nagłówka Host (bez portu i bez nawiasów IPv6)."""
+    if naglowek.startswith("["):
+        return naglowek[1:].split("]")[0]
+    return naglowek.split(":")[0]
+
+
 @dataclass(frozen=True)
 class Konfig:
     host: str = "127.0.0.1"

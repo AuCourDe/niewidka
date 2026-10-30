@@ -15,12 +15,18 @@ from niewidka.mapa import (
     Wystapienie,
     naglowek,
     odszyfruj,
-    przywroc_tekst,
     slownik,
     zaszyfruj,
 )
+from niewidka.rdzen import przywroc
 
 KLUCZ = bytes(range(32))
+
+
+def przywroc_tekst(tekst: str, mapa: Mapa):
+    """Ścieżka produktu (`rdzen.przywroc`); brak dopisku z identyfikatorem pomijamy."""
+    wynik, rozbieznosci = przywroc(tekst.encode("utf-8"), "txt", mapa)
+    return wynik.decode("utf-8"), [r for r in rozbieznosci if r.typ != "brak_identyfikatora"]
 
 
 def mapa_proba() -> Mapa:

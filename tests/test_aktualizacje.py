@@ -782,3 +782,99 @@ async def test_api_cialo_json_ktore_nie_jest_obiektem_daje_422(srodowisko_testow
                 adres, json='{"akcja": "pobierz"}', headers={"X-Niewidka-Token": app.state.token}
             )
             assert odpowiedz.status_code == 422, adres
+
+
+# --- zaufane definicje zainstalowanych pakietów, błędy bez URL, limit strumieniowy --------
+
+
+def test_sprawdzenie_aktualizacji_nie_psuje_zainstalowanego_pakietu(srodowisko_testowe, tmp_path, monkeypatch):
+    import hashlib
+
+    kat_modeli = srodowisko_testowe["modele"]
+    _stary_pakiet_w_katalogu_modeli(kat_modeli)
+    stary = b"stary-model"
+    (kat_modeli / "model.onnx").write_bytes(stary)
+    wbudowany = tmp_path / "wbudowany.json"
+    wbudowany.write_text(
+        json.dumps(
+            {
+                "wersja_katalogu": 1,
+                "pakiety": [
+                    {
+                        "id": "podstawowy", "nazwa": "Podstawowy", "opis": "t", "wymagany": True,
+                        "poziomy": [1], "wersja": 1,
+                        "pliki": [
+                            {
+                                "nazwa": "model.onnx", "zrodlo": "model-v1.onnx", "rozmiar": len(stary),
+                                "sha256": hashlib.sha256(stary).hexdigest(),
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(aktualizacje, "KATALOG_PAKIETOW", wbudowany)
+    katalog_bajty, podpis_bajty, nowa_tresc = _katalog_v2(srodowisko_testowe["klucz_prywatny"])
+    klient = _transport_z_zasobami(
+        {
+            "katalog-pakietow.json": katalog_bajty,
+            "katalog-pakietow.json.sig": podpis_bajty,
+            "model-v2.onnx": nowa_tresc,
+        }
+    )
+    mgr_pakietow = pakiety.MenedzerPakietow(pakiety.wczytaj_pakiety(wbudowany), kat_modeli, "http://x")
+    mgr_pakietow.czekaj()
+    menedzer = aktualizacje.MenedzerAktualizacji(
+        katalog_modeli_sciezka=kat_modeli,
+        katalog_danych_sciezka=srodowisko_testowe["dane"],
+        zrodlo_url="http://x",
+        menedzer_pakietow=mgr_pakietow,
+        klucze_publiczne=[srodowisko_testowe["klucz_publiczny"]],
+        probka_plik=_probka(tmp_path),
+        fabryka_detektora=lambda pakiet, katalog: DetektorProbki(),
+        klient=klient,
+    )
+    assert mgr_pakietow.stan_pakietu("podstawowy") == "zainstalowany"
+    menedzer.sprawdz_aktualizacje()
+    mgr_pakietow.czekaj()
+    assert mgr_pakietow.stan_pakietu("podstawowy") == "zainstalowany"
+    assert menedzer.zaufane_pakiety()[0].wersja == 1  # pliki na dysku to nadal v1
+
+    assert menedzer.instaluj_aktualizacje("podstawowy", w_tle=False) is True
+    mgr_pakietow.czekaj()
+    assert mgr_pakietow.stan_pakietu("podstawowy") == "zainstalowany"
+    assert menedzer.zaufane_pakiety()[0].wersja == 2
+
+
+def test_opis_bledu_nie_zawiera_adresu():
+    zadanie = httpx.Request("GET", "https://uzytkownik:haslo@lustro.example/katalog-pakietow.json")
+    blad = httpx.HTTPStatusError("x", request=zadanie, response=httpx.Response(401, request=zadanie))
+    assert aktualizacje.opis_bledu(blad) == "błąd HTTP 401"
+    assert "haslo" not in aktualizacje.opis_bledu(httpx.ConnectError("https://u:haslo@h", request=zadanie))
+
+
+def test_pobieranie_katalogu_przerywa_po_limicie_strumieniowo():
+    wyslane = []
+
+    def tresc():
+        for _ in range(100):
+            wyslane.append(1)
+            yield b"x" * 1024
+
+    klient = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=tresc())))
+    with pytest.raises(aktualizacje.BladAktualizacji):
+        aktualizacje.pobierz_zdalny_katalog("http://x", klient=klient, limit_bajtow=2048)
+    assert len(wyslane) < 100
+
+
+def test_probka_pakietu_rozszerzajacego_obejmuje_reguly_i_model_podstawowy(srodowisko_testowe, monkeypatch):
+    from niewidka.detektory import RegulyDetektor
+
+    monkeypatch.setattr(aktualizacje, "wczytaj_bardsai", lambda *a, **kw: RegulyDetektor())
+    monkeypatch.setattr(aktualizacje, "wczytaj_lfm25", lambda *a, **kw: RegulyDetektor())
+    menedzer = _menedzer(srodowisko_testowe)
+    rozszerzony = next(p for p in pakiety.wczytaj_pakiety() if p.wymaga)
+    detektor = menedzer._detektor_probki(rozszerzony, srodowisko_testowe["modele"])
+    assert len(detektor.czesci) == 3

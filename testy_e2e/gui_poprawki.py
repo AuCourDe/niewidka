@@ -119,7 +119,7 @@ ok("pobrania dostępne", js("!document.getElementById('blok-pobrania').hidden"))
 # 8. wygaśnięcie -> 410
 app.state.poprawki._wpisy.clear()
 js("document.getElementById('pole-ukryj-wszedzie').value='spał'; document.getElementById('przycisk-ukryj-wszedzie').click(); 1")
-poczekaj("document.getElementById('komunikat-poprawek').textContent.includes('Ukryj dokument ponownie')")
+poczekaj("document.getElementById('komunikat-poprawek').textContent.includes('ukryj dokument ponownie')")
 ok("410 -> komunikat 'Ukryj dokument ponownie' widoczny", js("document.getElementById('komunikat-poprawek').offsetParent!==null") and js("document.getElementById('blok-poprawek').hidden"))
 js("document.getElementById('naglowek-wyniku').scrollIntoView()")
 szer = wyslij("Page.captureScreenshot", {"format": "png"}, sesja)["data"]

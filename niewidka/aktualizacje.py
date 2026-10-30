@@ -44,6 +44,7 @@ PROBKA_KONTROLNA_DOMYSLNA = Path(__file__).parent / "dane" / "probka-kontrolna.j
 PLIK_USTAWIEN = "ustawienia.json"
 PLIK_KATALOGU_DANYCH = "katalog-pakietow.json"
 PLIK_PODPISU_DANYCH = "katalog-pakietow.json.sig"
+KATALOG_ZAINSTALOWANYCH = "zainstalowane"  # podpisane kopie katalogu per zainstalowany pakiet
 LIMIT_KATALOGU_BAJTOW = 1024 * 1024  # 1 MB
 TRYBY_AKTUALIZACJI = ("reczne", "sprawdzaj", "automatyczne", "wylaczone")
 TRYB_DOMYSLNY = "sprawdzaj"
@@ -274,6 +275,18 @@ def ocen_probke_kontrolna(
     return not bledy, bledy
 
 
+def opis_bledu(blad: BaseException) -> str:
+    """Komunikat bez adresu źródła (bywa z loginem i hasłem lustra): własne błędy
+    programu w całości, błąd HTTP jako kod, reszta jako typ."""
+    if isinstance(blad, (BladAktualizacji, BladPakietu)):
+        return str(blad)
+    if isinstance(blad, httpx.HTTPStatusError):
+        return f"błąd HTTP {blad.response.status_code}"
+    if isinstance(blad, httpx.HTTPError):
+        return "błąd sieci"
+    return type(blad).__name__
+
+
 def pobierz_zdalny_katalog(
     zrodlo_url: str,
     klient: httpx.Client | None = None,
@@ -289,19 +302,22 @@ def pobierz_zdalny_katalog(
     def jedno(nazwa: str) -> bytes:
         url = f"{baza}/{nazwa}"
         for _ in range(5):
-            odpowiedz = klient.get(url, follow_redirects=False)
-            if odpowiedz.status_code in (301, 302, 303, 307, 308):
-                lokalizacja = odpowiedz.headers.get("location")
-                if not lokalizacja:
-                    raise BladPakietu("Przekierowanie bez lokalizacji")
-                nastepny = str(httpx.URL(url).join(lokalizacja))
-                _waliduj_przekierowanie(nastepny, host_zrodla)
-                url = nastepny
-                continue
-            odpowiedz.raise_for_status()
-            if len(odpowiedz.content) > limit_bajtow:
-                raise BladAktualizacji(f"Plik {nazwa} przekracza limit {limit_bajtow} B")
-            return odpowiedz.content
+            with klient.stream("GET", url, follow_redirects=False) as odpowiedz:
+                if odpowiedz.status_code in (301, 302, 303, 307, 308):
+                    lokalizacja = odpowiedz.headers.get("location")
+                    if not lokalizacja:
+                        raise BladPakietu("Przekierowanie bez lokalizacji")
+                    nastepny = str(httpx.URL(url).join(lokalizacja))
+                    _waliduj_przekierowanie(nastepny, host_zrodla)
+                    url = nastepny
+                    continue
+                odpowiedz.raise_for_status()
+                tresc = bytearray()
+                for kawalek in odpowiedz.iter_bytes():
+                    tresc += kawalek
+                    if len(tresc) > limit_bajtow:
+                        raise BladAktualizacji(f"Plik {nazwa} przekracza limit {limit_bajtow} B")
+                return bytes(tresc)
         raise BladPakietu("Za dużo przekierowań")
 
     try:
@@ -410,10 +426,48 @@ class MenedzerAktualizacji:
             self.katalog_aktywny_plik = KATALOG_PAKIETOW
             return
         self.katalog_aktywny_plik = plik_katalogu
-        self._przyjmij_pakiety(plik_katalogu)
+        self._przyjmij_pakiety()
 
-    def _przyjmij_pakiety(self, plik_katalogu: Path) -> None:
-        self._pakiety_mgr.podmien_pakiety(wczytaj_pakiety(plik_katalogu))
+    def _przyjmij_pakiety(self) -> None:
+        self._pakiety_mgr.podmien_pakiety(self.zaufane_pakiety())
+
+    def zaufane_pakiety(self) -> list[Pakiet]:
+        """Definicje, względem których weryfikuje się pliki NA DYSKU: pakiet zainstalowany
+        w innej wersji niż katalog (czeka aktualizacja) trzyma definicję zapamiętaną przy
+        instalacji, a w jej braku wbudowaną; sprawdzenie aktualizacji nie psuje starego pakietu.
+        SIMPLIFICATION: wersja zainstalowana pochodzi z manifest.json; po cofnięciu aktualizacji
+        pakiet jest oceniany według definicji wbudowanej, nie wcześniejszej aktualizacji."""
+        wbudowane = {p.id: p for p in wczytaj_pakiety(KATALOG_PAKIETOW)}
+        wynik = []
+        for pakiet in wczytaj_pakiety(self.katalog_aktywny_plik):
+            zainstalowana = odczytaj_zainstalowana_wersje(pakiet, self._katalog_modeli)
+            if zainstalowana is not None and zainstalowana != pakiet.wersja:
+                pakiet = self._zapamietany_pakiet(pakiet.id) or wbudowane.get(pakiet.id, pakiet)
+            wynik.append(pakiet)
+        return wynik
+
+    def _zapamietany_pakiet(self, identyfikator: str) -> Pakiet | None:
+        katalog = self._katalog_danych / KATALOG_ZAINSTALOWANYCH / f"{identyfikator}.json"
+        podpis = katalog.with_name(katalog.name + ".sig")
+        try:
+            weryfikuj_katalog(katalog.read_bytes(), podpis.read_bytes(), self._klucze, pozwalaj_rowna=True)
+            return next((p for p in wczytaj_pakiety(katalog) if p.id == identyfikator), None)
+        except (BladAktualizacji, OSError, ValueError):
+            return None
+
+    def _zapamietaj_zainstalowane(self) -> None:
+        """Kopia aktywnego, podpisanego katalogu dla każdego pakietu zainstalowanego
+        w wersji z tego katalogu; tylko dla katalogu przyjętego (wbudowany jest zawsze pod ręką)."""
+        plik = self._katalog_danych / PLIK_KATALOGU_DANYCH
+        podpis = self._katalog_danych / PLIK_PODPISU_DANYCH
+        if self.katalog_aktywny_plik != plik or not podpis.is_file():
+            return
+        cel = self._katalog_danych / KATALOG_ZAINSTALOWANYCH
+        for pakiet in wczytaj_pakiety(plik):
+            if odczytaj_zainstalowana_wersje(pakiet, self._katalog_modeli) == pakiet.wersja:
+                cel.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(plik, cel / f"{pakiet.id}.json")
+                shutil.copyfile(podpis, cel / f"{pakiet.id}.json.sig")
 
     # --- tryb ----------------------------------------------------------------------
 
@@ -456,7 +510,7 @@ class MenedzerAktualizacji:
             if self.tryb == "automatyczne" and self.stan == "dostepna_aktualizacja":
                 self.instaluj_aktualizacje(w_tle=False)
         except (httpx.HTTPError, BladAktualizacji, OSError) as blad:
-            logger.warning("Automatyczne sprawdzenie aktualizacji nie powiodło się: %s", blad)
+            logger.warning("Automatyczne sprawdzenie aktualizacji nie powiodło się: %s", opis_bledu(blad))
 
     def sprawdz_aktualizacje(self) -> dict[str, Any]:
         """Pobiera zdalny katalog, weryfikuje (podpis, próg rollbacku, schemat),
@@ -481,7 +535,7 @@ class MenedzerAktualizacji:
             return dane
         except Exception as blad:
             self.stan = "blad"
-            self.blad = str(blad)
+            self.blad = opis_bledu(blad)
             raise
         finally:
             self._w_toku = False
@@ -502,6 +556,7 @@ class MenedzerAktualizacji:
 
     def _zapisz_przyjety_katalog(self, katalog_bajty: bytes, podpis_bajty: bytes, dane: dict) -> None:
         self._katalog_danych.mkdir(parents=True, exist_ok=True)
+        self._zapamietaj_zainstalowane()  # zanim nowy katalog zastąpi opis zainstalowanych wersji
         plik_katalogu = self._katalog_danych / PLIK_KATALOGU_DANYCH
         plik_podpisu = self._katalog_danych / PLIK_PODPISU_DANYCH
         tmp_katalogu = plik_katalogu.with_name(PLIK_KATALOGU_DANYCH + ".tmp")
@@ -511,7 +566,7 @@ class MenedzerAktualizacji:
         os.replace(tmp_katalogu, plik_katalogu)
         os.replace(tmp_podpisu, plik_podpisu)
         self.katalog_aktywny_plik = plik_katalogu
-        self._przyjmij_pakiety(plik_katalogu)
+        self._przyjmij_pakiety()
         ustawienia = wczytaj_ustawienia(self._katalog_danych)
         ustawienia["najwyzsza_wersja_katalogu"] = max(
             self.najwyzsza_wersja_katalogu, int(dane["wersja_katalogu"])
@@ -622,11 +677,12 @@ class MenedzerAktualizacji:
             try:
                 for pakiet in cele:
                     self._wykonaj_instalacje(pakiet, folder)
+                self._zapamietaj_zainstalowane()
+                self._przyjmij_pakiety()
                 self._przelicz_stan()
             except (BladPakietu, BladAktualizacji, httpx.HTTPError, OSError) as blad:
-                self.postep["blad"] = str(blad)
-                self.blad = str(blad)
-                logger.error("Instalacja aktualizacji nie powiodła się: %s", blad)
+                self.postep["blad"] = self.blad = opis_bledu(blad)
+                logger.error("Instalacja aktualizacji nie powiodła się: %s", self.blad)
             finally:
                 self._w_toku = False
                 self.postep["pakiet"] = None
@@ -640,19 +696,22 @@ class MenedzerAktualizacji:
         return self.postep["blad"] is None
 
     def _detektor_probki(self, pakiet: Pakiet, katalog: Path) -> Any:
-        """Domyślny detektor próbki: wyłącznie warstwy dotknięte pakietem, budowane
-        z katalogu przejściowego. Hasze plików weryfikuje PRZYJĘTY katalog
-        (wbudowany pinuje stare wersje, więc nowe by nie przeszły)."""
-        if pakiet.wymaga:  # pakiet rozszerzający wnosi wyłącznie model LFM (IP, KARTA, SWIFT, LOGIN)
+        """Domyślny detektor próbki: reguły + model podstawowy (zainstalowany albo, gdy to jego
+        aktualizacja, przejściowy) + warstwa aktualizowanego pakietu rozszerzającego. Wspólna
+        próbka wymaga osób, PESEL-u, telefonu i adresów, więc sam model rozszerzający jej nie
+        zaliczy. Hasze plików weryfikują zaufane definicje, a przy aktualizowanym pakiecie katalog
+        przyjęty (wbudowany pinuje stare wersje, więc nowe by nie przeszły)."""
+        if pakiet.wymaga:
+            zaufane = [p for p in self.zaufane_pakiety() if p.id != pakiet.id]
+            zaufane += [p for p in wczytaj_pakiety(self.katalog_aktywny_plik) if p.id == pakiet.id]
             return DetektorKompozyt(
-                "probka-lfm",
+                "probka-rozszerzony",
                 [
+                    RegulyDetektor(),
+                    wczytaj_bardsai(self._katalog_modeli, katalog_pakietow=zaufane),
                     wczytaj_lfm25(
-                        katalog,
-                        wariant="q4-bl32",
-                        rozszerzony=True,
-                        katalog_pakietow=self.katalog_aktywny_plik,
-                    )
+                        katalog, wariant="q4-bl32", rozszerzony=True, katalog_pakietow=zaufane
+                    ),
                 ],
             )
         return DetektorKompozyt(
@@ -777,6 +836,7 @@ class MenedzerAktualizacji:
             if element.is_file():
                 shutil.copy2(element, katalog_docelowy / element.name)
         shutil.rmtree(poprzednie, ignore_errors=True)
+        self._przyjmij_pakiety()
         self._pakiety_mgr.odswiez()
         self._pakiety_mgr._zglos_zmiane()
         self._przelicz_stan()

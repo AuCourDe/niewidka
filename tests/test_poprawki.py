@@ -313,6 +313,42 @@ async def test_blokada_niesie_miejsca_i_zostaw_ja_zdejmuje(konfig):
     assert odpowiedz.status_code == 200, odpowiedz.text
 
 
+@pytest.mark.anyio
+async def test_zostaw_nie_odwoluje_blokady_uszkodzonego_xml(konfig):
+    zrodlo = _docx_z_nazwiskiem_w_czesci()
+    wejscie = zipfile.ZipFile(io.BytesIO(zrodlo))
+    czesci = {n: wejscie.read(n) for n in wejscie.namelist()}
+    czesci["word/theme/proba.xml"] = b"<theme><niedomkniete>"
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+        for nazwa, tresc in czesci.items():
+            paczka.writestr(nazwa, tresc)
+    app = create_app(konfig, detektor=DetektorZLicznikiem(frazy=("Anna Nowak",)))
+    async with _klient(app) as klient:
+        blokada = await klient.post(
+            "/api/ukryj", data={"poziom": "1"},
+            files={"plik": ("umowa.docx", bufor.getvalue())}, headers=_naglowki(app),
+        )
+        assert blokada.status_code == 422
+        zadanie = blokada.json()["zadanie"]
+        for zostaw in (["Anna Nowak"], ["x"], [""]):
+            odpowiedz = await _popraw(klient, app, zadanie, zostaw=zostaw)
+            assert odpowiedz.status_code == 422, zostaw
+            assert odpowiedz.json()["status"] == "zablokowany"
+
+
+@pytest.mark.anyio
+async def test_ukryj_nachodzace_na_wykrycie_zachowuje_ochrone_calego_wykrycia(konfig):
+    app = create_app(konfig, detektor=DetektorZLicznikiem(frazy=("Jan Kowalski",)))
+    async with _klient(app) as klient:
+        _, zadanie = await _ukryj(klient, app, "Jan Kowalski oraz Anna poszli.")
+        odpowiedz = await _popraw(klient, app, zadanie, ukryj=["Kowalski oraz"])
+    assert odpowiedz.status_code == 200, odpowiedz.text
+    tekst = _tekst_wyniku(odpowiedz)
+    assert "Jan" not in tekst and "Kowalski" not in tekst and "oraz" not in tekst
+    assert "Anna" in tekst
+
+
 class DetektorUparty(DetektorZLicznikiem):
     """Kontrola widzi „Wczoraj ... spał” na tekście z zamaskowanym znacznikiem; fragment
     zawiera spacje po znaczniku, więc nie da się go znaleźć w oryginale i blokada zostaje."""
@@ -368,7 +404,7 @@ def test_ui_dostepnosc_poprawek():
     assert 'id="ukryj-zaznaczone"' in html and 'id="pole-ukryj-wszedzie"' in html  # klawiatura
     assert 'document.createElement("button")' in js and "zaslepka-przycisk" in js  # plakietki jako przyciski
     assert "Tekst się zmienił. Skopiuj go ponownie." in js
-    assert "if (mojaKolejna !== licznikZlecen) return;" in js  # odpowiedzi starszych żądań ignorowane
+    assert "if (mojaKolejna !== licznikWyniku) return;" in js  # odpowiedzi starszych żądań ignorowane
     assert '"PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"' in js  # bez „To nie dane” dla sum
 
 
@@ -385,6 +421,8 @@ async def test_na_inne_zmienia_rodzaj_bez_przenumerowania(konfig):
         assert "[OSOBA_2" not in tekst and "[INNE_1" in tekst  # cała grupa Marii Lis, z formami
         assert "[OSOBA_1" in tekst and "[OSOBA_3" in tekst  # pozostałe numery bez zmian
         assert "Maria Lis" not in tekst
+        # kolejne poprawki muszą wskazywać znacznik bazowy, więc serwer podaje, z którego powstał INNE_1
+        assert json.loads(odpowiedz.headers["x-niewidka-na-inne"]) == {"INNE_1": "OSOBA_2"}
         pesel = await klient.post(
             "/api/popraw", json={"zadanie": zadanie, "na_inne": ["PESEL_1"]}, headers=_naglowki(app)
         )

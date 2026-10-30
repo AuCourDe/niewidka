@@ -148,6 +148,21 @@ def _nachodza(a: tuple[int, int], b: tuple[int, int]) -> bool:
     return a[0] < b[1] and b[0] < a[1]
 
 
+def _z_wykryciami(zakres: tuple[int, int], encje: list[Encja]) -> tuple[int, int]:
+    """Unia zakresu ze wszystkimi nachodzącymi wykryciami (także pośrednio)."""
+    start, koniec = zakres
+    zmiana = True
+    while zmiana:
+        zmiana = False
+        for e in encje:
+            if _nachodza((start, koniec), (e.zakres.start, e.zakres.koniec)) and (
+                e.zakres.start < start or e.zakres.koniec > koniec
+            ):
+                start, koniec = min(start, e.zakres.start), max(koniec, e.zakres.koniec)
+                zmiana = True
+    return start, koniec
+
+
 def popraw(
     detekcje: Detekcje,
     ukryj: Iterable[str],
@@ -227,6 +242,8 @@ def popraw(
             n for n in nowe
             if not any(e.zakres.start <= n[0] and n[1] <= e.zakres.koniec for e in kept)
         ]
+        # nachodzące częściowo: nowy zakres obejmuje całe wcześniejsze wykrycie, by nic nie odsłonić
+        nowe = [(*_z_wykryciami(n[:2], kept), n[2]) for n in nowe]
         kept = [e for e in kept if not any(_nachodza((e.zakres.start, e.zakres.koniec), n[:2]) for n in nowe)]
         przyjete: list[tuple[int, int, int]] = []
         for n in sorted(nowe, key=lambda n: (n[0], -(n[1] - n[0]))):
@@ -305,7 +322,7 @@ def popraw(
         if o.typ in suma:  # pewne wykrycie nie schodzi, a prośba o zdjęcie go to błąd
             if fragment in zostaw:
                 raise BladPoprawki("dla numerów z sumą kontrolną nie ma opcji „To nie dane”")
-        elif any(fragment in wyjatek for wyjatek in wyjatki):
+        elif fragment and any(fragment in wyjatek for wyjatek in wyjatki):
             continue
         pozostale.append(o)
     raport = Raport(

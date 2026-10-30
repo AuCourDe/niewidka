@@ -42,7 +42,7 @@ from niewidka.formaty import (
 )
 from niewidka.jakosc import opisy_ryzyka, r95_poziomy
 from niewidka.klucze import BrakKlucza, pobierz_klucz
-from niewidka.konfig import Konfig, wczytaj_konfig
+from niewidka.konfig import Konfig, host_w_adresie, host_z_naglowka, wczytaj_konfig
 from niewidka.kontrola import Ostrzezenie
 from niewidka.listy import ListyStale
 from niewidka.magazyn import MagazynMap, kontekst_domyslny, wersje_pakietow
@@ -241,28 +241,34 @@ class Kolejka:
     async def wykonaj(self, praca, timeout_s: int | None = None):
         limit = timeout_s or self.timeout_s
         if self._slot().locked():
-            # slot zajęty: to żądanie jest kolejnym oczekującym
+            # slot zajęty: to żądanie jest kolejnym oczekującym; miejsce zwalnia się
+            # dopiero, gdy jego zadanie zacznie pracę (nie po timeoucie żądania)
             if self.czekajacy >= self.maks:
                 raise KolejkaPelna()
             self.czekajacy += 1
-            try:
-                return await self._oczekiwane(praca, limit)
-            finally:
-                self.czekajacy -= 1
+            return await self._oczekiwane(praca, limit, liczone=True)
         # slot wolny: to żądanie zakłada własne zadanie pod semaforem
         return await self._oczekiwane(praca, limit)
 
-    async def _oczekiwane(self, praca, limit: int):
-        zadanie = asyncio.create_task(self._z_slotem(praca))
+    async def _oczekiwane(self, praca, limit: int, liczone: bool = False):
+        zadanie = asyncio.create_task(self._z_slotem(praca, liczone))
         zadanie.add_done_callback(_pochlonnij_wyjatek)
         zakonczone, _ = await asyncio.wait({zadanie}, timeout=limit)
         if zadanie not in zakonczone:
             raise PracaPrzekroczylaCzas()  # zadanie pracuje dalej, trzyma slot
         return zadanie.result()
 
-    async def _z_slotem(self, praca):
-        async with self._slot():
-            return await asyncio.to_thread(praca)
+    async def _z_slotem(self, praca, liczone: bool):
+        zwolnione = False
+        try:
+            async with self._slot():
+                if liczone:
+                    self.czekajacy -= 1
+                    zwolnione = True
+                return await asyncio.to_thread(praca)
+        finally:
+            if liczone and not zwolnione:  # anulowane, zanim dostało slot
+                self.czekajacy -= 1
 
     def stan(self) -> dict[str, int]:
         return {"czekajacy": self.czekajacy, "maks": self.maks}
@@ -434,7 +440,7 @@ def create_app(
             wykrywaj_date=konfig.wykrywaj_date,
         )
         n = len(zawsze)
-        z_listy = {z: zawsze[i] for z, i in sorted(wlasne.items()) if i < n}
+        z_listy = {z: listy.zawsze.index(zawsze[i]) for z, i in sorted(wlasne.items()) if i < n}
         wlasne = {z: i - n for z, i in wlasne.items() if i >= n}
         return wynik, mapa, raport, wlasne, z_listy
     app.state.magazyn = MagazynMap(
@@ -498,7 +504,12 @@ def create_app(
         zbudowany = app.state.detektory.get((poziom, rozszerzony))
         if zbudowany is None:
             try:
-                zbudowany = zbuduj_detektor(poziom, konfig, pakiet_rozszerzony=rozszerzony)
+                zbudowany = zbuduj_detektor(
+                    poziom,
+                    konfig,
+                    pakiet_rozszerzony=rozszerzony,
+                    katalog_pakietow=app.state.aktualizacje.zaufane_pakiety(),
+                )
             except Exception as blad:
                 brakujace = app.state.pakiety.brakujacy_wymagany()
                 if brakujace:
@@ -512,8 +523,8 @@ def create_app(
             app.state.detektory[(poziom, rozszerzony)] = zbudowany
         return zbudowany
     originy = {
-        f"http://{konfig.host}:{konfig.port}",
-        f"https://{konfig.host}:{konfig.port}",
+        f"http://{host_w_adresie(konfig.host)}:{konfig.port}",
+        f"https://{host_w_adresie(konfig.host)}:{konfig.port}",
         f"http://localhost:{konfig.port}",
         f"https://localhost:{konfig.port}",
     }
@@ -527,12 +538,12 @@ def create_app(
         strazliwe_gety = ("/api/pakiety", "/api/stan", "/api/mapy", "/api/aktualizacje", "/api/listy")
         # Host sprawdzany przy KAŻDYM żądaniu: strona główna wydaje token w meta
         # (obcy Host + DNS rebinding oddawałyby token)
-        if (request.headers.get("host") or "").split(":")[0] not in hosty:
+        if host_z_naglowka(request.headers.get("host") or "") not in hosty:
             return JSONResponse({"blad": "niedozwolony Host"}, status_code=403)
         if (
             request.method in ("POST", "PUT", "DELETE") and request.url.path.startswith("/api/")
         ) or (request.method == "GET" and request.url.path in strazliwe_gety):
-            host = (request.headers.get("host") or "").split(":")[0]
+            host = host_z_naglowka(request.headers.get("host") or "")
             origin = request.headers.get("origin")
             token = request.headers.get(_TOKEN_NAGLOWEK)
             if host not in hosty:
@@ -900,7 +911,8 @@ def create_app(
         return list(zebrane.values()), podglad
 
     def _wydaj_wynik(
-        wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None, z_listy=None
+        wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None, z_listy=None,
+        na_inne=None,
     ) -> Response:
         """Wspólne dla /api/ukryj i /api/popraw: blokada (422 z miejscami do decyzji) albo
         zapis mapy przed odpowiedzią i paczka ZIP z nagłówkami."""
@@ -920,7 +932,6 @@ def create_app(
                 mapa_zapisana = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
             except (OSError, BladMapy) as blad:
                 logger.warning("magazyn map niezapisany: %s", type(blad).__name__)
-                app.state.identyfikatory.discard(mapa.identyfikator)
                 mapa_zapisana = "blad"
 
         # pełny identyfikator żyje w mapie i nagłówku; w nazwach plików
@@ -946,13 +957,36 @@ def create_app(
             # znacznik → numer pozycji „ukryj", z której powstał (UI cofa je zamiast „To nie dane")
             naglowki["x-niewidka-wlasne"] = _json_naglowek(wlasne)
         if z_listy:
-            # znaczniki z listy „Zawsze ukrywaj” (UI odsyła do Ustawień zamiast „To nie dane”)
+            # znaczniki z listy „Zawsze ukrywaj” → indeks w `zawsze_razem` z GET /api/listy
+            # (treść pozycji nie idzie w nagłówku)
             naglowki["x-niewidka-z-listy"] = _json_naglowek(z_listy)
+        if na_inne:
+            # nowy znacznik INNE_n → znacznik bazowy, który zmienił rodzaj (poprawki liczą się od bazowych)
+            naglowki["x-niewidka-na-inne"] = _json_naglowek(na_inne)
         if mapa_zapisana is not None:
             naglowki["x-niewidka-mapa-zapisana"] = (
                 mapa_zapisana if isinstance(mapa_zapisana, str) else mapa_zapisana.isoformat()
             )
         return Response(paczka.getvalue(), media_type="application/zip", headers=naglowki)
+
+    def _nowe_na_bazowe(detekcje, mapa, na_inne, wlasne) -> dict[str, str]:
+        """Znacznik INNE_n, który powstał ze zmiany rodzaju → bazowy znacznik (dopasowanie po
+        oryginalnych fragmentach z mapy). Kolejne poprawki muszą wskazywać znaczniki bazowe."""
+        bazowe = {e.oznaczenie for encje in detekcje.encje for e in encje}
+        teksty = {
+            z: {e.tekst for encje in detekcje.encje for e in encje if e.oznaczenie == z}
+            for z in na_inne
+        }
+        wynik: dict[str, str] = {}
+        for wystapienie in mapa.wystapienia:
+            nowy = wystapienie.oznaczenie
+            if nowy in bazowe or nowy in wlasne or nowy in wynik:
+                continue
+            for z, fragmenty in teksty.items():
+                if wystapienie.oryginal in fragmenty and z not in wynik.values():
+                    wynik[nowy] = z
+                    break
+        return wynik
 
     @app.post("/api/popraw")
     async def endpoint_popraw(request: Request) -> Response:
@@ -983,7 +1017,7 @@ def create_app(
         wynik, mapa, raport, mapa_paczka, wlasne, z_listy = await app.state.kolejka.wykonaj(praca)
         odpowiedz = _wydaj_wynik(
             wynik, mapa, raport, mapa_paczka, f"tekst.{detekcje.format}", detekcje.format, zadanie, wlasne,
-            z_listy,
+            z_listy, _nowe_na_bazowe(detekcje, mapa, lista_na_inne, {**wlasne, **z_listy}),
         )
         try:  # tylko liczby pozycji, bez treści (dziennik audytu)
             app.state.magazyn.odnotuj(
@@ -1180,6 +1214,7 @@ def create_app(
             "nigdy": uzytkownik.nigdy,
             "administrator": {"zawsze": listy.admin.zawsze, "nigdy": listy.admin.nigdy},
             "tylko_administrator": listy.tylko_administrator,
+            "zawsze_razem": listy.razem().zawsze,  # indeksy z nagłówka x-niewidka-z-listy
         }
 
     @app.get("/api/listy")

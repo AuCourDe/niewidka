@@ -710,7 +710,7 @@ async def test_detektor_poziomu3_nie_zostaje_ze_starego_stanu_pakietu(
 
     wywolania: list[bool] = []
 
-    def falszywy(poziom, konfig, pakiet_rozszerzony=False):
+    def falszywy(poziom, konfig, pakiet_rozszerzony=False, katalog_pakietow=None):
         wywolania.append(pakiet_rozszerzony)
         return RegulyDetektor()
 
@@ -762,3 +762,50 @@ async def test_uszkodzony_docx_daje_422_nie_500(konfig):
         )
     assert odpowiedz.status_code == 422
     assert "DOCX" in odpowiedz.json()["blad"]
+
+
+@pytest.mark.anyio
+async def test_blad_magazynu_zostawia_mape_w_rejestrze_wydan(klucz_plik, tmp_path):
+    przeszkoda = tmp_path / "magazyn"
+    przeszkoda.write_text("plik, nie katalog", encoding="utf-8")
+    app = create_app(Konfig(klucz_plik=klucz_plik, mapy_katalog=przeszkoda), detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await _ukryj_tekst(klient, app)
+        assert odpowiedz.headers["x-niewidka-mapa-zapisana"] == "blad"
+        id_mapy = odpowiedz.headers["x-niewidka-identyfikator"]
+    assert id_mapy in app.state.identyfikatory
+
+
+@pytest.mark.anyio
+async def test_host_ipv6_w_nawiasach(klucz_plik):
+    from niewidka.konfig import host_w_adresie, host_z_naglowka
+
+    assert host_z_naglowka("[::1]:8390") == "::1" and host_z_naglowka("localhost:8390") == "localhost"
+    assert host_w_adresie("::1") == "[::1]" and host_w_adresie("127.0.0.1") == "127.0.0.1"
+    app = create_app(Konfig(klucz_plik=klucz_plik, host="::1"), detektor=RegulyDetektor())
+    adres = f"http://[::1]:{app.state.konfig.port}"
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=adres) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"tekst": TEKST, "poziom": "1"},
+            headers=_naglowki(app, Origin=adres),
+        )
+    assert odpowiedz.status_code == 200, odpowiedz.text
+
+
+@pytest.mark.anyio
+async def test_kolejka_liczy_miejsce_po_timeoucie_zadania_do_startu():
+    kolejka = api.Kolejka(maks=1, timeout_s=1)
+    brama = threading.Event()
+    czekajace = [asyncio.create_task(kolejka.wykonaj(lambda: brama.wait(3), timeout_s=1))]
+    await asyncio.sleep(0.1)  # slot zajęty
+    pierwsze = asyncio.create_task(kolejka.wykonaj(lambda: None, timeout_s=0.1))
+    with pytest.raises(api.PracaPrzekroczylaCzas):
+        await pierwsze
+    assert kolejka.czekajacy == 1  # zadanie po timeoucie dalej czeka na slot
+    with pytest.raises(api.KolejkaPelna):
+        await kolejka.wykonaj(lambda: None)
+    brama.set()
+    await asyncio.gather(*czekajace, return_exceptions=True)
+    await asyncio.sleep(0.2)
+    assert kolejka.czekajacy == 0

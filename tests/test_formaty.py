@@ -315,13 +315,13 @@ class TestAdapterDocxRoundTrip:
         assert "footnoteReference" not in doc_xml
         assert "headerReference" not in doc_xml
 
-    def test_hiperlacze_http_zostaje_mailto_usuniete_tekst_zostaje(self, wzorzec):
+    def test_hiperlacza_zewnetrzne_rozpakowane_tekst_zostaje(self, wzorzec):
         adapter = AdapterDocx()
         dok = adapter.wczytaj(wzorzec.read_bytes())
         wynik = adapter.zapisz(dok)
         z = zipfile.ZipFile(io.BytesIO(wynik))
         rels = z.read("word/_rels/document.xml.rels").decode("utf-8")
-        assert "https://example.com/oferta" in rels
+        assert "example.com" not in rels
         assert "mailto:" not in rels
         doc_xml = z.read("word/document.xml").decode("utf-8")
         assert "napisz do Jana" in doc_xml  # tekst z rozpakowanego mailto zostaje
@@ -329,6 +329,42 @@ class TestAdapterDocxRoundTrip:
             s.tekst for s in adapter.wczytaj(wynik).segmenty
         )
         assert "napisz do Jana" in calosc_tekst
+
+    def test_sciezka_celu_hiperlacza_nie_przechodzi_a_plik_sie_otwiera(self, wzorzec):
+        docx = pytest.importorskip("docx")
+        wejscie = zipfile.ZipFile(io.BytesIO(wzorzec.read_bytes()))
+        bufor = io.BytesIO()
+        with zipfile.ZipFile(bufor, "w", zipfile.ZIP_DEFLATED) as paczka:
+            for nazwa in wejscie.namelist():
+                tresc = wejscie.read(nazwa)
+                if nazwa == "word/_rels/document.xml.rels":
+                    assert b"https://example.com/oferta" in tresc
+                    tresc = tresc.replace(b"https://example.com/oferta", b"https://example.org/Jan%20Kowalski")
+                paczka.writestr(nazwa, tresc)
+        adapter = AdapterDocx()
+        wynik = adapter.zapisz(adapter.wczytaj(bufor.getvalue()))
+        z = zipfile.ZipFile(io.BytesIO(wynik))
+        for nazwa in (n for n in z.namelist() if n.endswith(".rels")):
+            assert b"Kowalski" not in z.read(nazwa) and b"example.org" not in z.read(nazwa), nazwa
+        assert docx.Document(io.BytesIO(wynik)).paragraphs
+
+    def test_tabulator_i_lamanie_w_runie_nie_powielaja_sie(self, tmp_path):
+        docx = pytest.importorskip("docx")
+        sciezka = tmp_path / "tab.docx"
+        dokument = docx.Document()
+        akapit = dokument.add_paragraph()
+        akapit.add_run("PESEL: 44051401359\tKwota: 100\nKoniec")
+        dokument.save(sciezka)
+        adapter = AdapterDocx()
+        dok = adapter.wczytaj(sciezka.read_bytes())
+        segment = next(s for s in dok.segmenty if "PESEL" in s.tekst)
+        assert segment.tekst == "PESEL: 44051401359\tKwota: 100\nKoniec"
+        adapter.wstaw_znaczniki(segment, [(7, 18, "[PESEL_1]")])
+        wynik = adapter.zapisz(dok)
+        xml = zipfile.ZipFile(io.BytesIO(wynik)).read("word/document.xml").decode("utf-8")
+        assert xml.count("<w:tab/>") == 1 and xml.count("<w:br/>") == 1
+        ponownie = adapter.wczytaj(wynik)
+        assert any(s.tekst == "PESEL: [PESEL_1]\tKwota: 100\nKoniec" for s in ponownie.segmenty)
 
     def test_nazwa_wyniku_docx(self, wzorzec):
         assert nazwa_wyniku("wzorzec.docx", "a1b2c3") == "ZANONIMIZOWANY_a1b2c3.docx"
@@ -502,13 +538,13 @@ class TestPulapkiK3b:
         assert "w:tag" not in xml, "tag SDT wycieka"
         assert "44051401359" not in xml
 
-    def test_query_string_w_rels_obciete(self, pulapki):
-        """Zewnętrzny URL bez query stringa z PII."""
+    def test_adresy_hiperlaczy_w_rels_usuniete(self, pulapki):
+        """Cel odnośnika (ścieżka, query, fragment) nie opuszcza dokumentu."""
         wynik = _zakryj(pulapki)
         rels = zipfile.ZipFile(io.BytesIO(wynik)).read("word/_rels/document.xml.rels").decode("utf-8")
         assert "44051401359" not in rels, "query string z PESEL wycieka"
         assert "Kowalski" not in rels
-        assert "https://portal.firma.pl/ankieta" in rels  # domena zostaje
+        assert "portal.firma.pl" not in rels
 
     def test_docpr_i_vml_czyste(self, pulapki):
         """Name/title docPr i title/alt VML czyszczone."""

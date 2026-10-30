@@ -78,7 +78,7 @@ def dowod_ok(nr: str) -> bool:
         return False
     wartosci = [ord(z) - 55 for z in zapis[:3]] + [int(c) for c in zapis[3:]]
     suma = sum(w * v for w, v in zip(_WAGI_DOWOD, wartosci))
-    return suma % 10 == int(zapis[3])
+    return suma % 10 == 0
 
 
 def iban_ok(nr: str) -> bool:

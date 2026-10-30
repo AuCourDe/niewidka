@@ -984,3 +984,23 @@ class TestSwiftWNaglowku:
         from niewidka.detektory import BezSwiftWNaglowku
 
         assert len(BezSwiftWNaglowku(self.Atrapa("EBOSPLPW")).znajdz(tekst)) == 1
+
+
+def test_zbuduj_poziom_przekazuje_zaufane_pakiety_do_loaderow(monkeypatch, tmp_path):
+    from niewidka import detektory
+
+    zaufane = ["zaufane"]
+    przekazane = {}
+
+    def falszywy_bardsai(katalog, **kw):
+        przekazane["bardsai"] = kw["katalog_pakietow"]
+        return RegulyDetektor()
+
+    def falszywy_lfm(katalog, **kw):
+        przekazane["lfm"] = kw["katalog_pakietow"]
+        return RegulyDetektor()
+
+    monkeypatch.setattr(detektory, "wczytaj_bardsai", falszywy_bardsai)
+    monkeypatch.setattr(detektory, "wczytaj_lfm25", falszywy_lfm)
+    detektory.zbuduj_poziom(3, tmp_path, pakiet_rozszerzony=True, katalog_pakietow=zaufane)
+    assert przekazane == {"bardsai": zaufane, "lfm": zaufane}

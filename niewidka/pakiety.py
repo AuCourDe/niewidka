@@ -120,7 +120,7 @@ def katalog_modeli(env: Mapping[str, str] | None = None) -> Path:
 def wczytaj_bajty_pakietu(
     identyfikator: str,
     katalog: Path,
-    katalog_pakietow: Path = KATALOG_PAKIETOW,
+    katalog_pakietow: Path | list[Pakiet] = KATALOG_PAKIETOW,
 ) -> dict[str, bytes]:
     """ZAUFANY katalog pakietów (wbudowany w aplikację)
     decyduje, które pliki pakietu są wymagane i jakie mają SHA-256; lokalny
@@ -128,9 +128,8 @@ def wczytaj_bajty_pakietu(
     dokładnie raz: hasz liczony z tych samych bajtów, które wracają do loadera
     (koniec okna sprawdź-użyj). Komplet wymaganych plików obowiązkowy.
     """
-    pakiet = next(
-        (p for p in wczytaj_pakiety(katalog_pakietow) if p.id == identyfikator), None
-    )
+    zaufane = wczytaj_pakiety(katalog_pakietow) if isinstance(katalog_pakietow, Path) else katalog_pakietow
+    pakiet = next((p for p in zaufane if p.id == identyfikator), None)
     if pakiet is None:
         raise BladPakietu(f"nieznany pakiet {identyfikator} w zaufanym katalogu pakietów")
     wynik: dict[str, bytes] = {}

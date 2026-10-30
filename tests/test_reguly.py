@@ -92,10 +92,15 @@ def test_iban_bledna_suma_podejrzany():
 
 
 def test_dowod_ze_spacja():
-    tekst = "Dowód ABC 212345 stracił ważność."
+    tekst = "Dowód ABC 412345 stracił ważność."
     wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.DOKUMENT]
     assert [(z.start, z.koniec) for z in wynik] == [(6, 16)]
     assert wynik[0].suma_kontrolna is True
+
+
+def test_dowod_z_dokumentacji_mswia_ma_poprawna_sume():
+    wynik = [z for z in znajdz("Dowód ABA300000.") if z.typ is TypEncji.DOKUMENT]
+    assert wynik and wynik[0].suma_kontrolna is True
 
 
 def test_dowod_bledna_suma_podejrzany():

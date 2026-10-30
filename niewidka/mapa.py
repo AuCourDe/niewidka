@@ -169,12 +169,3 @@ def rozbieznosci_wpisow(mapa: Mapa, uzyte: set[str]) -> list[Rozbieznosc]:
     return [
         Rozbieznosc("wpis_niewykorzystany", w.oznaczenie) for w in mapa.wpisy if w.oznaczenie not in uzyte
     ]
-
-
-def przywroc_tekst(tekst: str, mapa: Mapa) -> tuple[str, list[Rozbieznosc]]:
-    """Zamiana znaczników na oryginały wg (oznaczenie, wariant); rozbieżności na wyjściu."""
-    zamiany, rozbieznosci, uzyte = przygotuj_zamiany(tekst, mapa)
-    for start, koniec, oryginal in reversed(zamiany):
-        tekst = tekst[:start] + oryginal + tekst[koniec:]
-    rozbieznosci.extend(rozbieznosci_wpisow(mapa, uzyte))
-    return tekst, rozbieznosci

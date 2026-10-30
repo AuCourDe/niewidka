@@ -194,13 +194,15 @@ class _ZDopelnieniem:
         return scal(tekst, bazowe + dodatkowe) if dodatkowe else bazowe
 
 
-def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
+def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False, katalog_pakietow=None):
     """Detektor dla poziomu 1-3; błąd budowy = `BladDetektora` (fail-closed).
 
     Skład poziomu (1 = reguły+bardsai; 2 = wariant A; 3 = wariant B) robi
     `detektory.zbuduj_poziom` — ta sama funkcja co w pomiarze.
     `pakiet_rozszerzony` = zweryfikowany stan pakietu Rozszerzonego (API podaje
     go ze stanu menedżera pakietów); bez niego poziom 3 nie używa LFM2.5.
+    `katalog_pakietow` = zaufane definicje zainstalowanych pakietów (po aktualizacji
+    różnią się od wbudowanych); bez niego obowiązuje katalog wbudowany.
     """
     if poziom not in (1, 2, 3):
         raise ValueError(f"poziom poza 1-3: {poziom}")
@@ -220,6 +222,7 @@ def zbuduj_detektor(poziom: int, konfig, pakiet_rozszerzony: bool = False):
         reguly=baza,
         pakiet_rozszerzony=pakiet_rozszerzony,
         watki=getattr(konfig, "watki", 0),
+        katalog_pakietow=katalog_pakietow,
     )
 
 

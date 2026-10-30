@@ -60,7 +60,7 @@ def _dowod_ok(zapis: str) -> bool:
     if len(nr) != 9 or not nr[:3].isalpha() or not nr[3:].isdigit():
         return False
     wartosci = [ord(z) - 55 for z in nr[:3]] + [int(c) for c in nr[3:]]
-    return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == int(nr[3])
+    return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == 0
 
 
 # tania detekcja poziomu 1 dla typów, których wcześniej reguły nie obejmowały.

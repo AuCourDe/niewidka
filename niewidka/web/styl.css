@@ -409,15 +409,6 @@ summary:focus-visible {
 
 /* ---------- podgląd kartki z zaślepkami ---------- */
 
-.podglad-naglowek {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.podglad-naglowek h3 { margin: 0; }
-
 .kartka {
   margin-top: 0.7rem;
   background: var(--kartka);
@@ -514,17 +505,6 @@ mark.watpliwe {
 
 .pobrania { margin-top: 1.3rem; }
 
-.pobieracz { margin: 0.55rem 0; }
-
-.wazne {
-  margin: 0.9rem 0 0;
-  padding: 0.8rem 1rem;
-  background: var(--ostrzegaj-tlo);
-  border-radius: 6px;
-  color: var(--ostrzegaj);
-  font-size: 0.95rem;
-}
-
 .wyjasnienie { color: var(--atrament-slaby); margin-top: 0; }
 
 .pole-przywroc { margin: 1.1rem 0; }
@@ -601,7 +581,6 @@ mark.watpliwe {
   .przycisk-glowny { width: 100%; }
   .lista-danych li { flex-direction: column; gap: 0.1rem; }
   .lista-danych li span:last-child { text-align: left; }
-  .podglad-naglowek { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -875,14 +854,6 @@ input[type="range"] { margin: 0.1rem 0; }
 #komunikat-status .komunikat-ok h3 { color: var(--ok); }
 #komunikat-status .komunikat-ok p { color: var(--atrament-slaby); }
 #pobierz-wynik, #pobierz-przywrocony { margin-left: auto; padding: 0.55rem 1.3rem; }
-.pasek-akcji .wazne {
-  order: 5;
-  flex: 1 1 100%;
-  margin: 0;
-  padding: 0;
-  background: none;
-  font-size: 0.82rem;
-}
 .wynik .pobrania { margin: 0; }
 
 /* przywracanie: tekst wypełnia lewy panel */

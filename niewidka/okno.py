@@ -22,7 +22,7 @@ import uvicorn
 
 from niewidka.api import create_app
 from niewidka.klucze import BrakKlucza, KluczJuzIstnieje, pobierz_klucz, utworz_klucz_w_keyringu
-from niewidka.konfig import Konfig, wczytaj_konfig
+from niewidka.konfig import Konfig, host_w_adresie, wczytaj_konfig
 from niewidka.pakiety import katalog_danych, katalog_modeli
 
 CZAS_NA_START_S = 30
@@ -303,7 +303,7 @@ def uruchom(*, detektor=None, webview=None) -> int:
         )
         return 1
 
-    url = f"http://{konfig.host}:{port}/"
+    url = f"http://{host_w_adresie(konfig.host)}:{port}/"
     most = Most(konfig, url)
     try:
         pobierz_klucz(konfig)

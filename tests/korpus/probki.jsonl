@@ -35,11 +35,11 @@
 {"id": "iban-wyplata", "opis": "IBAN do wypłaty wynagrodzenia", "tagi": [], "tekst": "Wynagrodzenie przekazano na PL12 1090 1014 0000 0001 4422 6107.", "encje": [{"typ": "IBAN", "start": 28, "koniec": 62, "tekst": "PL12 1090 1014 0000 0001 4422 6107", "suma": true}]}
 {"id": "iban-pulapka-bank", "opis": "Błędny IBAN odrzucony przez bank", "tagi": [], "tekst": "Numer konta PL34 1090 1014 0000 0000 0000 0001 został odrzucony przez bank.", "encje": []}
 {"id": "iban-pulapka-klient", "opis": "Klient podał błędny IBAN", "tagi": [], "tekst": "Klient podał IBAN PL59 1090 1014 0000 0000 4807 5360, który jest błędny.", "encje": []}
-{"id": "dowod-umowa", "opis": "Numer dowodu okazany przy umowie", "tagi": [], "tekst": "Dowód osobisty ALW400001 okazano przy zawarciu umowy.", "encje": [{"typ": "DOKUMENT", "start": 15, "koniec": 24, "tekst": "ALW400001", "suma": true}]}
-{"id": "dowod-seria", "opis": "Seria i numer dowodu", "tagi": [], "tekst": "Seria i numer dowodu: TJZ400001.", "encje": [{"typ": "DOKUMENT", "start": 22, "koniec": 31, "tekst": "TJZ400001", "suma": true}]}
-{"id": "dowod-tosazsamosc", "opis": "Dowód potwierdzający tożsamość", "tagi": [], "tekst": "Tożsamość potwierdzono dowodem MHC300003.", "encje": [{"typ": "DOKUMENT", "start": 31, "koniec": 40, "tekst": "MHC300003", "suma": true}]}
-{"id": "dowod-pulapka-system", "opis": "Błędny numer dowodu w systemie", "tagi": [], "tekst": "W systemie widnieje dowód ALW500001, który nie należy do nikogo.", "encje": []}
-{"id": "dowod-pulapka-numer", "opis": "Nieprawidłowy numer dowodu", "tagi": [], "tekst": "Numer dowodu TJZ500001 jest nieprawidłowy.", "encje": []}
+{"id": "dowod-umowa", "opis": "Numer dowodu okazany przy umowie", "tagi": [], "tekst": "Dowód osobisty ALW500000 okazano przy zawarciu umowy.", "encje": [{"typ": "DOKUMENT", "start": 15, "koniec": 24, "tekst": "ALW500000", "suma": true}]}
+{"id": "dowod-seria", "opis": "Seria i numer dowodu", "tagi": [], "tekst": "Seria i numer dowodu: TJZ800001.", "encje": [{"typ": "DOKUMENT", "start": 22, "koniec": 31, "tekst": "TJZ800001", "suma": true}]}
+{"id": "dowod-tosazsamosc", "opis": "Dowód potwierdzający tożsamość", "tagi": [], "tekst": "Tożsamość potwierdzono dowodem MHC300002.", "encje": [{"typ": "DOKUMENT", "start": 31, "koniec": 40, "tekst": "MHC300002", "suma": true}]}
+{"id": "dowod-pulapka-system", "opis": "Błędny numer dowodu w systemie", "tagi": [], "tekst": "W systemie widnieje dowód ALW600000, który nie należy do nikogo.", "encje": []}
+{"id": "dowod-pulapka-numer", "opis": "Nieprawidłowy numer dowodu", "tagi": [], "tekst": "Numer dowodu TJZ900001 jest nieprawidłowy.", "encje": []}
 {"id": "email-kontakt", "opis": "Adres e-mail w stopce notatki", "tagi": [], "tekst": "Kontakt: jan.kowalski@example.com.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 33, "tekst": "jan.kowalski@example.com"}]}
 {"id": "email-biuro", "opis": "Adres e-mail biura", "tagi": [], "tekst": "Prosimy o odpowiedź na adres biuro@firma-testowa.pl.", "encje": [{"typ": "EMAIL", "start": 29, "koniec": 51, "tekst": "biuro@firma-testowa.pl"}]}
 {"id": "email-pacjentka", "opis": "E-mail pacjentki", "tagi": [], "tekst": "E-mail pacjentki: anna.nowicka@poczta.example.", "encje": [{"typ": "EMAIL", "start": 18, "koniec": 45, "tekst": "anna.nowicka@poczta.example"}]}
@@ -137,10 +137,10 @@
 {"id": "iban-075", "opis": "IBAN próbka", "tagi": [], "tekst": "IBAN: PL59 1090 1014 0000 0000 4807 5369.", "encje": [{"typ": "IBAN", "start": 6, "koniec": 40, "tekst": "PL59 1090 1014 0000 0000 4807 5369", "suma": true}]}
 {"id": "ibanbad-076", "opis": "iban błędny", "tagi": [], "tekst": "IBAN: PL34 1090 1014 0000 0000 0000 0001.", "encje": []}
 {"id": "ibanbad-077", "opis": "iban błędny", "tagi": [], "tekst": "IBAN: PL59 1090 1014 0000 0000 4807 5360.", "encje": []}
-{"id": "dowod-078", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: ALW400001.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "ALW400001", "suma": true}]}
-{"id": "dowod-079", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: TJZ400001.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "TJZ400001", "suma": true}]}
-{"id": "dowodbad-080", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: ALW500001.", "encje": []}
-{"id": "dowodbad-081", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: TJZ500001.", "encje": []}
+{"id": "dowod-078", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: ALW500000.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "ALW500000", "suma": true}]}
+{"id": "dowod-079", "opis": "DOKUMENT próbka", "tagi": [], "tekst": "Dowód osobisty: TJZ800001.", "encje": [{"typ": "DOKUMENT", "start": 16, "koniec": 25, "tekst": "TJZ800001", "suma": true}]}
+{"id": "dowodbad-080", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: ALW600000.", "encje": []}
+{"id": "dowodbad-081", "opis": "dowód błędny", "tagi": [], "tekst": "Dowód: TJZ900001.", "encje": []}
 {"id": "email-082", "opis": "email", "tagi": [], "tekst": "Kontakt: jan.kowalski@example.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 32, "tekst": "jan.kowalski@example.pl"}]}
 {"id": "email-083", "opis": "email", "tagi": [], "tekst": "Kontakt: anna.nowak@firma.com.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 32, "tekst": "anna.nowak@firma.com.pl"}]}
 {"id": "email-084", "opis": "email", "tagi": [], "tekst": "Kontakt: sekretariat@urzad.gov.pl.", "encje": [{"typ": "EMAIL", "start": 9, "koniec": 33, "tekst": "sekretariat@urzad.gov.pl"}]}

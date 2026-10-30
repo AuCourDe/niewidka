@@ -7,9 +7,11 @@ import stdnum.pl.regon
 
 from narzedzia.numery import bledny, dowod, iban, nip, pesel, regon, regon14, waliduj_dowod
 
-# Wyliczony ręcznie: litery ABC = 70+33+12 = 115; cyfry 2,1,2,3,4,5 z wagami
-# 9,7,3,1,7,3 = 18+7+6+3+28+15 = 77; suma 192; 192 mod 10 = 2 = 4. znak.
-PRZYKLAD_DOWODU = "ABC212345"
+# Wyliczony ręcznie (wagi 7,3,1,9,7,3,1,7,3): litery ABC = 70+33+12 = 115; cyfry 4,1,2,3,4,5
+# z wagami 9,7,3,1,7,3 = 36+7+6+3+28+15 = 95; suma 210 = 0 mod 10.
+PRZYKLAD_DOWODU = "ABC412345"
+# Przykład z dokumentacji MSWiA: 70+33+10+27 = 140 = 0 mod 10.
+PRZYKLAD_MSWIA = "ABA300000"
 
 TYPO_Z_WALIDATOREM = [
     (pesel, stdnum.pl.pesel.is_valid),
@@ -45,8 +47,10 @@ def test_dowod_poprawny_przechodzi_walidator():
     for i in range(12):
         assert waliduj_dowod(dowod(i))
     assert waliduj_dowod(PRZYKLAD_DOWODU)
-    assert waliduj_dowod("ABC 212345")  # spacje znormalizowane
-    assert not waliduj_dowod("ABC212346")
+    assert waliduj_dowod(PRZYKLAD_MSWIA)
+    assert waliduj_dowod("ABC 412345")  # spacje znormalizowane
+    assert not waliduj_dowod("ABC412346")
+    assert not waliduj_dowod("ABC212345")  # suma 192: cyfra kontrolna nie jest porównywana z resztą
 
 
 def test_bledny_rozni_sie_jedna_cyfra_i_nie_przechodzi():

@@ -47,10 +47,14 @@ def test_administrator_wygrywa_i_blokuje_edycje(tmp_path):
         listy.zapisz([], [])
 
 
-def test_uszkodzony_plik_nie_blokuje(tmp_path):
+def test_uszkodzony_plik_blokuje_zamiast_zdejmowac_ochrone(tmp_path):
     plik = tmp_path / "l.json"
-    plik.write_text("{to nie json", encoding="utf-8")
-    assert ListyStale(plik, admin_zawsze=("Lis",)).razem().zawsze == ["Lis"]
+    listy = ListyStale(plik, admin_zawsze=("Lis",))
+    assert listy.razem().zawsze == ["Lis"]  # brak pliku to pusta lista
+    for tresc in ("{to nie json", "[]", '{"zawsze": "Lis"}'):
+        plik.write_text(tresc, encoding="utf-8")
+        with pytest.raises(BladPoprawki):
+            listy.razem()
 
 
 @pytest.mark.anyio
@@ -66,7 +70,9 @@ async def test_listy_dzialaja_przy_ukryciu_i_poprawce(konfig_list):
         assert "zimny" not in tekst and "[INNE_1]" in tekst  # zawsze ukrywaj, typ INNE
         assert "Maria Lis" in tekst  # nigdy nie ukrywaj zdejmuje osobę
         assert "44051401359" not in tekst
-        assert json.loads(odpowiedz.headers["x-niewidka-z-listy"]) == {"INNE_1": "zimny"}
+        assert json.loads(odpowiedz.headers["x-niewidka-z-listy"]) == {"INNE_1": 0}
+        assert "zimny" not in str(odpowiedz.headers)
+        assert (await klient.get("/api/listy", headers=_naglowki(app))).json()["zawsze_razem"][0] == "zimny"
         # poprawka użytkownika: listy dalej obowiązują, a numery własnych liczą się od zera
         poprawka = await _popraw(klient, app, zadanie, ukryj=["dalej"])
         tekst = _tekst_wyniku(poprawka)

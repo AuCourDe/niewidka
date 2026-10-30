@@ -15,7 +15,7 @@ from typing import Protocol
 from niewidka.konfig import PROG_OSOBA_DOMYSLNY
 from niewidka.model import TypEncji, Zakres
 from niewidka.osoby import rdzen_nazwiska
-from niewidka.pakiety import KATALOG_PAKIETOW, BladPakietu, wczytaj_bajty_pakietu
+from niewidka.pakiety import KATALOG_PAKIETOW, BladPakietu, Pakiet, wczytaj_bajty_pakietu
 from niewidka.reguly import REGULY
 from niewidka.reguly import znajdz as znajdz_reguly
 from niewidka.scalanie import scal
@@ -296,7 +296,7 @@ def wczytaj_bardsai(
     krok: int = 448,
     próg: float | None = None,
     pół_krok: bool = False,
-    katalog_pakietow: Path | None = None,
+    katalog_pakietow: Path | list[Pakiet] | None = None,
     watki: int = 0,
 ) -> OnnxDetektor:
     """OnnxDetektor z wag bardsai w `katalog` (NIEWIDKA_MODELE_KATALOG).
@@ -401,7 +401,7 @@ def wczytaj_lfm25(
     okno: int = 510,
     krok: int = 448,
     rozszerzony: bool = False,
-    katalog_pakietow: Path | None = None,
+    katalog_pakietow: Path | list[Pakiet] | None = None,
     watki: int = 0,
 ) -> OnnxDetektor:
     """OnnxDetektor z wyeksportowanego ONNX LFM2.5 (`lfm25/{fp32,int8}/`).
@@ -491,6 +491,7 @@ def zbuduj_poziom(
     reguly: Detektor | None = None,
     pakiet_rozszerzony: bool = False,
     watki: int = 0,
+    katalog_pakietow: Path | list[Pakiet] | None = None,
 ) -> Detektor:
     """Poziomy produktu (suwak jakości) — JEDYNA funkcja składająca poziom;
     używa jej rdzeń (`rdzen.zbuduj_detektor`) i pomiar (`narzedzia.pomiar`), więc
@@ -511,6 +512,7 @@ def zbuduj_poziom(
         provider=provider,
         próg=None if poziom == 1 else próg_osoba,
         pół_krok=poziom > 1,
+        katalog_pakietow=katalog_pakietow,
         watki=watki,
     )
     if poziom == 1:
@@ -529,7 +531,12 @@ def zbuduj_poziom(
         podstawa=[poziom3],
         uzup=BezSwiftWNaglowku(
             wczytaj_lfm25(
-                katalog, wariant="q4-bl32", provider=provider, rozszerzony=True, watki=watki
+                katalog,
+                wariant="q4-bl32",
+                provider=provider,
+                rozszerzony=True,
+                katalog_pakietow=katalog_pakietow,
+                watki=watki,
             )
         ),
         typy_uzup=frozenset(

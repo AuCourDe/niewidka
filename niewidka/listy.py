@@ -85,9 +85,11 @@ class ListyStale:
             return Listy(*sprawdz_listy(dane.get("zawsze"), dane.get("nigdy")))
         except FileNotFoundError:
             return Listy([], [])
-        except (OSError, ValueError, AttributeError):
-            # uszkodzony plik nie blokuje ukrywania; lista administratora działa dalej
-            return Listy([], [])
+        except (OSError, ValueError, AttributeError) as blad:
+            # pusta lista w miejsce uszkodzonej cicho zdjęłaby ochronę „Zawsze ukrywaj”
+            raise BladPoprawki(
+                "lista użytkownika jest nieczytelna lub uszkodzona; napraw albo usuń plik list"
+            ) from blad
 
     def razem(self) -> Listy:
         """Obie listy; przy sprzeczności wygrywa administrator."""

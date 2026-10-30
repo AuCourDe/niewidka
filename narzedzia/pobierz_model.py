@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--katalog",
         type=Path,
-        default=Path(os.environ.get("NIEWIDKA_MODELE_KATALOG", "")) or None,
+        default=Path(z_env) if (z_env := os.environ.get("NIEWIDKA_MODELE_KATALOG")) else None,
     )
     argumenty = parser.parse_args(argv)
     if argumenty.katalog is None:

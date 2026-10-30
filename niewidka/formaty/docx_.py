@@ -2,8 +2,8 @@
 
 Czyszczone z wyniku (nie wracają — dopisek obiecuje tylko dane ze znaczników):
 komentarze, przypisy, nagłówki/stopki, miniatura, właściwości app, śledzone
-zmiany usunięte (w:del); w:ins zostaje jako treść. Hiperłącza http(s) zostają,
-mailto/file rozpakowane (tekst zostaje, relacja znika). Części spoza allowlisty
+zmiany usunięte (w:del); w:ins zostaje jako treść. Hiperłącza zewnętrzne (http/https,
+mailto, file) rozpakowane: tekst zostaje, relacja z adresem znika. Części spoza allowlisty
 i makra → `ElementNieobslugiwany` (blokada, nigdy cicho).
 """
 
@@ -12,8 +12,10 @@ from __future__ import annotations
 import copy
 import io
 import posixpath
+import re
 import zipfile
 from typing import Any
+from urllib.parse import urlsplit
 
 from lxml import etree
 
@@ -35,6 +37,27 @@ TEKST_USUNIETEGO_OBRAZU = "[OBRAZ USUNIĘTY]"
 
 def _q(nazwa: str) -> str:
     return f"{{{W}}}{nazwa}"
+
+
+_TEKSTOWE = frozenset({_q("t"), _q("tab")})
+
+
+def _lamanie_tekstu(element: etree._Element) -> bool:
+    """Zwykłe łamanie wiersza (`w:br` bez typu strony/kolumny)."""
+    return element.tag == _q("br") and element.get(_q("type"), "textWrapping") == "textWrapping"
+
+
+def _tekst_runu(run: etree._Element) -> str:
+    """Tekst runu w kolejności dokumentu; tabulator to `\\t`, łamanie wiersza `\\n`."""
+    czesci = []
+    for element in run.iter(_q("t"), _q("tab"), _q("br")):
+        if element.tag == _q("t"):
+            czesci.append(element.text or "")
+        elif element.tag == _q("tab"):
+            czesci.append("\t")
+        elif _lamanie_tekstu(element):
+            czesci.append("\n")
+    return "".join(czesci)
 
 
 def _media(nazwa: str) -> bool:
@@ -226,7 +249,7 @@ class AdapterDocx:
         for link in list(drzewo.iter(_q("hyperlink"))):
             id_relacji = link.get(f"{{{R}}}id")
             cel = _cel_relacji(rels_xml, id_relacji)
-            if cel is not None and not cel.lower().startswith(("http://", "https://")):
+            if cel is not None:  # cel odnośnika (także http/https) może nieść dane w ścieżce
                 rodzic = link.getparent()
                 for dziecko in list(link):
                     link.addprevious(dziecko)  # tekst zostaje, opakowanie znika
@@ -272,7 +295,7 @@ class AdapterDocx:
             runy, teksty, starts = [], [], []
             biezacy = 0
             for run_element in akapit.iter(_q("r")):
-                tekst = "".join(t.text or "" for t in run_element.iter(_q("t")))
+                tekst = _tekst_runu(run_element)
                 runy.append(RunInfo(tekst, run_element))
                 starts.append(biezacy)
                 biezacy += len(tekst)
@@ -286,7 +309,11 @@ class AdapterDocx:
         """Podziel segment i wstaw znaczniki DO drzewa (klony runów, styl lewy)."""
         stare = list(segment.runs)
         fragmenty = podziel_segment(segment, zamiany)
-        nowe = [RunInfo(tekst, self._kopiuj_run(stare[idx].element, tekst)) for tekst, idx in fragmenty]
+        pierwsze = {idx: nr for nr, (_, idx) in reversed(list(enumerate(fragmenty)))}
+        nowe = [
+            RunInfo(tekst, self._kopiuj_run(stare[idx].element, tekst, pierwsze[idx] == nr))
+            for nr, (tekst, idx) in enumerate(fragmenty)
+        ]
         for i, stary in enumerate([r.element for r in stare]):
             for nowy in [n.element for n, (t, idx) in zip(nowe, fragmenty) if idx == i]:
                 stary.addprevious(nowy)
@@ -299,15 +326,26 @@ class AdapterDocx:
             biezacy += len(run.tekst)
         segment.tekst = "".join(r.tekst for r in nowe)
 
-    def _kopiuj_run(self, element: etree._Element, tekst: str) -> etree._Element:
-        klon = copy.deepcopy(element)  # styl (rPr) i zawartość nie-tekstowa zostają
-        for t in klon.findall(_q("t")):
-            klon.remove(t)
-        if tekst:
-            t = etree.SubElement(klon, _q("t"))
-            t.text = tekst
-            if tekst != tekst.strip():
-                t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    def _kopiuj_run(self, element: etree._Element, tekst: str, z_reszta: bool = True) -> etree._Element:
+        """Klon runu ze stylem (rPr). Tekst, tabulatory i łamania wiersza powstają od nowa z `tekst`;
+        pozostała zawartość nietekstowa trafia tylko do pierwszego fragmentu runu (`z_reszta`)."""
+        klon = copy.deepcopy(element)
+        for dziecko in list(klon):
+            if dziecko.tag == _q("rPr"):
+                continue
+            tekstowe = dziecko.tag in _TEKSTOWE or _lamanie_tekstu(dziecko)
+            if tekstowe or not z_reszta:
+                klon.remove(dziecko)
+        for czesc in re.split(r"([\t\n])", tekst):
+            if czesc == "\t":
+                etree.SubElement(klon, _q("tab"))
+            elif czesc == "\n":
+                etree.SubElement(klon, _q("br"))
+            elif czesc:
+                t = etree.SubElement(klon, _q("t"))
+                t.text = czesc
+                if czesc != czesc.strip():
+                    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
         return klon
 
     # --- zapis --------------------------------------------------------------
@@ -461,8 +499,9 @@ def _przefiltruj_rels(rels_xml: bytes, usun_id: set[str], usun_czesci: set[str])
     for relacja in list(korzen):
         cel = relacja.get("Target") or ""
         if cel.lower().startswith(("http://", "https://")):
-            # zewnętrzny URL bez query stringa i fragmentu (PII)
-            czysty = cel.split("?", 1)[0].split("#", 1)[0]
+            # pozostały zewnętrzny cel (nie odnośnik): tylko domena, bez loginu, ścieżki i query
+            adres = urlsplit(cel)
+            czysty = f"{adres.scheme}://{adres.netloc.rpartition('@')[2]}/"
             if czysty != cel:
                 relacja.set("Target", czysty)
         if relacja.get("Id") in usun_id or _relacja_celu_w(relacja.get("Target"), usun_czesci):

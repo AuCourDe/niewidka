@@ -134,3 +134,22 @@ class TestKatalogDocelowy:
 
     def test_lfm25_w_podkatalogu(self, tmp_path):
         assert katalog_docelowy(tmp_path, spec_modelu("lfm25")) == tmp_path / "lfm25"
+
+
+class TestBrakKatalogu:
+    def test_bez_katalogu_i_zmiennej_blad_zamiast_pobierania_do_biezacego(self, tmp_path, monkeypatch):
+        from narzedzia import pobierz_model
+
+        monkeypatch.delenv("NIEWIDKA_MODELE_KATALOG", raising=False)
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(SystemExit) as wyjscie:
+            pobierz_model.main([])
+        assert wyjscie.value.code == 2
+        assert list(tmp_path.iterdir()) == []
+
+    def test_pusta_zmienna_to_brak_katalogu(self, monkeypatch):
+        from narzedzia import pobierz_model
+
+        monkeypatch.setenv("NIEWIDKA_MODELE_KATALOG", "")
+        with pytest.raises(SystemExit):
+            pobierz_model.main([])

@@ -34,7 +34,27 @@ const ETYKIETY = {
   INNE: ["inne dane", "inne dane"],
 };
 
+/* Typy z kontroli końcowej to nie rodzaje danych, tylko opis problemu z wynikiem. */
+const KONTROLE = {
+  ORYGINAL: [
+    "fragment oryginalnych danych, który został w wyniku",
+    "fragmenty oryginalnych danych, które zostały w wyniku",
+    "Ukryj je zaznaczeniem w podglądzie albo zdecyduj, że to nie dane osobowe.",
+  ],
+  NAZWA_CZESCI: [
+    "dane osobowe w wewnętrznej nazwie części pliku",
+    "dane osobowe w wewnętrznych nazwach części pliku",
+    "Wklej sam tekst albo przygotuj dokument bez tych danych w nazwach.",
+  ],
+  XML_NIEPRAWIDLOWY: [
+    "część pliku, której nie dało się sprawdzić",
+    "części pliku, których nie dało się sprawdzić",
+    "Otwórz dokument w edytorze i zapisz go ponownie albo wklej sam tekst.",
+  ],
+};
+
 function etykieta(typ, ile) {
+  if (KONTROLE[typ]) return `${ile} ${KONTROLE[typ][ile === 1 ? 0 : 1]}`;
   const formy = ETYKIETY[typ] || [typ.toLowerCase(), typ.toLowerCase()];
   return `${ile} ${ile === 1 ? formy[0] : formy[1]}`;
 }
@@ -315,6 +335,11 @@ function komunikatOdpowiedzi(statusId, status, blad, calosc) {
   komunikat(statusId, "komunikat-blad", "Nie udało się", tresc);
 }
 
+function dzialaniaKontroli(typy) {
+  const opisy = Object.keys(typy || {}).filter((typ) => KONTROLE[typ]).map((typ) => KONTROLE[typ][2]);
+  return opisy.length ? `${opisy.join(" ")} ` : "";
+}
+
 function pokazBlokade(statusId, typy) {
   /* Zablokowany wynik przychodzi jako 422 bez dokumentu: pokazuję tylko STOP z typami znalezisk. */
   const pole = document.getElementById(statusId);
@@ -330,7 +355,7 @@ function pokazBlokade(statusId, typy) {
     .join(", ");
   opis.textContent = "Wynik zatrzymany przez kontrolę jakości. W dokumencie mogły zostać dane osobowe. "
     + (typyTekst
-      ? `Ponowne sprawdzenie znalazło: ${typyTekst}. `
+      ? `Ponowne sprawdzenie znalazło: ${typyTekst}. ${dzialaniaKontroli(typy)}`
       : "Ponowne sprawdzenie znalazło dane przypominające oryginalne. ")
     + "Dokument zablokowano, nic nie zostało zapisane ani skopiowane. Popraw dane w oryginale i spróbuj ponownie.";
   blok.append(opis);
@@ -340,7 +365,7 @@ function pokazBlokade(statusId, typy) {
 function pokazWynik(naglowki, czesci) {
   document.getElementById("naglowek-wyniku").textContent = "Gotowe: dokument z ukrytymi danymi";
   document.getElementById("blok-decyzji").hidden = true;
-  document.getElementById("kopiuj").disabled = false;
+  for (const id of PRZYCISKI_EKSPORTU) document.getElementById(id).disabled = false;
   const identyfikator = naglowki.get("x-niewidka-identyfikator");
   const statystyki = JSON.parse(naglowki.get("x-niewidka-statystyki") || "{}");
   const r95 = JSON.parse(naglowki.get("x-niewidka-r95") || "{}");
@@ -418,14 +443,15 @@ function pokazWynik(naglowki, czesci) {
   for (const [typ, ile] of Object.entries(ostrzezenia)) {
     /* nagłówek niesie wyłącznie typy i liczniki, nigdy fragmenty danych */
     const wiersz = document.createElement("li");
-    wiersz.textContent = `W wyniku zostały dane przypominające oryginalne: ${etykieta(typ, ile)}. Zobacz, gdzie dokładnie, zanim dokument opuści ten komputer.`;
+    wiersz.textContent = `W wyniku zostały dane przypominające oryginalne: ${etykieta(typ, ile)}. Zobacz, gdzie dokładnie, zanim dokument opuści ten komputer.`
+      + (KONTROLE[typ] ? ` ${KONTROLE[typ][2]}` : "");
     listaOstrzezenia.append(wiersz);
   }
   blokOstrzezenia.hidden = listaOstrzezenia.children.length === 0;
 
   const trescTekstowa = new TextDecoder().decode(czesci[nazwaWyniku]);
   const podglad = document.getElementById("blok-podglad");
-  const wygladaNaTekst = nazwaWyniku.endsWith(".txt") && !trescTekstowa.slice(0, 100).includes("\0");
+  const wygladaNaTekst = nazwaWyniku.toLowerCase().endsWith(".txt") && !trescTekstowa.slice(0, 100).includes("\0");
   podglad.hidden = !wygladaNaTekst;
   document.getElementById("kopiuj").hidden = !wygladaNaTekst; // docx: brak tekstu do skopiowania
   if (wygladaNaTekst) pokazPodglad(trescTekstowa);
@@ -462,12 +488,12 @@ const TYPY_Z_SUMA = ["PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"];
 const MAKS_POZYCJI = 200;
 const MAKS_ZNAKOW = 200;
 
-let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
+let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, miejsca: [], trwa: false };
 let zaznaczone = "";
 let liczbaPozycjiPoprawek = 0;
 
 function nowePoprawki(zadanie) {
-  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, miejsca: [], trwa: false };
+  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, miejsca: [], trwa: false };
   document.getElementById("komunikat-poprawek").textContent = "";
   zamknijAkcjeZnacznika();
   ukryjPlywajacy();
@@ -522,15 +548,33 @@ function rysujPoprawki() {
   }
 }
 
+/* Na czas przeliczania poprawki poprzedni wynik jest nieaktualny i może jeszcze zawierać ukrywane dane. */
+const PRZYCISKI_EKSPORTU = ["kopiuj", "pobierz-wynik", "pobierz-mape"];
+
+function zablokujEksport() {
+  const przed = {};
+  for (const id of PRZYCISKI_EKSPORTU) {
+    const przycisk = document.getElementById(id);
+    przed[id] = przycisk.disabled;
+    przycisk.disabled = true;
+  }
+  return przed;
+}
+
+function przywrocEksport(przed) {
+  for (const id of PRZYCISKI_EKSPORTU) document.getElementById(id).disabled = przed[id];
+}
+
 async function przelicz(zmiana, dodanyFragment = null) {
   if (!poprawki.zadanie || poprawki.trwa) return;
   const kopia = JSON.parse(JSON.stringify(poprawki));
   zmiana();
   poprawki.trwa = true;
+  const eksportPrzed = zablokujEksport();
   rysujPoprawki();
   zamknijAkcjeZnacznika();
   ukryjPlywajacy();
-  const mojaKolejna = ++licznikZlecen;
+  const mojaKolejna = ++licznikWyniku;
   komunikatPoprawek("Przeliczam wynik. Model nie jest uruchamiany ponownie.");
   try {
     const odpowiedz = await wyslij("/api/popraw", {
@@ -541,11 +585,13 @@ async function przelicz(zmiana, dodanyFragment = null) {
       na_inne: poprawki.naInne,
       odkryj: poprawki.odkryj,
     });
-    if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
+    if (mojaKolejna !== licznikWyniku) return; // nowsze żądanie wygrało
     const czesci = await otworzZip(await odpowiedz.blob());
-    if (mojaKolejna !== licznikZlecen) return;
+    const zListy = await zListyZNaglowka(odpowiedz.headers.get("x-niewidka-z-listy"));
+    if (mojaKolejna !== licznikWyniku) return;
     poprawki.wlasne = JSON.parse(odpowiedz.headers.get("x-niewidka-wlasne") || "{}");
-    poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "{}");
+    poprawki.zListy = zListy;
+    poprawki.naInneNowe = JSON.parse(odpowiedz.headers.get("x-niewidka-na-inne") || "{}");
     poprawki.miejsca = [];
     document.getElementById("wynik").hidden = false;
     pokazWynik(odpowiedz.headers, czesci);
@@ -559,8 +605,9 @@ async function przelicz(zmiana, dodanyFragment = null) {
       komunikatPoprawek("Tekst się zmienił. Skopiuj go ponownie.");
     }
   } catch (blad) {
-    if (mojaKolejna !== licznikZlecen) return;
+    if (mojaKolejna !== licznikWyniku) return;
     if (blad.status === 410) {
+      przywrocEksport(eksportPrzed); // podgląd zostaje z ostatnim, poprawnym wynikiem
       nowePoprawki(null);
       // podgląd zostaje z ostatnim wynikiem, który już ma wcześniejsze poprawki
       komunikatPoprawek("Minął czas na poprawki. Tekst w podglądzie ma wszystkie wcześniejsze poprawki, "
@@ -571,12 +618,13 @@ async function przelicz(zmiana, dodanyFragment = null) {
       pokazBlokadeZMiejscami(blad.odpowiedz);
       komunikatPoprawek("Tekst się zmienił, ale kontrola nadal ma wątpliwości. Zdecyduj o każdym miejscu.");
     } else {
+      przywrocEksport(eksportPrzed);
       poprawki = { ...kopia, trwa: false };
       rysujPoprawki();
       komunikatPoprawek(`Nie udało się zastosować poprawki. ${blad.blad || blad.message || ""}`.trim());
     }
   } finally {
-    if (mojaKolejna === licznikZlecen) poprawki.trwa = false;
+    if (mojaKolejna === licznikWyniku) poprawki.trwa = false;
   }
 }
 
@@ -676,8 +724,11 @@ function pokazAkcjeZnacznika(znacznik) {
     przycisk.setAttribute("aria-describedby", "akcja-znacznika-wyjasnienie");
   } else {
     przycisk.textContent = "To nie dane osobowe";
+    // po zmianie rodzaju (OSOBA_1 na INNE_1) serwer zna tylko znacznik bazowy
+    const bazowy = poprawki.naInneNowe[znacznik] || znacznik;
     przycisk.onclick = () => przelicz(() => {
-      if (!poprawki.nieDane.includes(znacznik)) poprawki.nieDane.push(znacznik);
+      poprawki.naInne = poprawki.naInne.filter((z) => z !== bazowy);
+      if (!poprawki.nieDane.includes(bazowy)) poprawki.nieDane.push(bazowy);
     });
   }
   panel.hidden = false;
@@ -856,12 +907,15 @@ function inicjalizujWejscie() {
 /* ---------- formularze ---------- */
 
 // trwające zlecenie blokuje „Ukryj" także przy odświeżaniu pakietów w tle
-let trwaZlecenie = false;
-// numerowane żądania: odpowiedź starszego zlecenia nie renderuje się po wysłaniu nowszego
-let licznikZlecen = 0;
+const trwajaceFormularze = new Set();
+// numerowane żądania: odpowiedź starszego zlecenia nie renderuje się po wysłaniu nowszego;
+// „Ukryj” i poprawki w podglądzie dają jeden wynik (wspólny licznik), „Przywróć” ma własny
+let licznikWyniku = 0;
+let licznikPrzywracania = 0;
 
 function ustawTrwa(pole, trwa) {
-  trwaZlecenie = trwa;
+  if (trwa) trwajaceFormularze.add(pole.id);
+  else trwajaceFormularze.delete(pole.id);
   for (const przycisk of pole.querySelectorAll('button[type="submit"]')) przycisk.disabled = trwa;
 }
 
@@ -946,21 +1000,23 @@ function inicjalizujUkrywanie() {
     else dane.set("tekst", tekst);
 
     ustawTrwa(formularz, true);
-    const mojaKolejna = ++licznikZlecen;
+    const mojaKolejna = ++licznikWyniku;
     komunikat("status-ukryj", "komunikat-ok", null, "Sprawdzam dokument. To może potrwać kilkadziesiąt sekund.");
     try {
       const odpowiedz = await wyslij("/api/ukryj", dane);
-      if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
+      if (mojaKolejna !== licznikWyniku) return; // nowsze żądanie wygrało
       const czesci = await otworzZip(await odpowiedz.blob());
+      const zListy = await zListyZNaglowka(odpowiedz.headers.get("x-niewidka-z-listy"));
+      if (mojaKolejna !== licznikWyniku) return;
       document.getElementById("wynik").hidden = false;
       nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
-      poprawki.zListy = JSON.parse(odpowiedz.headers.get("x-niewidka-z-listy") || "{}");
+      poprawki.zListy = zListy;
       pokazWynik(odpowiedz.headers, czesci);
       ustawPrzyciskUkryj(true);
       zwinWejscie(true);
       document.getElementById("status-ukryj").innerHTML = "";
     } catch (blad) {
-      if (mojaKolejna !== licznikZlecen) return;
+      if (mojaKolejna !== licznikWyniku) return;
       if (blad.odpowiedz && blad.odpowiedz.status === "zablokowany") {
         document.getElementById("status-ukryj").innerHTML = "";
         nowePoprawki(blad.odpowiedz.zadanie || null);
@@ -972,7 +1028,8 @@ function inicjalizujUkrywanie() {
         if (blad.status === 409) odswiezPakiety();
       }
     } finally {
-      if (mojaKolejna === licznikZlecen) ustawTrwa(formularz, false);
+      ustawTrwa(formularz, false); // przycisk odblokowuje się zawsze, także po wyprzedzeniu przez poprawkę
+      if (mojaKolejna !== licznikWyniku) document.getElementById("status-ukryj").innerHTML = "";
     }
   });
 
@@ -1044,11 +1101,11 @@ function inicjalizujPrzywracanie() {
     }
 
     ustawTrwa(formularz, true);
-    const mojaKolejna = ++licznikZlecen;
+    const mojaKolejna = ++licznikPrzywracania;
     komunikat("status-przywroc", "komunikat-ok", null, "Przywracam dane…");
     try {
       const odpowiedz = await wyslij("/api/przywroc", dane);
-      if (mojaKolejna !== licznikZlecen) return; // nowsze żądanie wygrało
+      if (mojaKolejna !== licznikPrzywracania) return;
       const blob = await odpowiedz.blob();
       // wklejony tekst wraca jako text/plain, bez content-disposition (tylko plik go ma)
       const nazwaPliku = (odpowiedz.headers.get("content-disposition") || "").match(/filename="(.*)"/);
@@ -1098,7 +1155,7 @@ function inicjalizujPrzywracanie() {
       document.getElementById("status-przywroc").innerHTML = "";
       zapowiedz("Dane przywrócone");
     } catch (blad) {
-      if (mojaKolejna !== licznikZlecen) return;
+      if (mojaKolejna !== licznikPrzywracania) return;
       if (blad.odpowiedz && blad.odpowiedz.kod === "wybierz_mape") {
         komunikat("status-przywroc", "komunikat-ostrzezenie", "Wskaż mapę", `${blad.blad} Wybierz zadanie z listy.`);
         document.getElementById("lista-zadan").focus();
@@ -1106,7 +1163,7 @@ function inicjalizujPrzywracanie() {
         komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message);
       }
     } finally {
-      if (mojaKolejna === licznikZlecen) ustawTrwa(formularz, false);
+      ustawTrwa(formularz, false);
     }
   });
 
@@ -1141,41 +1198,67 @@ function rysujListy() {
   opis.hidden = czesci.length === 0;
 }
 
-async function odswiezListy() {
+/* Wspólne żądanie JSON: zwraca { ok, status, dane }; brak połączenia to ok: false, status 0. */
+async function zadajJson(url, opcje = {}) {
   try {
-    const odpowiedz = await fetch("/api/listy", { headers: NAGLOWKI });
-    if (!odpowiedz.ok) return;
-    listyStale = await odpowiedz.json();
+    const odpowiedz = await fetch(url, { ...opcje, headers: { ...NAGLOWKI, ...(opcje.headers || {}) } });
+    const dane = await odpowiedz.json().catch(() => ({}));
+    return { ok: odpowiedz.ok, status: odpowiedz.status, dane };
   } catch {
-    return;
+    return { ok: false, status: 0, dane: {} };
   }
+}
+
+/* Odczyt: dane albo null, gdy sesja wygasła, błąd albo serwer nie odpowiada (wołający zostawia stary stan). */
+async function pobierzJson(url) {
+  const wynik = await zadajJson(url);
+  return wynik.ok ? wynik.dane : null;
+}
+
+async function odswiezListy() {
+  const dane = await pobierzJson("/api/listy");
+  if (!dane) return;
+  listyStale = dane;
   rysujListy();
   rysujPoprawki();
 }
 
+/* Tłumaczy indeksy z nagłówka x-niewidka-z-listy na treść pozycji „Zawsze ukrywaj”.
+   Lista bywa zmieniona po stronie serwera, więc bierzemy świeży odczyt bez przerysowywania Ustawień. */
+async function zListyZNaglowka(naglowek) {
+  const indeksy = JSON.parse(naglowek || "{}");
+  if (Object.keys(indeksy).length === 0) return {};
+  const dane = await pobierzJson("/api/listy");
+  if (dane) listyStale.zawsze_razem = dane.zawsze_razem;
+  const razem = listyStale.zawsze_razem || [];
+  const teksty = {};
+  for (const [znacznik, indeks] of Object.entries(indeksy)) {
+    if (typeof razem[indeks] === "string") teksty[znacznik] = razem[indeks];
+  }
+  return teksty;
+}
+
 async function zapiszListy(zawsze, nigdy) {
   const status = document.getElementById("status-list");
-  try {
-    const odpowiedz = await fetch("/api/listy", {
-      method: "PUT",
-      headers: { ...NAGLOWKI, "Content-Type": "application/json" },
-      body: JSON.stringify({ zawsze, nigdy }),
-    });
-    const dane = await odpowiedz.json().catch(() => ({}));
-    if (!odpowiedz.ok) {
-      status.textContent = `Nie zapisano. ${dane.blad || dane.detail || ""}`.trim();
-      zapowiedz(status.textContent);
-      return false;
-    }
-    listyStale = dane;
-    rysujListy();
-    status.textContent = "Zapisano. Listy działają od następnego ukrycia.";
-    zapowiedz(status.textContent);
-    return true;
-  } catch {
+  const wynik = await zadajJson("/api/listy", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zawsze, nigdy }),
+  });
+  if (wynik.status === 0) {
     status.textContent = "Nie zapisano. Program nie odpowiada.";
     return false;
   }
+  if (!wynik.ok) {
+    status.textContent = `Nie zapisano. ${wynik.dane.blad || wynik.dane.detail || ""}`.trim();
+    zapowiedz(status.textContent);
+    return false;
+  }
+  listyStale = wynik.dane;
+  rysujListy();
+  status.textContent = "Zapisano. Listy działają od następnego ukrycia.";
+  zapowiedz(status.textContent);
+  return true;
 }
 
 async function dodajDoListy(ktora, fragment) {
@@ -1205,19 +1288,16 @@ function inicjalizujListy() {
 /* ---------- zapisane mapy ---------- */
 
 async function odswiezMapy() {
-  try {
-    const odpowiedz = await fetch("/api/mapy", { headers: NAGLOWKI });
-    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
-    mapyZapisane = await odpowiedz.json();
-  } catch {
-    return; // serwer nieodpowiada: nic nie zmieniamy
-  }
+  const dane = await pobierzJson("/api/mapy");
+  if (!dane) return;
+  mapyZapisane = dane;
   wypelnijListeZadan();
   rysujListeMapZapisanych();
 }
 
 function wypelnijListeZadan() {
   const lista = document.getElementById("lista-zadan");
+  const wybrane = lista.value;
   lista.innerHTML = "";
   const wpisy = mapyZapisane.mapy || [];
   if (wpisy.length === 0) {
@@ -1229,13 +1309,17 @@ function wypelnijListeZadan() {
     lista.append(pusta);
     return;
   }
-  for (const [i, wpis] of wpisy.entries()) {
+  const automat = document.createElement("option");
+  automat.value = "";
+  automat.textContent = "Dopasuj automatycznie";
+  lista.append(automat);
+  for (const wpis of wpisy) {
     const opcja = document.createElement("option");
     opcja.value = wpis.id;
     opcja.textContent = etykietaZadania(wpis);
-    if (i === 0) opcja.selected = true;
     lista.append(opcja);
   }
+  lista.value = wpisy.some((wpis) => wpis.id === wybrane) ? wybrane : "";
 }
 
 function rysujListeMapZapisanych() {
@@ -1317,7 +1401,7 @@ function odswiezSuwakZPakietow() {
   const pusto = stanPakietow.poziomy_dostepne.length === 0;
   const serwerPadl = stanInferencji !== null && !stanInferencji.dostepny;
   suwak.disabled = pusto;
-  przycisk.disabled = pusto || trwaZlecenie;
+  przycisk.disabled = pusto || trwajaceFormularze.has("form-ukryj");
   if (serwerPadl) {
     opis.textContent = "Serwer modeli nie odpowiada. Skontaktuj się z administratorem.";
   } else if (pusto) {
@@ -1448,13 +1532,9 @@ function pokazPostepPostepu(pakietId, pobrane, razem, blad) {
 
 async function odswiezPakiety() {
   await stanGotowy; // wiadomo już, czy modele są lokalne czy na serwerze
-  try {
-    const odpowiedz = await fetch("/api/pakiety", { headers: NAGLOWKI });
-    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
-    stanPakietow = await odpowiedz.json();
-  } catch {
-    return; // serwer nieodpowiada: nic nie zmieniamy
-  }
+  const dane = await pobierzJson("/api/pakiety");
+  if (!dane) return;
+  stanPakietow = dane;
   rysujListePakietow();
   odswiezSuwakZPakietow();
   pokazPostepPostepu(
@@ -1557,13 +1637,9 @@ function trwaOperacjaAktualizacji() {
 }
 
 async function odswiezAktualizacje() {
-  try {
-    const odpowiedz = await fetch("/api/aktualizacje", { headers: NAGLOWKI });
-    if (!odpowiedz.ok) return; // sesja wygasła albo błąd: zostawiam poprzedni stan
-    stanAktualizacji = await odpowiedz.json();
-  } catch {
-    return; // serwer nieodpowiada: nic nie zmieniamy
-  }
+  const dane = await pobierzJson("/api/aktualizacje");
+  if (!dane) return;
+  stanAktualizacji = dane;
   rysujAktualizacje();
   return stanAktualizacji;
 }
@@ -1774,19 +1850,17 @@ function rysujMiejsceModeli() {
 }
 
 async function wczytajStan() {
-  try {
-    const odpowiedz = await fetch("/api/stan", { headers: NAGLOWKI });
-    if (!odpowiedz.ok) return;
-    const stan = await odpowiedz.json();
-    limity = stan.limity;
-    stanInferencji = stan.inferencja || null;
-    rysujMiejsceModeli();
-    document.getElementById("wersja").textContent = `v${stan.wersja}`;
-    document.getElementById("podpowiedz-plik").textContent =
-      `Obsługuję pliki .txt i .docx, maksymalnie ${limity.rozmiar_mb} MB. Możesz też przeciągnąć plik tutaj.`;
-  } catch {
+  const stan = await pobierzJson("/api/stan");
+  if (!stan) {
     document.getElementById("wersja").textContent = "";
+    return;
   }
+  limity = stan.limity;
+  stanInferencji = stan.inferencja || null;
+  rysujMiejsceModeli();
+  document.getElementById("wersja").textContent = `v${stan.wersja}`;
+  document.getElementById("podpowiedz-plik").textContent =
+    `Obsługuję pliki .txt i .docx, maksymalnie ${limity.rozmiar_mb} MB. Możesz też przeciągnąć plik tutaj.`;
 }
 
 let stanGotowy = Promise.resolve();

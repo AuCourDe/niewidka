@@ -78,14 +78,14 @@ def iban_sformatowany(indeks: int) -> str:
 
 
 def waliduj_dowod(zapis: str) -> bool:
-    """Suma kontrolna dowodu: wagi 7,3,1,9,7,3,1,7,3; litery A=10..Z=35;
-    suma mod 10 równa się 4. znakowi (pierwszej cyfrze). Spacje/myślniki
+    """Suma kontrolna dowodu: wagi 7,3,1,9,7,3,1,7,3 (waga 9 na cyfrze kontrolnej);
+    litery A=10..Z=35; suma wszystkich 9 znaków mod 10 musi dać 0. Spacje/myślniki
     w zapisie są ignorowane."""
     nr = zapis.replace(" ", "").replace("-", "").upper()
     if len(nr) != 9 or not nr[:3].isalpha() or not nr[3:].isdigit():
         return False
     wartosci = [ord(z) - 55 for z in nr[:3]] + [int(c) for c in nr[3:]]
-    return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWOD)) % 10 == int(nr[3])
+    return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWOD)) % 10 == 0
 
 
 def dowod(indeks: int) -> str:
@@ -96,8 +96,7 @@ def dowod(indeks: int) -> str:
         reszta = sum(int(c) * w for c, w in zip(ogon, (7, 3, 1, 7, 3)))
         litery_suma = sum((ord(z) - 55) * w for z, w in zip(litery, (7, 3, 1)))
         for cyfra in range(10):
-            # suma%10 == cyfra kontrolna; szukamy cyfry pasującej do reszty
-            if (litery_suma + 9 * cyfra + reszta) % 10 == cyfra:
+            if (litery_suma + 9 * cyfra + reszta) % 10 == 0:
                 return litery + str(cyfra) + ogon
     raise ValueError("nie znaleziono poprawnego dowodu")
 
