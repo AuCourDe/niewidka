@@ -1,0 +1,1006 @@
+"""Detector tests: sliding windows, BIO decoding, label mapping.
+
+Window and BIO tests run on stubs, without the model and onnxruntime. Live-model
+tests carry the `model` marker and are skipped when the weights are not in the models directory.
+"""
+
+from __future__ import annotations
+
+import pytest
+from conftest import dowiazanie
+
+from niewidka.detektory import okna_tokenow, zdekoduj_bio
+from niewidka.model import TypEncji
+from niewidka.scalanie import scal
+
+
+class TestOknaTokenow:
+    def test_tekst_krotszy_niz_okno_jedno_okno(self):
+        assert okna_tokenow(100, okno=510, krok=448) == [(0, 100)]
+
+    def test_dokladnie_okno(self):
+        assert okna_tokenow(510, okno=510, krok=448) == [(0, 510)]
+
+    def test_dwa_okna_z_zaklada(self):
+        # 1000 tokens: [0,510), next starts at 448; the last one extended to the end.
+        okna = okna_tokenow(1000, okno=510, krok=448)
+        assert okna[0] == (0, 510)
+        assert okna[-1] == (490, 1000)  # step no longer fits: window stuck to the end
+        for start, koniec in okna:
+            assert koniec - start == 510
+
+    def test_kazdy_token_pokryty(self):
+        n, okno, krok = 1200, 510, 448
+        pokryte = set()
+        for start, koniec in okna_tokenow(n, okno=okno, krok=krok):
+            assert start < koniec
+            pokryte.update(range(start, koniec))
+        assert pokryte == set(range(n))
+
+    def test_zakladka_ciagla_bez_dziur(self):
+        # Adjacent windows overlap by exactly (window - step) tokens.
+        okna = okna_tokenow(1500, okno=510, krok=448)
+        for (a_start, a_koniec), (b_start, b_koniec) in itertools.pairwise(okna):
+            assert b_start == a_koniec - (510 - 448) or b_koniec == 1500
+            assert b_start < a_koniec  # non-empty overlap
+
+    def test_zero_tokenow(self):
+        assert okna_tokenow(0, okno=510, krok=448) == []
+
+
+Etykieta = tuple[str, tuple[int, int], float]  # (label, character offsets, confidence)
+
+
+class TestZdekodujBio:
+    def test_pojedyncza_etykieta_b_i(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 5), 0.9),
+            ("B-PERSON_NAME", (6, 9), 0.8),
+            ("I-PERSON_NAME", (10, 17), 0.6),
+            ("O", (18, 25), 0.9),
+        ]
+        zakresy = zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA})
+        assert len(zakresy) == 1
+        start, koniec, typ, pewnosc = zakresy[0]
+        assert (start, koniec) == (6, 17)
+        assert typ is TypEncji.OSOBA
+        assert pewnosc == pytest.approx(0.6)  # minimum over the entity's tokens
+
+    def test_dwie_sasiednie_encje_roznych_typow(self):
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("B-POSTAL_ADDRESS", (5, 20), 0.7),
+        ]
+        mapa = {
+            ("PERSON_NAME",): TypEncji.OSOBA,
+            ("POSTAL_ADDRESS",): TypEncji.ADRES,
+        }
+        zakresy = zdekoduj_bio(tokeny, mapa)
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [
+            (0, 4, TypEncji.OSOBA),
+            (5, 20, TypEncji.ADRES),
+        ]
+
+    def test_etykieta_niemapowana_pomijana(self):
+        # LOCATION is not in the adapter map: it produces no Zakres (level 1 decision).
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("B-LOCATION", (5, 12), 0.99),
+            ("I-LOCATION", (13, 20), 0.99),
+        ]
+        zakresy = zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA})
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(0, 4, TypEncji.OSOBA)]
+
+    def test_i_bez_poprzedzajacego_b_nie_zaczyna_encji(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 3), 0.9),
+            ("I-PERSON_NAME", (4, 10), 0.8),
+        ]
+        assert zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA}) == []
+
+    def test_i_innego_typu_konczy_encje(self):
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("I-POSTAL_ADDRESS", (5, 9), 0.8),
+            ("I-PERSON_NAME", (10, 14), 0.8),
+        ]
+        mapa = {
+            ("PERSON_NAME",): TypEncji.OSOBA,
+            ("POSTAL_ADDRESS",): TypEncji.ADRES,
+        }
+        zakresy = zdekoduj_bio(tokeny, mapa)
+        # (5,9): I of a different type, skipped; (10,14): new OSOBA entity without B, skipped.
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(0, 4, TypEncji.OSOBA)]
+
+    def test_tokeny_puste_offsety_specjalne_pomijane(self):
+        # <s>/</s> have offsets (0,0) and label O: they do not affect decoding.
+        tokeny: list[Etykieta] = [
+            ("O", (0, 0), 1.0),
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("I-PERSON_NAME", (5, 12), 0.9),
+            ("O", (0, 0), 1.0),
+        ]
+        zakresy = zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA})
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(0, 12, TypEncji.OSOBA)]
+
+    def test_pewnosc_to_minimum_tokenow(self):
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.95),
+            ("I-PERSON_NAME", (5, 12), 0.40),
+        ]
+        zakresy = zdekoduj_bio(tokeny, {("PERSON_NAME",): TypEncji.OSOBA})
+        assert zakresy[0][3] == pytest.approx(0.40)
+
+
+# --- BIOES: the LFM2.5 scheme (B/I/E/S) ---
+
+class TestZdekodujBioes:
+    mapa: ClassVar[dict] = {("PERSON_NAME",): TypEncji.OSOBA}
+
+    def test_b_i_e_jedna_encja(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("B-PERSON_NAME", (5, 8), 0.9),
+            ("I-PERSON_NAME", (9, 12), 0.8),
+            ("E-PERSON_NAME", (13, 20), 0.7),
+            ("O", (21, 24), 0.9),
+        ]
+        zakresy = zdekoduj_bio(tokeny, self.mapa)
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(5, 20, TypEncji.OSOBA)]
+        assert zakresy[0][3] == pytest.approx(0.7)  # min over B/I/E
+
+    def test_s_pojedynczy_token_cala_encja(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("S-PERSON_NAME", (5, 10), 0.85),
+            ("O", (11, 13), 0.9),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (5, 10, TypEncji.OSOBA)
+        ]
+
+    def test_e_bez_b_pominieta(self):
+        tokeny: list[Etykieta] = [
+            ("O", (0, 4), 0.9),
+            ("E-PERSON_NAME", (5, 10), 0.9),
+        ]
+        assert zdekoduj_bio(tokeny, self.mapa) == []
+
+    def test_e_innego_typu_zamyka_i_nie_dokleja(self):
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("E-LOCATION", (5, 12), 0.9),
+        ]
+        zakresy = zdekoduj_bio(tokeny, self.mapa)
+        assert [(s, k, t) for s, k, t, _ in zakresy] == [(0, 4, TypEncji.OSOBA)]
+
+    def test_s_po_b_zamyka_i_startuje_osobna(self):
+        # invalid model sequence: B..., then S: close B (no S in the middle),
+        # S = separate single-token entity.
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("S-PERSON_NAME", (5, 10), 0.8),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (0, 4, TypEncji.OSOBA),
+            (5, 10, TypEncji.OSOBA),
+        ]
+
+    def test_bez_e_sekwencja_b_i_zamyka_sie_na_O(self):
+        # plain BIO still works without E/S (bardsai compatibility).
+        tokeny: list[Etykieta] = [
+            ("B-PERSON_NAME", (0, 4), 0.9),
+            ("I-PERSON_NAME", (5, 12), 0.8),
+            ("O", (13, 16), 0.9),
+        ]
+        assert [(s, k, t) for s, k, t, _ in zdekoduj_bio(tokeny, self.mapa)] == [
+            (0, 12, TypEncji.OSOBA)
+        ]
+
+
+# --- Detektor interface, OnnxDetektor, bardsai adapter (stubs) ---
+
+import hashlib
+import itertools
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import ClassVar
+
+from niewidka.detektory import (
+    ADAPTER_BARDSAI,
+    BladDetektora,
+    OnnxDetektor,
+    RegulyDetektor,
+)
+from niewidka.reguly import znajdz as znajdz_reguly
+
+
+@dataclass
+class AtrapaEncoding:
+    ids: list[int]
+    offsets: list[tuple[int, int]]
+    special_tokens_mask: list[int]
+
+
+class AtrapaTokenizer:
+    """Encoding: token (id=i+1) on each word; <s>/</s> with mask (0,0)."""
+
+    def __init__(self, slowa: list[str]):
+        self.slowa = slowa
+
+    def encode(self, tekst: str, add_special_tokens: bool = True):
+        start = 0
+        ids, offsets, maska = [], [], []
+        if add_special_tokens:
+            ids.append(0)
+            offsets.append((0, 0))
+            maska.append(1)
+        for slowo in self.slowa:
+            start = tekst.index(slowo, start)
+            ids.append(len(ids))
+            offsets.append((start, start + len(slowo)))
+            maska.append(0)
+            start += len(slowo)
+        if add_special_tokens:
+            ids.append(0)
+            offsets.append((0, 0))
+            maska.append(1)
+        return AtrapaEncoding(ids, offsets, maska)
+
+
+class AtrapaSesja:
+    """Logits: label with the given id = 4.0, rest 0.0 → confidence ~0.982."""
+
+    def __init__(self, etykieta_na_token: list[int], n_etykiet: int = 69):
+        self.etykieta_na_token = etykieta_na_token
+        self.n_etykiet = n_etykiet
+        self.wejscia = ["input_ids", "attention_mask"]
+
+    def run(self, wyjscia, feed):
+        n = len(feed["input_ids"][0])
+        return [
+            [
+                [
+                    [4.0 if k == e else 0.0 for k in range(self.n_etykiet)]
+                    for e in self.etykieta_na_token[:n]
+                ]
+            ]
+        ]
+
+
+ID_O = 0
+ID_B_KLASA1 = 1  # B-KLASA1 in the configuration stub (B: 1-4, I: 5-8)
+ID_I_KLASA1 = 5  # I-KLASA1
+
+
+def zbuduj_onnx(
+    tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None, próg=None, pół_krok=False
+):
+    config = {
+        "id2label": {
+            i: e
+            for i, e in enumerate(
+                ["O"] + [f"B-KLASA{i}" for i in range(1, 5)] + [f"I-KLASA{i}" for i in range(1, 5)]
+            )
+        }
+    }
+    (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    pliki = {}
+    for nazwa in ("model.onnx", "tokenizer.json"):
+        (tmp_path / nazwa).write_bytes(b"dane-" + nazwa.encode())
+        pliki[nazwa] = hashlib.sha256(b"dane-" + nazwa.encode()).hexdigest()
+    (tmp_path / "manifest.json").write_text(json.dumps({"pliki": pliki}), encoding="utf-8")
+    return OnnxDetektor(
+        nazwa="onnx:test",
+        model=tmp_path / "model.onnx",
+        tokenizer=tmp_path / "tokenizer.json",
+        etykiety={("KLASA1",): TypEncji.OSOBA},
+        id2etykieta=config["id2label"],
+        sesja=sesja or AtrapaSesja(etykieta_na_token),
+        tokenizer_obj=tokenizer or AtrapaTokenizer(slowa),
+        laduj_manifest=True,
+        próg=próg,
+        pół_krok=pół_krok,
+    )
+
+
+class TestAdapterBardsai:
+    def test_osoba_mapowana(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-PERSON_NAME") is TypEncji.OSOBA
+        assert ADAPTER_BARDSAI.zwroc_typ("I-PERSON_NAME") is TypEncji.OSOBA
+
+    def test_alias_osoby_to_osoba(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-PERSON_ALIAS") is TypEncji.OSOBA
+
+    def test_location_i_pozostale_pomijane(self):
+        assert ADAPTER_BARDSAI.zwroc_typ("B-LOCATION") is None
+        assert ADAPTER_BARDSAI.zwroc_typ("B-EMAIL_ADDRESS") is None
+        assert ADAPTER_BARDSAI.zwroc_typ("O") is None
+
+    def test_typy_adaptera(self):
+        assert TypEncji.OSOBA in ADAPTER_BARDSAI.typy
+
+
+class TestRegulyDetektor:
+    def test_protocol_i_wynik_jak_reguly_plus_scalanie(self):
+        d = RegulyDetektor()
+        assert d.nazwa == "reguly"
+        tekst = "PESEL 44051401359."
+        assert d.znajdz(tekst) == scal(tekst, znajdz_reguly(tekst))
+        assert d.znajdz(tekst)[0].typ is TypEncji.PESEL
+
+
+class TestOnnxDetektor:
+    def test_znajdz_zwraca_zakresy_bardsai(self, tmp_path):
+        # "Jan Kowalski i Anna Nowak": tokens 1,2 (Jan, Kowalski) and 4,5 —
+        # session stub: B-KLASA1 on 1, I-KLASA1 on 2, B-KLASA1 on 4, I-KLASA1 on 5.
+        sesja = AtrapaSesja([ID_O, ID_B_KLASA1, ID_I_KLASA1, ID_O, ID_B_KLASA1, ID_I_KLASA1, ID_O])
+        d = zbuduj_onnx(tmp_path, ["Jan", "Kowalski", "i", "Anna", "Nowak"], None, sesja=sesja)
+        wynik = d.znajdz("Jan Kowalski i Anna Nowak")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [
+            (0, 12, TypEncji.OSOBA),
+            (15, 25, TypEncji.OSOBA),
+        ]
+        assert all(z.zrodlo == "onnx:test" for z in wynik)
+        assert all(0 < z.pewnosc <= 1 for z in wynik)
+
+    def test_dlugi_tekst_wiecz_zwola_okna(self, tmp_path):
+        # 1100 tokens, windows [0,510), [448,958), [590,1100); session call counter.
+        n = 1100
+        slowa = [f"w{i}" for i in range(n)]
+        wywolania = []
+
+        class LiczacaSesja(AtrapaSesja):
+            def run(self, wyjscia, feed):
+                wywolania.append(len(feed["input_ids"][0]))
+                return super().run(wyjscia, feed)
+
+        sesja = LiczacaSesja([ID_O] * (n + 2))
+        d = zbuduj_onnx(tmp_path, slowa, None, sesja=sesja)
+        wynik = d.znajdz(" ".join(slowa))
+        assert wywolania == [510, 510, 510]  # 510-token windows, fed as-is
+        assert wynik == []
+
+    def test_okno_przycina_tokeny_specjalne(self, tmp_path):
+        # <s> O, B-KLASA1 in the middle: entity in the middle of the window caught correctly.
+        sesja = AtrapaSesja([ID_O, 1, ID_O, ID_O])
+        d = zbuduj_onnx(tmp_path, ["Jan", "biegł"], None, sesja=sesja)
+        wynik = d.znajdz("Jan biegł")
+        assert [(z.start, z.koniec) for z in wynik] == [(0, 3)]
+
+    def test_manifest_rozbiezny_sha_blad(self, tmp_path):
+        config = {"id2label": {"0": "O"}}
+        (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+        (tmp_path / "model.onnx").write_bytes(b"x")
+        (tmp_path / "tokenizer.json").write_bytes(b"y")
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"pliki": {"model.onnx": "0" * 64, "tokenizer.json": "0" * 64}}),
+            encoding="utf-8",
+        )
+        with pytest.raises(BladDetektora, match="manifest"):
+            OnnxDetektor(
+                nazwa="onnx:test",
+                model=tmp_path / "model.onnx",
+                tokenizer=tmp_path / "tokenizer.json",
+                etykiety={},
+                id2etykieta=config["id2label"],
+                sesja=AtrapaSesja([0]),
+                tokenizer_obj=AtrapaTokenizer(["a"]),
+                laduj_manifest=True,
+            )
+
+    def test_blad_inferencji_fail_closed(self, tmp_path):
+        class PadajacaSesja:
+            wejscia: ClassVar[list[str]] = ["input_ids", "attention_mask"]
+
+            def run(self, wyjscia, feed):
+                raise RuntimeError("padł model")
+
+        d = zbuduj_onnx(tmp_path, ["Jan"], None, sesja=PadajacaSesja())
+        with pytest.raises(BladDetektora, match="padł model"):
+            d.znajdz("Jan")
+
+
+# --- wczytaj_bardsai (live model, marker `model`) + DetektorKompozyt ---
+
+from niewidka.detektory import ADAPTER_LFM25
+
+
+class TestWczytajBardsai:
+    @pytest.mark.model
+    def test_zywy_model_osoba(self, model_bardsai):
+        wynik = model_bardsai.znajdz("Wczoraj Jan Kowalski poszedł do sklepu po chleb.")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(8, 20, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:bardsai"
+        assert wynik[0].pewnosc > 0.9
+
+    @pytest.mark.model
+    def test_zywy_model_dlugi_tekst_okna(self, model_bardsai):
+        tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokens
+        wynik = model_bardsai.znajdz(tekst)
+        oczekiwane = 120
+        assert sum(1 for z in wynik if z.typ is TypEncji.OSOBA) >= oczekiwane * 0.9
+
+
+class AtrapaDetektor:
+    def __init__(self, nazwa, zakresy):
+        self.nazwa = nazwa
+        self.zakresy = zakresy
+        self.typy = frozenset(z.typ for z in zakresy)
+
+    def znajdz(self, tekst):
+        return self.zakresy
+
+
+class TestDetektorKompozyt:
+    def test_unia_czesci_scalona(self):
+        from niewidka.detektory import DetektorKompozyt
+        from niewidka.model import Zakres
+
+        a = AtrapaDetektor("a", [Zakres(0, 12, TypEncji.OSOBA, 0.9, "a")])
+        b = AtrapaDetektor("b", [Zakres(8, 20, TypEncji.OSOBA, 0.9, "b")])
+        kompozyt = DetektorKompozyt("poziom1", [a, b])
+        assert kompozyt.nazwa == "poziom1"
+        wynik = kompozyt.znajdz("0123456789ABCDEFGHIJ")
+        # Overlapping ranges -> one group, masked as the union [0,20).
+        assert [(z.start, z.koniec) for z in wynik] == [(0, 20)]
+        assert kompozyt.typy == {TypEncji.OSOBA}
+
+    def test_pusta_lista(self):
+        from niewidka.detektory import DetektorKompozyt
+        from niewidka.model import Zakres  # noqa: F401 — keep the section consistent
+
+        assert DetektorKompozyt("poziom1", []).znajdz("cokolwiek") == []
+
+
+# --- LFM2.5 adapter: label mapping, level 2 ---
+
+class TestAdapterLfm25:
+    def test_osoba_we_wszystkich_literach_bioes(self):
+        for litera in "BIES":
+            assert ADAPTER_LFM25.zwroc_typ(f"{litera}-identity.person_name") is TypEncji.OSOBA
+
+    def test_identity_person_name_dokladnie(self):
+        assert ADAPTER_LFM25.zwroc_typ("B-identity.person_name") is TypEncji.OSOBA
+
+    def test_pozostale_typy_pomijane(self):
+        # rules give PESEL/NIP/IBAN/phone/e-mail with exact boundaries (confidence 1.0);
+        # model equivalents would blur the boundaries (merge union)
+        for etykieta in (
+            "B-identity.national_id",
+            "B-identity.tax_id",
+            "B-financial.iban",
+            "B-contact.email",
+            "B-contact.phone",
+            "B-contact.address",
+            "B-identity.passport",
+            "O",
+        ):
+            assert ADAPTER_LFM25.zwroc_typ(etykieta) is None
+
+    def test_typy_adaptera_tylko_osoba(self):
+        assert ADAPTER_LFM25.typy == frozenset({TypEncji.OSOBA})
+
+
+class TestWczytajLfm25:
+    @pytest.mark.model
+    def test_zywy_model_int8_osoba(self, model_lfm25):
+        wynik = model_lfm25.znajdz("Wczoraj Jan Kowalski poszedł do sklepu po chleb.")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(8, 20, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:lfm25"
+
+    @pytest.mark.model
+    @pytest.mark.xfail(reason="LFM2.5 degraduje na powtarzalnych długich tekstach "
+                             "kompozyt poziomu 2 nie "
+                             "wychodzi, mechanizm okien pokryty atrapami", strict=False)
+    def test_zywy_model_dlugi_tekst_okna(self, model_lfm25):
+        tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokens
+        wynik = model_lfm25.znajdz(tekst)
+        assert sum(1 for z in wynik if z.typ is TypEncji.OSOBA) >= 120 * 0.9
+
+
+class TestPoziom2:
+    @pytest.mark.model
+    def test_poziom2_zwiera_reguly_i_dwa_modele(self, wagi_lfm25):
+        from niewidka.detektory import wczytaj_poziom2
+
+        poziom2 = wczytaj_poziom2(wagi_lfm25)
+        assert poziom2.nazwa == "poziom2"
+        assert [d.nazwa for d in poziom2.czesci] == ["reguly", "onnx:bardsai", "onnx:lfm25"]
+        wynik = poziom2.znajdz("Jan Kowalski, PESEL 44051401359.")
+        typy = {z.typ for z in wynik}
+        assert TypEncji.OSOBA in typy and TypEncji.PESEL in typy
+
+
+# --- extending model ranges to word boundaries (subword artifacts) ---
+
+from niewidka.detektory import rozciagnij_do_slow
+
+
+class TestRozciagnijDoSlow:
+    def test_ucieta_koncowa_subtokenu(self):
+        # 'Róża' tokenized 'Róż'+'a': the model marked only the first.
+        assert rozciagnij_do_slow([(0, 3)], "Róża kupiła róże.") == [(0, 4)]
+
+    def test_ucieta_srodkowa(self):
+        # 'Nowak' in the middle: 'Now'+'ak': does not extend into neighbouring words.
+        tekst = "Nowak to nazwisko; Nowak podpisuje."
+        assert rozciagnij_do_slow([(19, 22)], tekst) == [(19, 24)]
+
+    def test_dwa_b_w_jednym_slowie_daja_identyczne(self):
+        # 'Kowal' = 'Ko'+'wal', the model gave B on both subtokens.
+        assert rozciagnij_do_slow([(0, 2), (2, 5)], "Kowal to zawód.") == [(0, 5), (0, 5)]
+
+    def test_pelen_zakres_slowny_niezmieniony(self):
+        assert rozciagnij_do_slow([(0, 12)], "Jan Kowalski poszedł.") == [(0, 12)]
+
+    def test_nie_rosnie_po_spacji_i_przecinku(self):
+        assert rozciagnij_do_slow([(0, 3)], "Jan, Kowalski i in.") == [(0, 3)]
+
+    def test_nie_przekracza_tekstu(self):
+        # after whitespace trim the trailing space is not in the range
+        assert rozciagnij_do_slow([(0, 4)], "Jan ") == [(0, 3)]
+
+    def test_diacritiki_i_cyfry(self):
+        assert rozciagnij_do_slow([(0, 2)], "Żółć3.") == [(0, 5)]
+
+    def test_puste(self):
+        assert rozciagnij_do_slow([], "cokolwiek") == []
+
+
+class TestRozciagnijDoSlowTrim:
+    """BPE tokens (LFM2.5) have offsets with a leading space ('ĠPiot' -> (14,19));
+    without whitespace trimming the extension spills onto the previous word."""
+
+    def test_offset_z_wiodaca_spacja_nie_ucieka_na_poprzednie_slowo(self):
+        tekst = "Umowę podpisał Piotr Nowak w obecności."
+        # 'ĠPiot' offset (14,19): 14 = space; start must move to 15, not 6.
+        assert rozciagnij_do_slow([(14, 19)], tekst) == [(15, 20)]
+
+    def test_offset_z_wewnetrzna_spacja_dwa_slowa(self):
+        tekst = "Umowę podpisał Piotr Nowak w obecności."
+        # 'ĠPiotr Nowak' offset (14,26): after trimming, 'Piotr Nowak' = (15,26).
+        assert rozciagnij_do_slow([(14, 26)], tekst) == [(15, 26)]
+
+    def test_zwykle_zakresy_niezmienione(self):
+        tekst = "Jan Kowalski poszedł."
+        assert rozciagnij_do_slow([(0, 12)], tekst) == [(0, 12)]
+
+
+# --- OSOBA confidence threshold, half-step windows, name dictionary ---
+
+from niewidka.detektory import SlownikImionDetektor
+
+
+class AtrapaSesjaLogity:
+    """Per-token logits: {token id: {label id: logit}}; rest 0.0."""
+
+    wejscia: ClassVar[list[str]] = ["input_ids", "attention_mask"]
+
+    def __init__(self, logity: dict[int, dict[int, float]], n_etykiet: int = 9):
+        self._logity = logity
+        self._n = n_etykiet
+
+    def run(self, _, feed):
+        idy = list(feed["input_ids"][0])
+        return [
+            [
+                [
+                    [self._logity.get(id, {}).get(k, 0.0) for k in range(self._n)]
+                    for id in idy
+                ]
+            ]
+        ]
+
+
+class TestProgPewnosciOSOBA:
+    # O = 4.5 (argmax), B-KLASA1 = 4.0 -> p(KLASA1) ≈ 0.34: candidate BELOW argmax.
+    LOGITY_JAN: ClassVar[dict[int, dict[int, float]]] = {1: {0: 4.5, 1: 4.0}}
+
+    def test_powyzej_progu_dodaje_osoba_bez_argmaxu(self, tmp_path):
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN), próg=0.2
+        )
+        wynik = d.znajdz("Jan biegł")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 3, TypEncji.OSOBA)]
+        assert wynik[0].zrodlo == "onnx:test"
+
+    def test_ponizej_progu_brak_osoby(self, tmp_path):
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN), próg=0.4
+        )
+        assert d.znajdz("Jan biegł") == []
+
+    def test_bez_progu_zachowanie_niezmienione(self, tmp_path):
+        d = zbuduj_onnx(tmp_path, ["Jan", "biegł"], None, sesja=AtrapaSesjaLogity(self.LOGITY_JAN))
+        assert d.znajdz("Jan biegł") == []  # argmax = O -> no detection
+
+    def test_kontynuacja_kleje_b_i_i(self, tmp_path):
+        logity = {1: {0: 4.5, 1: 4.0}, 2: {0: 4.5, 1: 4.0}}
+        d = zbuduj_onnx(
+            tmp_path, ["Jan", "Kowalski", "biegł"], None, sesja=AtrapaSesjaLogity(logity), próg=0.2
+        )
+        wynik = d.znajdz("Jan Kowalski biegł")
+        assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 12, TypEncji.OSOBA)]
+
+    def test_prog_poza_zakresem_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="próg"):
+            zbuduj_onnx(tmp_path, ["Jan"], None, próg=1.5)
+
+
+class TestPolKrokOkien:
+    def test_encja_na_granicy_okien_lapana_przesunieciem(self, tmp_path):
+        # n=1100; entity B/I…/I on tokens 445-515 (71 tokens > overlap of 62
+        # tokens). Window (0,510) has only part of it, window (448,958) starts FURTHER
+        # than the B token -> everything there is I without its B, dropped; the shifted window
+        # (224,734) covers the whole entity -> full B..I chain.
+        n = 1100
+        slowa = [f"w{i:04d}" for i in range(n)]
+        tekst = " ".join(slowa)
+        # token id = word index + 1 (id 0 = <s>); B on word 445, I on 446-515
+        logity = {446: {1: 4.0}}
+        logity.update({id: {5: 4.0} for id in range(447, 517)})
+        sesja = AtrapaSesjaLogity(logity)
+        s = tekst.index("w0445")  # each word is 5 chars + a space: words every 6 chars
+        d_bez = zbuduj_onnx(tmp_path, slowa, None, sesja=sesja, pół_krok=False)
+        fragment = [(z.start, z.koniec) for z in scal(tekst, d_bez.znajdz(tekst))]
+        assert fragment == [(s, s + 63 * 6 + 5)], fragment  # words 445-508 (fragment)
+        d_z = zbuduj_onnx(tmp_path, slowa, None, sesja=AtrapaSesjaLogity(logity), pół_krok=True)
+        calość = [(z.start, z.koniec) for z in scal(tekst, d_z.znajdz(tekst))]
+        assert calość == [(s, s + 70 * 6 + 5)], calość  # words 445-515 (whole)
+
+
+def mini_slownik(tmp_path: Path, tresc: str = "# nagłówek\nJan\t516\nAnna\t1063\nPiotr\t700\n") -> Path:
+    plik = tmp_path / "imiona.txt"
+    plik.write_text(tresc, encoding="utf-8")
+    return plik
+
+
+class TestSlownikImion:
+    @pytest.mark.parametrize(
+        "forma,nazwisko",
+        [("Jan", "Kowalski"), ("Jana", "Kowalskiego"), ("Janem", "Kowalskim"),
+         ("Piotr", "Kowalski"), ("Piotra", "Kowalskiego"), ("Piotrem", "Kowalskim")],
+    )
+    def test_odmiany_meskie(self, tmp_path, forma, nazwisko):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        tekst = f"{forma} {nazwisko} podpisał."
+        assert [(z.start, z.koniec, z.typ) for z in d.znajdz(tekst)] == [
+            (0, len(f"{forma} {nazwisko}"), TypEncji.OSOBA)
+        ]
+
+    @pytest.mark.parametrize("forma", ["Anna", "Anny", "Annie"])
+    def test_odmiany_zenskie(self, tmp_path, forma):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert [(z.start, z.koniec, z.typ) for z in d.znajdz(f"{forma} Kowalska podpisała.")] == [
+            (0, len(f"{forma} Kowalska"), TypEncji.OSOBA)
+        ]
+
+    def test_nastepne_slowo_wielka_litera(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Jan podpisał.") == []  # next word is lower case
+        assert [(z.start, z.koniec) for z in d.znajdz("biegł Jan Kowalski.")] == [(6, 18)]
+
+    def test_imie_z_malej_litery_to_nie_imie(self, tmp_path):
+        # "marki Skoda" -> OSOBA (stem like "Marek")
+        # "marki" has stem "mark" like the name "Marko" from the GUS dictionary
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path, "Marko\t90\n"))
+        assert d.znajdz("pojazd marki Skoda Octavia") == []
+        assert [(z.start, z.koniec) for z in d.znajdz("pojazd Marko Nowak")] == [(7, 18)]
+
+    def test_osoba_nieobecna_w_slowniku(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Marek Kowalski podpisał.") == []
+
+    def test_dwie_osoby_w_jednym_tekście(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        tekst = "Jan Kowalski i Anna Nowak"
+        assert [(z.start, z.koniec) for z in d.znajdz(tekst)] == [(0, 12), (15, 25)]
+
+    def test_interpunkcja_nie_rozszerza_zakresu(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert [(z.start, z.koniec) for z in d.znajdz("Jan Kowalski, PESEL 44051401359.")] == [(0, 12)]
+
+    def test_przedział_środek_bez_bialego(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        # comma without a space between words - not a first name + surname pair
+        assert d.znajdz("Jan,Kowalski podpisał.") == []
+
+    def test_janina_nie_pasuje_do_jana(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz("Janina Kowalska podpisała.") == []
+
+    def test_puste_fragmenty_i_pomijanie_komentarzy(self, tmp_path):
+        d = SlownikImionDetektor(plik=mini_slownik(tmp_path))
+        assert d.znajdz(".") == []
+
+    def test_pusty_slownik_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="pusty"):
+            SlownikImionDetektor(plik=mini_slownik(tmp_path, tresc="# tylko nagłówek\n"))
+
+    def test_brak_slownika_blad(self, tmp_path):
+        with pytest.raises(BladDetektora, match="brak"):
+            SlownikImionDetektor(plik=tmp_path / "nie-ma.txt")
+
+
+# --- wiring levels into the product: one function composing a level ---
+
+from niewidka.detektory import zbuduj_poziom
+
+
+@pytest.mark.model
+class TestZbudujPoziom:
+    def test_poziom1_bez_progu_i_pol_kroku(self, katalog_modeli):
+        d = zbuduj_poziom(1, katalog_modeli, próg_osoba=0.2)
+        assert d.nazwa == "poziom1"
+        assert [c.nazwa for c in d.czesci] == ["reguly", "onnx:bardsai"]
+        assert d.czesci[1]._próg is None and not d.czesci[1]._pół_krok
+
+    def test_poziom2_wariant_a(self, katalog_modeli):
+        d = zbuduj_poziom(2, katalog_modeli, próg_osoba=0.25)
+        assert d.nazwa == "poziom2"
+        assert d.czesci[1]._próg == 0.25 and d.czesci[1]._pół_krok
+
+    def test_poziom3_wariant_b(self, katalog_modeli):
+        d = zbuduj_poziom(3, katalog_modeli, próg_osoba=0.2)
+        assert d.nazwa == "poziom3"
+        assert d.uzup.nazwa == "slownik-imion"
+        assert d.podstawa[1]._próg == 0.2 and d.podstawa[1]._pół_krok
+
+    def test_poziom_poza_zakresem(self, katalog_modeli):
+        with pytest.raises(ValueError, match="poziom"):
+            zbuduj_poziom(4, katalog_modeli, próg_osoba=0.2)
+
+    def test_podmiana_warstwy_regul(self, katalog_modeli):
+        reguly = RegulyDetektor()  # the core inserts its own filter (_BezDaty) through this parameter
+        d = zbuduj_poziom(2, katalog_modeli, próg_osoba=0.2, reguly=reguly)
+        assert d.czesci[0] is reguly
+
+
+# --- Extended package (LFM2.5 only for IP/KARTA/SWIFT/LOGIN) ---
+
+from niewidka.detektory import (
+    ADAPTER_LFM25_ROZSZERZONY,
+    DetektorUzupełniający,
+    wczytaj_lfm25,
+)
+from niewidka.model import Zakres
+
+
+class AtrapaUzup:
+    """Supplementer returning fixed ranges (tests without weights)."""
+
+    def __init__(self, zakresy: list[Zakres]):
+        self.zakresy = zakresy
+        self.nazwa = "atrapa-uzup"
+        self.typy = frozenset(z.typ for z in zakresy) or frozenset({TypEncji.IP})
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        return list(self.zakresy)
+
+
+def test_detektor_uzupelniajacy_typy_uzup_domyslnie_osoba():
+    podstawa = AtrapaDetektor("podstawa", [])  # types = {OSOBA}, returns empty
+    uzup = AtrapaUzup([Zakres(0, 5, TypEncji.OSOBA, 0.9, "x")])
+    d = DetektorUzupełniający("t", [podstawa], uzup)
+    assert d.typy == frozenset({TypEncji.OSOBA})
+
+
+def test_detektor_uzupelniajacy_typy_regulowe_odpadaja():
+    """A supplementer with the 4 types (Extended package) does NOT add OSOBA or
+    rule-based types: only IP/KARTA/SWIFT/LOGIN, and only without overlap."""
+    podstawa = AtrapaDetektor("podstawa", [])
+    uzup = AtrapaUzup(
+        [
+            Zakres(0, 4, TypEncji.SWIFT, 0.9, "x"),  # free spot: accepted
+            Zakres(10, 14, TypEncji.OSOBA, 0.9, "x"),  # OSOBA: dropped
+            Zakres(20, 24, TypEncji.EMAIL, 0.9, "x"),  # rule type: dropped
+            Zakres(30, 34, TypEncji.IP, 0.9, "x"),  # no collision: accepted
+        ]
+    )
+    d = DetektorUzupełniający(
+        "t",
+        [podstawa],
+        uzup,
+        typy_uzup=frozenset({TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}),
+    )
+    # the supplementer stub offers SWIFT/OSOBA/EMAIL/IP, so after typy_uzup IP and SWIFT remain
+    assert d.typy == frozenset({TypEncji.IP, TypEncji.SWIFT})
+    tekst = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    trafione = {(z.start, z.koniec, z.typ) for z in d.znajdz(tekst)}
+    assert trafione == {(0, 4, TypEncji.SWIFT), (30, 34, TypEncji.IP)}
+
+
+def test_detektor_uzupelniajacy_nachodzenie_z_regulami():
+    """SWIFT overlapping a rule range (here the base stub) is dropped entirely."""
+    class PodstawaZeZakresem:
+        nazwa = "podstawa"
+        typy = frozenset({TypEncji.IBAN})
+
+        def znajdz(self, tekst: str) -> list[Zakres]:
+            return [Zakres(0, 10, TypEncji.IBAN, 1.0, "regula")]
+
+    uzup = AtrapaUzup([Zakres(5, 15, TypEncji.SWIFT, 0.9, "x")])
+    d = DetektorUzupełniający("t", [PodstawaZeZakresem()], uzup, typy_uzup=frozenset({TypEncji.SWIFT}))
+    wynik = d.znajdz("a" * 20)
+    assert [(z.start, z.koniec, z.typ) for z in wynik] == [(0, 10, TypEncji.IBAN)]
+
+
+def test_adapter_lfm25_rozszerzony_typy():
+    mapa = ADAPTER_LFM25_ROZSZERZONY.mapa
+    assert mapa == {
+        ("contact.ip_address",): TypEncji.IP,
+        ("financial.credit_card",): TypEncji.KARTA,
+        ("financial.swift_bic",): TypEncji.SWIFT,
+        ("online.username",): TypEncji.LOGIN,
+    }
+    assert ADAPTER_LFM25_ROZSZERZONY.typy == frozenset(
+        {TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN}
+    )
+
+
+def test_wcztaj_lfm25_wariant_rozszerzony(katalog_modeli):
+    from pathlib import Path
+
+    warianty = Path(katalog_modeli) / "lfm25"
+    if not (warianty / "q4-bl32" / "model.onnx").is_file():
+        pytest.skip("brak LFM2.5 q4-bl32")
+    d = wczytaj_lfm25(Path(katalog_modeli), wariant="q4-bl32", rozszerzony=True)
+    assert d.nazwa == ADAPTER_LFM25_ROZSZERZONY.nazwa
+    assert d.typy == frozenset({TypEncji.IP, TypEncji.KARTA, TypEncji.SWIFT, TypEncji.LOGIN})
+
+
+@pytest.mark.model
+def test_poziom3_z_pakietem_rozszerzonym(katalog_modeli):
+    from pathlib import Path
+
+    if not (Path(katalog_modeli) / "lfm25" / "q4-bl32" / "model.onnx").is_file():
+        pytest.skip("brak LFM2.5 q4-bl32")
+    d = zbuduj_poziom(3, katalog_modeli, próg_osoba=0.2, pakiet_rozszerzony=True)
+    assert d.nazwa == "poziom3+rozszerzony"
+    assert TypEncji.SWIFT in d.typy and TypEncji.OSOBA in d.typy
+
+
+# --- trusted package catalog + loading verified bytes ---
+
+from niewidka.detektory import wczytaj_bardsai
+
+
+def _katalog_fałszywych_wag(tmp_path):
+    """Fake weights directory + fake TRUSTED pakiety.json (fake content hashes)."""
+    import hashlib
+    import json
+
+    katalog = tmp_path / "wagi"
+    katalog.mkdir()
+    tresci = {
+        "model.onnx": b"FAKTYCZNE-BAJTY-ONNX",
+        "tokenizer.json": b'{"tokenizer": true}',
+        "config.json": b'{"id2label": {"0": "B-PERSON_NAME", "1": "I-PERSON_NAME"}}',
+    }
+    pliki = []
+    for nazwa, tresc in tresci.items():
+        (katalog / nazwa).write_bytes(tresc)
+        pliki.append(
+            {
+                "nazwa": nazwa,
+                "zrodlo": f"podstawowy-{nazwa}",
+                "rozmiar": len(tresc),
+                "sha256": hashlib.sha256(tresc).hexdigest(),
+            }
+        )
+    dane = {"pakiety": [{"id": "podstawowy", "nazwa": "Podstawowy", "opis": "t",
+            "wymagany": True, "poziomy": [1, 2, 3], "katalog_rel": "", "pliki": pliki}]}
+    zaufany = tmp_path / "pakiety.json"
+    zaufany.write_text(json.dumps(dane), encoding="utf-8")
+    return katalog, zaufany, tresci
+
+
+class _AtrapaSesji:
+    def get_inputs(self):
+        return [type("Wejscie", (), {"name": "input_ids"})(),
+                type("Wejscie", (), {"name": "attention_mask"})()]
+
+
+def test_wczytaj_bardsai_laduje_zweryfikowane_bajty(monkeypatch, tmp_path):
+    """Bardsai loads EXACTLY the bytes that passed
+    SHA-256 verification against the TRUSTED pakiety.json (closes the check-then-use window)."""
+    import onnxruntime
+    import tokenizers
+
+    katalog, zaufany, tresci = _katalog_fałszywych_wag(tmp_path)
+    widziane: dict[str, object] = {}
+    monkeypatch.setattr(
+        onnxruntime, "InferenceSession",
+        lambda bajty, providers=None: (widziane.setdefault("model", bajty), _AtrapaSesji())[1],
+    )
+    monkeypatch.setattr(
+        tokenizers.Tokenizer, "from_str",
+        classmethod(lambda cls, lancuch: widziane.setdefault("tokenizer", lancuch)),
+    )
+    detektor = wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+    assert widziane["model"] == tresci["model.onnx"]
+    assert widziane["tokenizer"] == tresci["tokenizer.json"].decode("utf-8")  # same bytes, decoded
+    assert detektor._id2etykieta == {"0": "B-PERSON_NAME", "1": "I-PERSON_NAME"}
+
+
+def test_wczytaj_bardsai_podmieniony_model_z_pustym_manifestem_odpada(tmp_path):
+    """Manifest.json = {} used to pass without checking a single hash;
+    the trusted package catalog must DECIDE the expected sums, not the local manifest."""
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    (katalog / "model.onnx").write_bytes(b"PODMIENIONE WAGI")
+    (katalog / "manifest.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+def test_wczytaj_bardsai_komplet_plikow_obowiazkowy(tmp_path):
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    (katalog / "config.json").unlink()
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+def test_wczytaj_bardsai_symlink_zamiast_pliku_odpada(tmp_path):
+    katalog, zaufany, _ = _katalog_fałszywych_wag(tmp_path)
+    obcy = tmp_path / "ofiara.txt"
+    obcy.write_bytes(b"dane ofiary")
+    (katalog / "model.onnx").unlink()
+    dowiazanie(katalog / "model.onnx", obcy)
+    with pytest.raises(BladDetektora):
+        wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+
+
+class TestSwiftWNaglowku:
+    """LFM2.5 took "WARSZAWY" from the header
+    "URZĄD MIASTA STOŁECZNEGO WARSZAWY" for a SWIFT code."""
+
+    class Atrapa:
+        nazwa = "atrapa-lfm"
+        typy = frozenset({TypEncji.SWIFT})
+
+        def __init__(self, slowo: str):
+            self.slowo = slowo
+
+        def znajdz(self, tekst: str):
+            from niewidka.model import Zakres
+
+            i = tekst.find(self.slowo)
+            return [Zakres(i, i + len(self.slowo), TypEncji.SWIFT, 0.9, self.nazwa)] if i >= 0 else []
+
+    def test_slowo_w_naglowku_wielkimi_literami_to_nie_swift(self):
+        from niewidka.detektory import BezSwiftWNaglowku
+
+        d = BezSwiftWNaglowku(self.Atrapa("WARSZAWY"))
+        assert d.znajdz("URZĄD MIASTA STOŁECZNEGO WARSZAWY\nul. Zielna 17") == []
+
+    @pytest.mark.parametrize(
+        "tekst",
+        ["SWIFT banku: EBOSPLPW.", "kod SWIFT EBOSPLPW", "BIC EBOSPLPW", "Przelew na EBOSPLPW teraz",
+         "SWIFT EBOSPLPW BANK", "BIC: EBOSPLPW PKO BP"],
+    )
+    def test_prawdziwy_swift_zostaje(self, tekst):
+        from niewidka.detektory import BezSwiftWNaglowku
+
+        assert len(BezSwiftWNaglowku(self.Atrapa("EBOSPLPW")).znajdz(tekst)) == 1
+
+
+def test_zbuduj_poziom_przekazuje_zaufane_pakiety_do_loaderow(monkeypatch, tmp_path):
+    from niewidka import detektory
+
+    zaufane = ["zaufane"]
+    przekazane = {}
+
+    def falszywy_bardsai(katalog, **kw):
+        przekazane["bardsai"] = kw["katalog_pakietow"]
+        return RegulyDetektor()
+
+    def falszywy_lfm(katalog, **kw):
+        przekazane["lfm"] = kw["katalog_pakietow"]
+        return RegulyDetektor()
+
+    monkeypatch.setattr(detektory, "wczytaj_bardsai", falszywy_bardsai)
+    monkeypatch.setattr(detektory, "wczytaj_lfm25", falszywy_lfm)
+    detektory.zbuduj_poziom(3, tmp_path, pakiet_rozszerzony=True, katalog_pakietow=zaufane)
+    assert przekazane == {"bardsai": zaufane, "lfm": zaufane}

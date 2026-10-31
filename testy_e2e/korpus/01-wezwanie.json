@@ -1,0 +1,21 @@
+{
+  "opis": "Wezwanie na posiedzenie urzędu dzielnicy",
+  "musza_zniknac": [
+    "Jan Kowalski",
+    "Jana Kowalskiego",
+    "Anna Maria Wilk-Wójcik",
+    "Annę Marię Wilk-Wójcik",
+    "Robert Piechota",
+    "Irena Malczyk",
+    "78051710258",
+    "ul. Kwiatowa 8/24, 02-562 Warszawa",
+    "02-562 Warszawa",
+    "22 555 01 42"
+  ],
+  "moga_zostac": [
+    "URZĄD DZIELNICY POŁUDNIE",
+    "Referat Obsługi Obywateli",
+    "VG.5410.126.2026",
+    "referat.obywatelski@urzad-poludnie.example.pl"
+  ]
+}

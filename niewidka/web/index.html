@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="niewidka-token" content="__NIEWIDKA_TOKEN__">
+<meta name="theme-color" content="#FBFBF9">
+<title>Niewidka: ukrywanie danych osobowych</title>
+<link rel="stylesheet" href="styl.css">
+<link rel="preload" href="fonty/Lato-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="fonty/Lato-Bold.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="apka.js" defer></script>
+</head>
+<body>
+
+<a class="przeskok" href="#glowna">Przejdź do treści</a>
+
+<header class="gora">
+  <div class="gora-srodek">
+    <h1 class="nazwa"><img src="logo.svg" alt="Niewidka" width="152" height="48"></h1>
+    <div class="zakladki" role="tablist" aria-label="Tryby pracy">
+      <button type="button" id="zakladka-ukryj" class="zakladka" role="tab"
+              aria-selected="true" aria-controls="panel-ukryj">Ukryj dane</button>
+      <button type="button" id="zakladka-przywroc" class="zakladka" role="tab"
+              aria-selected="false" aria-controls="panel-przywroc" tabindex="-1">Przywróć dane</button>
+      <button type="button" id="zakladka-ustawienia" class="zakladka" role="tab"
+              aria-selected="false" aria-controls="panel-ustawienia" tabindex="-1">Ustawienia</button>
+    </div>
+    <p class="tryb"><strong id="tryb-etykieta">Na tym urządzeniu.</strong><span id="tryb-opis"> Twoje dane nie opuszczają tego komputera.</span></p>
+  </div>
+</header>
+
+<main class="glowna" id="glowna">
+
+  <section id="ekran-pakietow" class="ekran-pakietow" hidden>
+    <div class="ekran-pakietow-tekst">
+      <h2>Przygotowanie do pracy</h2>
+      <p class="wyjasnienie">Program potrzebuje modeli wykrywających dane, aby działać.
+      Modele pobierają się teraz z internetu i zostają na tym komputerze. Potem program
+      nie łączy się z siecią: Twoje dokumenty nigdzie nie wypływają.</p>
+      <div id="ekran-pakietow-wybor" class="ekran-pakietow-wybor">
+        <button type="button" id="pakiet-pobierz-podstawowy" class="przycisk-glowny">Pobierz podstawowy (zalecane)</button>
+        <button type="button" id="pakiet-pobierz-wszystko" class="przycisk-wtorny">Pobierz wszystko (podstawowy i rozszerzony)</button>
+        <button type="button" id="pakiet-pozniej" class="linkowy">Później</button>
+        <p class="podpowiedz">Pakiet podstawowy wystarcza do pełnej pracy programu. Pakiet rozszerzony
+        rozpoznaje dodatkowo adresy IP, kody SWIFT i loginy na poziomie Najdokładniej.</p>
+      </div>
+      <div id="ekran-pakietow-postep" hidden>
+        <p id="ekran-pakietow-status" aria-live="polite"></p>
+        <progress id="ekran-pakietow-pasek" max="100" value="0"></progress>
+      </div>
+    </div>
+    <div id="ekran-pakietow-lista" class="lista-pakietow ekran-pakietow-lista"></div>
+  </section>
+
+  <section id="panel-ukryj" class="panel" role="tabpanel" aria-labelledby="zakladka-ukryj">
+    <div class="uklad">
+
+      <div class="kolumna kolumna-wejscie">
+        <button type="button" id="edytuj-wejscie" class="przycisk-wtorny pasek-edycji">Edytuj tekst wejściowy</button>
+        <div id="blok-serwer" class="komunikat komunikat-blad" role="alert" hidden>
+          <p id="blok-serwer-tekst"></p>
+        </div>
+        <form id="form-ukryj" novalidate>
+          <div class="pole-dokumentu" id="strefa-dokumentu">
+            <div id="widok-tekstu">
+              <label for="tekst">Wklej tekst do sprawdzenia</label>
+              <textarea id="tekst" name="tekst" rows="6" spellcheck="false" autocomplete="off"
+                placeholder="Wklej tu pismo, wniosek albo list. Niewidka znajdzie i zasłoni dane osobowe…"></textarea>
+            </div>
+            <div id="widok-pliku" hidden>
+              <p class="nazwa-pliku" id="nazwa-pliku"></p>
+              <button type="button" id="przycisk-tekst-zamiast" class="linkowy">Wklej tekst zamiast tego</button>
+            </div>
+            <div class="wybor-pliku">
+              <input type="file" id="plik" name="plik" accept=".txt,.docx" autocomplete="off"
+                     aria-describedby="podpowiedz-plik">
+              <label for="plik" class="przycisk-wtorny">Wybierz plik</label>
+              <span class="podpowiedz" id="podpowiedz-plik">Obsługuję pliki .txt i .docx, maksymalnie 25&nbsp;MB. Możesz też przeciągnąć plik tutaj.</span>
+            </div>
+          </div>
+
+          <div class="jakosc">
+            <label for="poziom">Jakość wykrywania danych</label>
+            <input type="range" id="poziom" name="poziom" min="1" max="3" step="1" value="2"
+                   aria-describedby="opis-poziomu">
+            <div class="skala" aria-hidden="true">
+              <span>Szybko</span><span>Dokładniej</span><span>Najdokładniej</span>
+            </div>
+            <p class="opis-poziomu" id="opis-poziomu">Wyważony: dobry do zwykłych dokumentów.</p>
+          </div>
+
+          <button type="submit" id="ukryj" class="przycisk-glowny">Ukryj dane</button>
+        </form>
+
+      </div>
+
+      <div class="kolumna kolumna-wynik">
+        <div class="stan-pusty" id="stan-pusty">
+          <h2>Jak to działa</h2>
+          <ol class="kroki">
+            <li><span><strong>Wklej tekst albo wybierz plik.</strong> Obsługuję pliki .txt i .docx.</span></li>
+            <li><span><strong>Niewidka zasłania dane osobowe.</strong> Imiona, nazwiska, numery PESEL, adresy i inne dane zamieniają się na czarne plakietki.</span></li>
+            <li><span><strong>Wyślij bezpieczny tekst do czatu AI.</strong> Gdy czat odpowie, wklej jego odpowiedź na zakładce Przywróć: prawdziwe dane wrócą na miejsce.</span></li>
+          </ol>
+          <p class="kroki-uwaga">Niewidka wspiera Twoją pracę i nie gwarantuje wykrycia wszystkich danych. Przed wysłaniem zawsze przejrzyj wynik.</p>
+        <details class="jak-to-dziala" id="jak-to-dziala">
+          <summary>Pełny opis, typy danych i zastrzeżenie</summary>
+          <div class="jak-to-dziala-tresc">
+            <h3>W skrócie</h3>
+            <p>Niewidka korzysta z lokalnych modeli sztucznej inteligencji uruchomionych bezpośrednio
+            na Twoim komputerze albo na wewnętrznym serwerze zatwierdzonym przez administratora Twojej
+            sieci. Twój oryginalny dokument nigdzie nie wypływa i nie jest wysyłany do internetu.</p>
+            <p>Program znajduje w tekście dane osobowe i zamienia je na bezpieczne znaczniki, takie jak
+            [OSOBA_1] czy [PESEL_1], dzięki czemu możesz spokojnie przekazać tekst do zewnętrznych
+            narzędzi, na przykład do ChatGPT. Mapa, która pozwala wrócić do prawdziwych danych,
+            zapisuje się sama na Twoim komputerze, w zaszyfrowanej postaci. Znika po okresie
+            ustawionym przez administratora. Gdy dostaniesz odpowiedź od sztucznej inteligencji,
+            wklejasz ją na zakładce Przywróć, a program wstawia prawdziwe dane z powrotem. Plik mapy
+            (.nwidka) możesz też pobrać, na przykład do akt sprawy. To opcja, nie obowiązek.</p>
+            <p>Pod spodem działa kilka lokalnych metod naraz, a nie jedna. Reguły z sumami kontrolnymi
+            sprawdzają numery takie jak PESEL, NIP czy IBAN. Model rozpoznający osoby szuka imion
+            i nazwisk w każdej odmianie. Słownik imion z danych GUS pomaga złapać imiona, które model
+            pominął. Z pakietem Rozszerzonym dochodzi drugi model, więc razem pracują dwa modele
+            językowe. Każda metoda łapie trochę co innego, dlatego razem wypadają lepiej niż każda
+            osobno.</p>
+
+            <h3>Jakie dane wykrywamy</h3>
+            <p>Program automatycznie wyszukuje i zasłania w tekście następujące informacje:</p>
+            <ul id="lista-typow-danych" class="lista-typow"></ul>
+            <p>Obrazy w dokumentach (np. skany, zdjęcia podpisów) są usuwane, bo program nie odczytuje
+            tekstu z obrazów.</p>
+
+            <div class="zastrzezenie">
+              <h3>Ważne zastrzeżenie</h3>
+              <p>Pamiętaj, że Niewidka jest narzędziem wspierającym Twoją pracę i nie gwarantuje
+              wykrycia wszystkich danych osobowych w każdym dokumencie. Program może czasem się
+              pomylić: pominąć nietypowo zapisaną informację albo zasłonić słowo, które wcale nie jest
+              daną osobową. Dlatego przed wysłaniem pliku dalej zawsze przejrzyj wynik własnym okiem.
+              Ostateczna decyzja i odpowiedzialność za przekazanie dokumentu dalej zawsze należą
+              do Ciebie.</p>
+            </div>
+
+            <details class="szczegoly-techniczne">
+              <summary>Szczegóły techniczne</summary>
+              <ul class="lista-techniczna">
+                <li><strong>Kilka metod wykrywania danych:</strong> program łączy ścisłe reguły
+                sprawdzające z lokalną sztuczną inteligencją. Numery PESEL, NIP, REGON, IBAN oraz
+                numery dowodów osobistych są weryfikowane za pomocą cyfry kontrolnej (ciągi znaków
+                przypominające te numery, ale mające błędną sumę kontrolną, również są zasłaniane jako
+                podejrzane). Imiona, nazwiska i adresy w polskim tekście rozpoznaje lokalny model
+                językowy (XLM-RoBERTa w formacie ONNX), który działa na zwykłym procesorze komputera,
+                a jeśli urządzenie ma kartę graficzną, używa jej do przyspieszenia pracy.</li>
+                <li><strong>Suwak jakości:</strong> na pierwszym poziomie jakości program sprawdza
+                dokument w jednym szybkim przebiegu. Poziomy drugi i trzeci uruchamiają dodatkowe
+                przebiegi z innymi ustawieniami oraz dodatkowymi metodami wykrywania, dzięki czemu
+                działają wolniej, ale staranniej.</li>
+                <li><strong>Spójne zasłanianie i wierne przywracanie:</strong> każda wykryta osoba
+                dostaje ten sam numer w całym dokumencie (na przykład [OSOBA_1]), niezależnie od
+                odmiany nazwiska w zdaniu. Podczas przywracania danych z mapy program wstawia w każde
+                miejsce dokładnie tę formę gramatyczną, która była w oryginale.</li>
+                <li><strong>Ponowne sprawdzenie i czyszczenie pliku:</strong> po zapisaniu wyniku
+                program automatycznie sprawdza cały plik drugi raz. Jednocześnie usuwa ukryte części
+                dokumentu (metadane, komentarze oraz śledzone zmiany). Jeśli w wyniku zostało miejsce,
+                co do którego kontrola ma wątpliwości, program pokazuje podgląd z zaznaczonymi
+                miejscami. Przy każdym z nich decydujesz: „Ukryj” albo „To nie dane”. Kopiowanie
+                i pobieranie włączają się dopiero po decyzji o wszystkich miejscach. Numery z sumą
+                kontrolną można tylko ukryć.</li>
+                <li><strong>Poprawki w podglądzie:</strong> zaznacz słowo i kliknij „Ukryj wszędzie”,
+                a program ukryje je w całym tekście, także w innych odmianach. Kliknij czarną plakietkę
+                i wybierz „To nie dane osobowe”, jeśli program się pomylił. Wynik liczy się od nowa bez
+                ponownego uruchamiania modelu, więc trwa to chwilę, a numery istniejących znaczników się
+                nie zmieniają. Po każdej poprawce tekst jest inny, więc skopiuj go ponownie. Do poprawek
+                program trzyma wykrycia tylko w pamięci komputera, najwyżej kilkanaście minut. Nic z tego
+                nie trafia na dysk.</li>
+                <li><strong>Przechowywanie map:</strong> mapa zapisuje się w katalogu programu
+                i znika sama po okresie ustawionym przez administratora (domyślnie 30 dni). W Ustawieniach
+                widzisz listę zapisanych map i możesz usunąć każdą z nich albo wszystkie. Program prowadzi
+                dziennik zdarzeń, w którym nie ma danych osobowych, treści ani nazw plików. Pobrana kopia
+                pliku mapy podlega przechowywaniu w Twojej organizacji.</li>
+                <li><strong>Aktualizacje modeli:</strong> lista dostępnych pakietów modeli jest podpisana
+                cyfrowo, a program przyjmuje tylko listę z poprawnym podpisem. Każdy pobrany plik jest
+                sprawdzany sumą SHA-256. Zanim nowy model zacznie działać, przechodzi próbkę kontrolną:
+                kilka fikcyjnych zdań, w których musi wykryć to, co powinien, i nie może zasłaniać tego,
+                czego nie powinien. Poprzednia wersja zostaje na dysku, więc można do niej wrócić
+                jednym przyciskiem. W sieci bez internetu aktualizację instaluje się z folderu
+                przygotowanego przez dział IT.</li>
+                <li><strong>Szyfrowanie mapy:</strong> plik mapy (.nwidka) jest chroniony szyfrowaniem
+                AES-256. Klucz szyfrujący jest przechowywany wyłącznie w systemowym sejfie haseł
+                Twojego komputera albo w bezpiecznym pliku sekretów administratora sieci, nigdy w samej
+                aplikacji.</li>
+                <li><strong>Szacowane ryzyko pominięcia:</strong> widoczny w programie wskaźnik
+                ryzyka wyliczyliśmy na podstawie testów na zestawie wzorcowych dokumentów. Pokazuje on
+                górną granicę ryzyka pominięcia danych, wyznaczoną z 95% pewnością.</li>
+              </ul>
+            </details>
+          </div>
+        </details>
+        </div>
+
+        <div id="status-ukryj" class="status" aria-live="polite"></div>
+
+        <section id="wynik" class="wynik" hidden>
+          <h2 id="naglowek-wyniku" class="tylko-czytnik">Gotowe: dokument z ukrytymi danymi</h2>
+
+          <div id="blok-decyzji" class="komunikat komunikat-blad" hidden>
+            <h3>STOP: kontrola ma wątpliwości</h3>
+            <p>Program nie jest pewien tych miejsc. Przy każdym wybierz „Ukryj”, jeśli to dane osobowe,
+            albo „To nie dane”, jeśli to zwykły tekst. Kopiowanie i pobieranie włączy się,
+            gdy zdecydujesz o wszystkich miejscach.</p>
+            <ul id="lista-decyzji" class="lista-decyzji"></ul>
+          </div>
+
+          <div id="komunikat-status" class="komunikat" hidden></div>
+
+          <div id="blok-zamienione" class="pasek-podsumowania" hidden>
+            <h3>Ukryte dane</h3>
+            <ul id="lista-zamienionych" class="pastylki"></ul>
+            <details class="szczegoly-ryzyka">
+              <summary>Szczegóły i ryzyko</summary>
+              <div class="szczegoly-tresc">
+                <div id="blok-ryzyka" hidden>
+                  <h3>Szacowane ryzyko pominięcia</h3>
+                  <ul id="lista-ryzyka" class="lista-danych"></ul>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div id="blok-ostrzezenia" class="komunikat komunikat-ostrzezenie" hidden>
+            <h3>Uwaga: sprawdź te miejsca</h3>
+            <ul id="lista-ostrzezenia"></ul>
+          </div>
+
+          <div id="blok-podglad" class="podglad" hidden>
+            <h3>Podgląd tekstu</h3>
+            <div class="kartka"><div id="podglad-tekstu" class="tekst-kartki"></div></div>
+            <p class="podpowiedz">Przed wysłaniem przejrzyj wynik. Zaznacz słowo, a pojawi się przycisk „Ukryj wszędzie”.
+            Kliknij czarną plakietkę, żeby uznać ją za zwykły tekst.</p>
+          </div>
+
+          <div id="blok-poprawek" class="poprawki" hidden>
+            <div id="akcja-znacznika" class="komunikat komunikat-ok" role="group" aria-label="Poprawka znacznika" hidden>
+              <p id="akcja-znacznika-opis"></p>
+              <p id="akcja-znacznika-wyjasnienie" class="podpowiedz"></p>
+              <button type="button" id="akcja-znacznika-przycisk" class="przycisk-wtorny"></button>
+              <button type="button" id="akcja-znacznika-inne" class="przycisk-wtorny" hidden>Oznacz jako inne dane</button>
+              <button type="button" id="akcja-znacznika-zamknij" class="linkowy">Zamknij</button>
+            </div>
+            <div class="pole-poprawki">
+              <label for="pole-ukryj-wszedzie">Słowo lub fragment do ukrycia</label>
+              <input type="text" id="pole-ukryj-wszedzie" maxlength="200" autocomplete="off" spellcheck="false">
+              <button type="button" id="przycisk-ukryj-wszedzie" class="przycisk-wtorny">Ukryj wszędzie</button>
+            </div>
+            <details id="naglowek-poprawek" class="twoje-poprawki" hidden>
+              <summary>Twoje poprawki (<span id="licznik-poprawek">0</span>)</summary>
+              <ul id="lista-poprawek" class="lista-poprawek"></ul>
+            </details>
+          </div>
+          <p id="komunikat-poprawek" class="komunikat-poprawek" aria-live="polite"></p>
+
+          <div class="pasek-akcji">
+            <button type="button" id="kopiuj" class="przycisk-wtorny">Kopiuj tekst</button>
+            <div id="blok-pobrania" class="pobrania" hidden>
+              <button type="button" id="pobierz-mape" class="przycisk-wtorny">Pobierz mapę (.nwidka)</button>
+              <button type="button" id="pobierz-wynik" class="przycisk-glowny">Pobierz dokument</button>
+            </div>
+            <p id="mapa-zapisana" class="mapa-info" hidden></p>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="panel-przywroc" class="panel" role="tabpanel" aria-labelledby="zakladka-przywroc" hidden>
+    <div class="uklad">
+    <div class="kolumna kolumna-wejscie">
+
+    <form id="form-przywroc" novalidate>
+      <p class="wyjasnienie">Masz odpowiedź sztucznej inteligencji z ukrytymi danymi? Wklej ją,
+      a przywrócę oryginalne dane w miejsce znaczników.</p>
+
+      <div class="przelacznik" role="radiogroup" aria-label="Skąd pochodzi odpowiedź">
+        <label class="opcja">
+          <input type="radio" name="tryb-przywroc" value="tekst" checked>
+          Wklej odpowiedź z czatu AI
+        </label>
+        <label class="opcja">
+          <input type="radio" name="tryb-przywroc" value="plik">
+          Mam plik dokumentu i mapę (.nwidka)
+        </label>
+      </div>
+
+      <div id="tryb-tekst">
+        <div class="pole-przywroc">
+          <label for="tekst-przywroc">Wklej odpowiedź z czatu AI</label>
+          <textarea id="tekst-przywroc" name="tekst" rows="10" spellcheck="false" autocomplete="off"
+            placeholder="Wklej tu odpowiedź, w której są znaczniki, na przykład [OSOBA_1]…"></textarea>
+        </div>
+        <div class="pole-przywroc">
+          <label for="lista-zadan">Zadanie</label>
+          <select id="lista-zadan" autocomplete="off" aria-describedby="podpowiedz-listy-zadan"></select>
+          <p class="podpowiedz" id="podpowiedz-listy-zadan">Domyślnie program dopasowuje mapę sam: po dopisku z identyfikatorem w odpowiedzi albo po znacznikach.
+          Wybrane zadanie działa, gdy odpowiedź nie ma dopisku. Dopisek ma pierwszeństwo nad wyborem.</p>
+        </div>
+        <div class="pole-przywroc">
+          <label class="opcja">
+            <input type="checkbox" id="mapa-tekst-jest" autocomplete="off">
+            Mam plik mapy (.nwidka)
+          </label>
+          <input type="file" id="plik-mapa-tekst" name="mapa" accept=".nwidka" autocomplete="off" hidden>
+        </div>
+      </div>
+
+      <div id="tryb-plik" hidden>
+        <div class="pole-przywroc">
+          <label for="plik-wynik">Dokument z ukrytymi danymi (TXT albo DOCX)</label>
+          <input type="file" id="plik-wynik" name="wynik" accept=".txt,.docx" autocomplete="off">
+        </div>
+        <div class="pole-przywroc">
+          <label for="plik-mapa">Mapa (.nwidka)</label>
+          <input type="file" id="plik-mapa" name="mapa" accept=".nwidka" autocomplete="off">
+        </div>
+      </div>
+
+      <button type="submit" id="przywroc" class="przycisk-glowny">Przywróć dane</button>
+    </form>
+
+    <div id="status-przywroc" class="status" aria-live="polite"></div>
+
+    </div>
+
+    <div class="kolumna kolumna-wynik">
+    <div class="stan-pusty stan-pusty-przywroc" id="stan-pusty-przywroc">
+      <h2>Tu pojawi się przywrócony tekst</h2>
+      <p class="wyjasnienie">Wklej po lewej odpowiedź z czatu AI i kliknij „Przywróć dane”.</p>
+    </div>
+    <section id="wynik-przywroc" class="wynik" hidden>
+      <h2>Przywrócono</h2>
+      <div id="mapa-wybrana-auto" class="komunikat komunikat-ok" hidden></div>
+      <div id="blok-rozbieznosci" class="komunikat komunikat-ostrzezenie" hidden>
+        <h3>Nie wszystko wróciło idealnie</h3>
+        <ul id="lista-rozbieznosci"></ul>
+      </div>
+      <div id="blok-podglad-przywroc" class="podglad" hidden>
+        <h3>Podgląd przywróconego tekstu</h3>
+        <div class="kartka"><div id="podglad-przywroconego" class="tekst-kartki"></div></div>
+      </div>
+      <div class="pasek-akcji">
+        <button type="button" id="kopiuj-przywrocony" class="przycisk-wtorny">Kopiuj tekst</button>
+        <button type="button" id="pobierz-przywrocony" class="przycisk-glowny">Pobierz przywrócony dokument</button>
+      </div>
+    </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-ustawienia" class="panel" role="tabpanel" aria-labelledby="zakladka-ustawienia" hidden>
+    <h2>Ustawienia</h2>
+    <p class="wyjasnienie">Modele wykrywające dane pobierają się z internetu raz i zostają
+    na tym komputerze. Komputer bez internetu: wklej ścieżkę do folderu z plikami pakietów
+    od IT i kliknij „Zainstaluj z folderu” przy pakiecie.</p>
+    <p id="linia-modeli" class="podpowiedz linia-modeli"></p>
+    <div class="aktualizacje-folder-wiersz">
+      <input type="text" id="pakiety-folder" class="pole-sciezki"
+             placeholder="Folder z pakietami, na przykład D:\pakiety-niewidka"
+             aria-label="Folder z plikami pakietów">
+    </div>
+    <div id="lista-pakietow" class="lista-pakietow"></div>
+    <div id="postep-pakietu" class="postep-pakietu" hidden>
+      <p id="postep-pakietu-status" aria-live="polite"></p>
+      <progress id="postep-pakietu-pasek" max="100" value="0"></progress>
+    </div>
+
+    <h3 class="naglowek-map">Aktualizacje modeli</h3>
+    <p class="podpowiedz">Program może sprawdzać w internecie, czy wyszły nowsze wersje modeli.
+    Sprawdzenie pobiera wyłącznie wykaz wersji, nigdy Twoje dokumenty. Aktualizacja instaluje
+    się dopiero po próbie na przykładowych zdaniach, a poprzednia wersja zostaje, więc można
+    do niej wrócić.</p>
+    <div class="pakiet-wiersz">
+      <label for="aktualizacje-tryb">Sposób sprawdzania aktualizacji</label>
+      <div class="aktualizacje-tryb">
+        <select id="aktualizacje-tryb"></select>
+        <span id="aktualizacje-narzucony" class="podpowiedz" hidden>Tryb ustawiony przez administratora.</span>
+      </div>
+      <div class="pakiet-akcje">
+        <button type="button" id="aktualizacje-sprawdz" class="przycisk-wtorny">Sprawdź teraz</button>
+      </div>
+      <p id="aktualizacje-stan" class="podpowiedz" aria-live="polite"></p>
+    </div>
+    <div id="aktualizacje-pakiety" class="lista-pakietow"></div>
+    <div id="postep-aktualizacji" class="postep-pakietu" hidden>
+      <p id="postep-aktualizacji-status" aria-live="polite"></p>
+      <progress id="postep-aktualizacji-pasek" max="100" value="0"></progress>
+    </div>
+    <div class="pakiet-wiersz" id="blok-aktualizacji-folder">
+      <p>Sieć bez internetu: osoba opiekująca się programem wkleja ścieżkę do folderu
+      z aktualizacją przygotowaną przez IT (wykaz wersji z podpisem i pliki).</p>
+      <div class="aktualizacje-folder-wiersz">
+        <input type="text" id="aktualizacje-folder" class="pole-sciezki"
+               placeholder="Na przykład D:\aktualizacja-niewidka"
+               aria-label="Folder z aktualizacją">
+        <button type="button" id="aktualizacje-z-folderu" class="przycisk-wtorny">Zainstaluj z folderu</button>
+      </div>
+    </div>
+
+    <h3 class="naglowek-map">Stałe listy</h3>
+    <p class="podpowiedz">Listy działają przy każdym dokumencie. Wpisz jedno słowo lub fragment
+    w wierszu. Program rozpoznaje też odmiany, na przykład „Urzędu Miasta” dla „Urząd Miasta”.
+    Numerów PESEL, NIP i innych z sumą kontrolną nie można dodać do listy „Nigdy nie ukrywaj”.</p>
+    <p id="listy-administratora" class="podpowiedz" hidden></p>
+    <div class="listy-stale">
+      <div>
+        <label for="lista-zawsze">Zawsze ukrywaj</label>
+        <textarea id="lista-zawsze" class="lista-stala" spellcheck="false"
+                  placeholder="Na przykład nazwa referatu"></textarea>
+      </div>
+      <div>
+        <label for="lista-nigdy">Nigdy nie ukrywaj</label>
+        <textarea id="lista-nigdy" class="lista-stala" spellcheck="false"
+                  placeholder="Na przykład nazwa Twojej firmy"></textarea>
+      </div>
+    </div>
+    <p><button type="button" id="zapisz-listy" class="przycisk-wtorny">Zapisz listy</button>
+      <span id="status-list" class="podpowiedz" aria-live="polite"></span></p>
+
+    <h3 class="naglowek-map">Zapisane mapy</h3>
+    <p id="okres-map" class="podpowiedz"></p>
+    <ul id="lista-map-zapisanych" class="lista-mapy"></ul>
+    <p><button type="button" id="usun-wszystkie-mapy" class="przycisk-wtorny" hidden>Usuń wszystkie</button></p>
+  </section>
+
+</main>
+
+<footer class="stopka">
+  <div class="srodek">
+    <p>Niewidka <span id="wersja"></span>. Ukrywanie danych osobowych w dokumentach na Twoim komputerze.</p>
+  </div>
+</footer>
+
+<button type="button" id="ukryj-zaznaczone" class="plywajacy" hidden>Ukryj wszędzie</button>
+<div class="zapowiedz-offscreen" aria-live="assertive" id="zapowiedz"></div>
+
+</body>
+</html>

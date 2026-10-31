@@ -1,0 +1,22 @@
+# Niewidka build and app dependencies (pinned versions with hashes).
+# Used by: .github/workflows/wydanie.yml (Windows runner, Python 3.13)
+#          narzedzia/zbuduj_windows.ps1 (pip install --require-hashes)
+# Regenerate: uv pip compile --generate-hashes --python-version 3.13 \
+#   --python-platform windows narzedzia/wymagania-budowy.in \
+#   --output-file narzedzia/wymagania-budowy.txt
+# A version change is a deliberate security decision (a malicious version ends up in the EXE).
+fastapi
+uvicorn
+cryptography
+keyring
+onnxruntime
+python-docx
+python-multipart
+python-stdnum
+tokenizers
+httpx
+pywebview
+pythonnet
+pyinstaller
+pytest
+scipy

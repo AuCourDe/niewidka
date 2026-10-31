@@ -1,0 +1,40 @@
+{
+  "opis": "Próbka kontrolna jakości modeli dla aktualizacji (ocena nowej wersji)",
+  "probki": [
+    {
+      "tekst": "Pismo do Jana Kowalskiego w sprawie wniosku o dofinansowanie.",
+      "musi_wykryc": ["Jana Kowalskiego"],
+      "nie_moze_wykryc": ["Pismo", "sprawie", "dofinansowanie"]
+    },
+    {
+      "tekst": "Właścicielem lokalu jest Anna Nowak, a kontakt z nią możliwy pod numerem 601 234 567.",
+      "musi_wykryc": ["Anna Nowak", "601 234 567"],
+      "nie_moze_wykryc": ["Właścicielem", "lokalu", "kontakt"]
+    },
+    {
+      "tekst": "Wniosek złożył obywatel posiadający numer PESEL 44051401359 w urzędzie gminy.",
+      "musi_wykryc": ["44051401359"],
+      "nie_moze_wykryc": ["Wniosek", "obywatel", "urzędzie"]
+    },
+    {
+      "tekst": "Korespondencję należy kierować na adres: ul. Kwiatowa 12 m. 4, 00-001 Warszawa.",
+      "musi_wykryc": ["ul. Kwiatowa 12 m. 4, 00-001 Warszawa"],
+      "nie_moze_wykryc": ["Korespondencję", "kierować", "adres"]
+    },
+    {
+      "tekst": "Prosimy o kontakt pod adresem e-mail jan.nowicki@poczta.pl w terminie 7 dni.",
+      "musi_wykryc": ["jan.nowicki@poczta.pl"],
+      "nie_moze_wykryc": ["Prosimy", "kontakt", "terminie"]
+    },
+    {
+      "tekst": "Spotkanie z dyrektorem Piotrem Wiśniewskim odbędzie się w siedzibie firmy.",
+      "musi_wykryc": ["Piotrem Wiśniewskim"],
+      "nie_moze_wykryc": ["Spotkanie", "dyrektorem", "siedzibie"]
+    },
+    {
+      "tekst": "Dokument doręczono panu Michałowi Lewandowskiemu pod adresem ul. Marszałkowska 10/2 w Warszawie.",
+      "musi_wykryc": ["Michałowi Lewandowskiemu", "ul. Marszałkowska 10/2"],
+      "nie_moze_wykryc": ["Dokument", "doręczono", "panu"]
+    }
+  ]
+}

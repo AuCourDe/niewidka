@@ -1,0 +1,75 @@
+"""Tests of the number generator for the corpus (measurement tools, not core code)."""
+
+import stdnum.iban
+import stdnum.pl.nip
+import stdnum.pl.pesel
+import stdnum.pl.regon
+
+from narzedzia.numery import bledny, dowod, iban, nip, pesel, regon, regon14, waliduj_dowod
+
+# Computed by hand (weights 7,3,1,9,7,3,1,7,3): letters ABC = 70+33+12 = 115; digits 4,1,2,3,4,5
+# with weights 9,7,3,1,7,3 = 36+7+6+3+28+15 = 95; sum 210 = 0 mod 10.
+PRZYKLAD_DOWODU = "ABC412345"
+# Example from the official documentation: 70+33+10+27 = 140 = 0 mod 10.
+PRZYKLAD_MSWIA = "ABA300000"
+
+TYPO_Z_WALIDATOREM = [
+    (pesel, stdnum.pl.pesel.is_valid),
+    (nip, stdnum.pl.nip.is_valid),
+    (regon, stdnum.pl.regon.is_valid),
+    (regon14, stdnum.pl.regon.is_valid),
+    (iban, stdnum.iban.is_valid),
+]
+
+
+def test_pesel_poprawny_przechodzi_stdnum():
+    for i in range(12):
+        assert stdnum.pl.pesel.is_valid(pesel(i))
+
+
+def test_nip_poprawny_przechodzi_stdnum():
+    for i in range(12):
+        assert stdnum.pl.nip.is_valid(nip(i))
+
+
+def test_regon_poprawny_przechodzi_stdnum():
+    for i in range(12):
+        assert stdnum.pl.regon.is_valid(regon(i))
+        assert stdnum.pl.regon.is_valid(regon14(i))
+
+
+def test_iban_poprawny_przechodzi_stdnum():
+    for i in range(12):
+        assert stdnum.iban.is_valid(iban(i))
+
+
+def test_dowod_poprawny_przechodzi_walidator():
+    for i in range(12):
+        assert waliduj_dowod(dowod(i))
+    assert waliduj_dowod(PRZYKLAD_DOWODU)
+    assert waliduj_dowod(PRZYKLAD_MSWIA)
+    assert waliduj_dowod("ABC 412345")  # spaces normalized
+    assert not waliduj_dowod("ABC412346")
+    assert not waliduj_dowod("ABC212345")  # sum 192: the check digit is not compared with the rest
+
+
+def test_bledny_rozni_sie_jedna_cyfra_i_nie_przechodzi():
+    for i in range(12):
+        for generator, sprawdz in TYPO_Z_WALIDATOREM:
+            poprawny = generator(i)
+            zepsuty = bledny(poprawny, sprawdz)
+            assert not sprawdz(zepsuty), (generator.__name__, poprawny, zepsuty)
+            assert sum(a != b for a, b in zip(poprawny, zepsuty)) == 1
+
+
+def test_bledny_dowodu_nie_przechodzi():
+    for i in range(12):
+        zepsuty = bledny(dowod(i), waliduj_dowod)
+        assert not waliduj_dowod(zepsuty)
+        assert sum(a != b for a, b in zip(dowod(i), zepsuty)) == 1
+
+
+def test_determinizm():
+    assert pesel(3) == pesel(3)
+    assert dowod(5) == dowod(5)
+    assert bledny(iban(2), stdnum.iban.is_valid) == bledny(iban(2), stdnum.iban.is_valid)

@@ -1,0 +1,29 @@
+{
+  "opis": "Umowa najmu lokalu mieszkalnego",
+  "musza_zniknac": [
+    "Marek Zawadzki-Herbert",
+    "Markowi Zawadzkiemu-Herbertowi",
+    "Anna Nowak",
+    "Anną Nowak",
+    "79102241066",
+    "82060322148",
+    "612-345-67-81",
+    "123456785",
+    "PL60 6110 9010 1400 0007 1219 8128",
+    "ul. Długa 15/3, 00-238 Warszawa",
+    "00-238 Warszawa",
+    "ul. Sosnowa 3 m. 12",
+    "03-108 Warszawa",
+    "ul. Lipowej 9, 05-820 Piastów",
+    "05-820 Piastów",
+    "601 447 208",
+    "603 220 418",
+    "anna.nowak@przyklad.pl"
+  ],
+  "moga_zostac": [
+    "UMOWA NAJMU LOKALU MIESZKALNEGO",
+    "Zawadzki-Herbert Nieruchomości",
+    "Banku Wzajemnej Pomocy S.A.",
+    "biuro@zawadzki-herbert-nieruchomosci.example.pl"
+  ]
+}

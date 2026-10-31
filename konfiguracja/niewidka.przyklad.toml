@@ -1,0 +1,89 @@
+# Niewidka: program settings file (niewidka.toml).
+#
+# Copy it as niewidka.toml:
+#   desktop version: next to Niewidka.exe,
+#   browser version: into the folder you run python -m niewidka.api from.
+# Without the file the program uses default values, such as the ones below.
+# Every option is overridden by an environment variable (list in docs/KONFIGURACJA.en.md).
+# Do not put the map key or the token here. You provide only the path to the file.
+
+[serwer]
+# The program listens only on this computer. It will not accept any other address.
+host = "127.0.0.1"
+# Port of the browser version. The desktop version picks a free port on its own.
+port = 8390
+
+[detekcja]
+# Level for API requests without a level: 1 Szybko (Fast), 2 Dokładniej (More thorough), 3 Najdokładniej (Most thorough).
+# The slider in the program always sends its own level.
+poziom = 1
+# Whether to hide dates (of birth, of letters, of events).
+wykrywaj_date = true
+# Folder with models. Empty = the user's data folder.
+# modele_katalog = "D:\\Niewidka\\modele"
+# What to compute on: "CPUExecutionProvider" (processor), "CUDAExecutionProvider" (NVIDIA),
+# "DmlExecutionProvider" (Windows, DirectML). A graphics card requires a different onnxruntime build.
+provider = "CPUExecutionProvider"
+# Number of processor threads. 0 = automatic.
+watki = 0
+
+[klucze]
+# File with the map key (base64, 32 bytes, permissions 0600 on Linux).
+# Empty = the key from the system store (Windows: Credential Manager).
+# plik = "/etc/niewidka/klucz-mapy"
+# Name of the entry in the system store.
+usluga = "niewidka"
+
+[limity]
+# Largest input file in MB.
+rozmiar_mb = 25
+# Largest .docx size after unpacking, in MB.
+rozpakowane_mb = 200
+# Largest text after loading, in MB.
+tekst_mb = 1
+# How many documents are processed at once, how many may wait, and how many seconds one may take.
+kolejka = 4
+zlecenia = 8
+timeout_s = 120
+
+[kontrola]
+# true = when the check has doubts, the user must decide on every place.
+blokada = true
+# Images in .docx: "usun" (removes), "blokuj" (rejects the document), "zostaw" (keeps with a warning).
+obrazy = "usun"
+
+[mapy]
+# After how many days the program deletes saved maps. 0 = does not save maps at all.
+retencja_dni = 30
+# Folder of saved maps. Empty = the user's data folder.
+# katalog = "D:\\Niewidka\\mapy"
+# true = a deleted or expired map stops working also as a downloaded .nwidka file.
+uniewaznij_pobrane = false
+
+[poprawki]
+# How many recent documents, and for how long (in seconds), can be corrected in the preview.
+maks_zadan = 4
+ttl_s = 900
+
+[aktualizacje]
+# "reczne" (manual), "sprawdzaj" (check, once a day), "automatyczne" (automatic), "wylaczone" (off).
+# Setting it here blocks changes in Ustawienia (Settings). Without a setting the user chooses.
+# tryb = "sprawdzaj"
+
+[listy]
+# Administrator lists. They apply to everyone and win over the user's lists.
+zawsze = []
+nigdy = []
+# true = the user cannot change their own lists.
+tylko_administrator = false
+# The user's lists file. Empty = the user's data folder.
+# plik = "D:\\Niewidka\\listy.json"
+
+[inferencja]
+# Shared model server on the network. Empty = models on this computer.
+# Description: docs/SERWER-INFERENCJI.en.md and konfiguracja/klient-web.przyklad.toml.
+# adres = "https://niewidka-serwer.firma.local:8443"
+# token_plik = "C:\\Niewidka\\token"
+# ca_plik = "C:\\Niewidka\\ca.pem"
+timeout_s = 60
+zezwol_bez_tls = false

@@ -1,0 +1,83 @@
+# Niewidka: central model server on the local network (administrator's file)
+#
+# How to start in 3 steps:
+#   1. Copy this file as serwer-inferencji.toml and set the paths below
+#      (token_plik, the models directory, the certificate).
+#   2. Generate a token and distribute the file to users:
+#        python -m niewidka.serwer_inferencji nowy-token /etc/niewidka/token
+#   3. Start the server:
+#        python -m niewidka.serwer_inferencji --konfig serwer-inferencji.toml
+# The server sees only the text it processes (in memory, never written to disk).
+# Maps and keys stay on the users' computers. Guide: docs/SERWER-INFERENCJI.en.md
+#
+# Every option can be overridden by the environment variable NIEWIDKA_SERWER_<NAME>,
+# e.g. NIEWIDKA_SERWER_PORT=9000 or NIEWIDKA_SERWER_URZADZENIE=cpu.
+
+[siec]
+# Address the server listens on.
+#   "127.0.0.1"  this computer only (good for trials).
+#   "0.0.0.0"    all interfaces, i.e. access from the local network (requires TLS, see below).
+# Default: "127.0.0.1"
+host = "0.0.0.0"
+
+# Server port. Default: 8443
+port = 8443
+
+# TLS certificate and private key (PEM files). They are given together.
+# Outside loopback the server will NOT start without them. A certificate from an internal
+# certificate authority is fine; users then point to its CA in their client file.
+# Example: cert_plik = "/etc/niewidka/serwer.pem"
+cert_plik = "/etc/niewidka/serwer.pem"
+klucz_plik = "/etc/niewidka/serwer-klucz.pem"
+
+# Consent to run WITHOUT encryption on the local network (true/false). The token and texts
+# then travel over the network in clear. Only for an isolated network or a test.
+# Default: false
+zezwol_bez_tls = false
+
+[dostep]
+# File with the access token (a secret). Create it with the command:
+#   python -m niewidka.serwer_inferencji nowy-token <path>
+# The file must have 0600 permissions (owner only). Without this file the server does not start.
+# The token value is not written here, only in the file.
+token_plik = "/etc/niewidka/token"
+
+[modele]
+# Directory with downloaded models (same layout as on the user's side: model.onnx, tokenizer, etc.).
+# Empty or missing = Niewidka's default models directory on this computer.
+# Example: katalog = "/srv/niewidka/modele"
+katalog = "/srv/niewidka/modele"
+
+# Quality levels the server offers: 1 (fastest), 2, 3 (most thorough).
+# Example: poziomy = [1, 2]. Default: all three.
+poziomy = [1, 2, 3]
+
+# What to compute the models on:
+#   "auto"  the best available (graphics card, and the processor when there is none)
+#   "cpu"   always the processor
+#   "gpu"   graphics card; if there is none, the server will not start and will say why
+# GPU needs the onnxruntime-gpu package (NVIDIA CUDA) or onnxruntime-directml (Windows).
+# Default: "auto"
+urzadzenie = "auto"
+
+# Number of computation threads on the processor. 0 = the library decides (usually all cores).
+# When other services also run on the server, set e.g. 4. Default: 0
+watki = 0
+
+# How many texts the server processes at the same time. More = faster for many people,
+# but more memory (each job occupies threads). Start with 2 on 8 cores.
+# Default: 1
+rownolegle = 1
+
+# Whether level 3 should use the Extended package (IP addresses, cards, SWIFT, logins).
+# Requires the package to be downloaded into the models directory. Default: false
+pakiet_rozszerzony = false
+
+[limity]
+# Largest text in one request, in megabytes. Larger ones get error 413.
+# Default: 1
+max_tekst_mb = 1
+
+# After how many seconds to stop waiting for a result (the user gets a retry message).
+# Default: 120
+timeout_s = 120

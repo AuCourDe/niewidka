@@ -1,0 +1,30 @@
+# Niewidka: user application settings (niewidka.toml), model server section.
+#
+# Without this section (or with an empty address) the application computes models locally, as always.
+# With an address it sends only the text to be detected to the server, while the maps, the key and
+# the result check stay on this computer. This way there is no need to download model packages.
+# The administrator provides the address, the token file and (if needed) the CA file.
+#
+# Every option can be overridden by the environment variable NIEWIDKA_INFERENCJA_<NAME>,
+# e.g. NIEWIDKA_INFERENCJA_ADRES.
+
+[inferencja]
+# Address of the model server on the local network. Empty = local models (default).
+# Example: adres = "https://niewidka-serwer.firma.local:8443"
+# adres = "https://niewidka-serwer.firma.local:8443"
+
+# File with the token from the administrator (a secret, permissions 0600, do not pass it on).
+# On Windows give the full path, e.g. "C:\\Niewidka\\token".
+# token_plik = "/home/uzytkownik/.config/niewidka/token"
+
+# Certificate of the certificate authority (CA), if the server uses an internal certificate
+# (a PEM file from the administrator). Empty = the system's trusted authorities.
+# ca_plik = "/home/uzytkownik/.config/niewidka/ca.pem"
+
+# How many seconds to wait for the server's response before showing a message that it is not responding.
+# Default: 60
+timeout_s = 60
+
+# Consent to an unencrypted connection (http://) to a server outside this computer.
+# Only for an isolated network or a test, set by the administrator. Default: false
+zezwol_bez_tls = false

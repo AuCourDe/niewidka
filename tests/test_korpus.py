@@ -1,0 +1,174 @@
+"""Test corpus validation.
+
+Checks sample format, offsets, checksums (through python-stdnum and
+the proof algorithm) and required type coverage. Deliberately does NOT import the
+niewidka package — the corpus is independent of the detector implementations.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+import stdnum.iban
+import stdnum.pl.nip
+import stdnum.pl.pesel
+import stdnum.pl.regon
+
+from narzedzia.numery import waliduj_dowod
+
+KORPUS = Path(__file__).parent / "korpus"
+TYPY = {"OSOBA", "PESEL", "NIP", "REGON", "ADRES", "TELEFON", "EMAIL", "IBAN", "DOKUMENT", "DATA", "INNE"}
+# LFM2.5 classes with no equivalent in Niewidka — only in probki_nowe_typy.jsonl.
+TYPY_NOWE = {
+    "contact.ip_address",
+    "financial.credit_card",
+    "financial.swift_bic",
+    "healthcare.condition",
+    "healthcare.medical_record",
+    "healthcare.medication",
+    "legal.case_number",
+    "online.url",
+    "online.username",
+    "org.company_name",
+    "special.political",
+    "special.religion",
+}
+PLIK_NOWE = "probki_nowe_typy.jsonl"
+TYPY_Z_SUMA = {"PESEL", "NIP", "REGON", "IBAN", "DOKUMENT"}
+NUMER_DO_WALIDATORA = {
+    "PESEL": stdnum.pl.pesel.is_valid,
+    "NIP": stdnum.pl.nip.is_valid,
+    "REGON": stdnum.pl.regon.is_valid,
+    "IBAN": stdnum.iban.is_valid,
+    "DOKUMENT": waliduj_dowod,
+}
+KLUCZ_NUMEROW = {"PESEL": "pesel", "NIP": "nip", "REGON": "regon", "IBAN": "iban", "DOKUMENT": "dowod"}
+
+
+def _numer_znormalizowany(zapis: str) -> str:
+    return zapis.replace(" ", "").replace("-", "").upper()
+
+
+def wczytaj_probki() -> list[dict]:
+    probki = []
+    for plik in sorted(KORPUS.glob("*.jsonl")):
+        for numer, linia in enumerate(plik.read_text(encoding="utf-8").splitlines()):
+            if linia.strip():
+                probki.append({"plik": plik.name, "linia": numer + 1, **json.loads(linia)})
+    return probki
+
+
+@pytest.fixture(scope="session")
+def probki() -> list[dict]:
+    return wczytaj_probki()
+
+
+def test_format_probek(probki: list[dict]):
+    assert len(probki) >= 40, "korpus ma mieć ≥ 40 próbek"
+    identyfikatory = set()
+    for probka in probki:
+        etykieta = f"{probka['plik']}:{probka['linia']}"
+        nowe = probka["plik"] == PLIK_NOWE
+        assert probka["id"] not in identyfikatory, f"{etykieta}: powtórzony id {probka['id']}"
+        identyfikatory.add(probka["id"])
+        assert probka.get("opis"), f"{etykieta}: brak opisu"
+        tekst = probka["tekst"]
+        assert tekst and isinstance(tekst, str), f"{etykieta}: pusty tekst"
+        zakresy = []
+        for encja in probka["encje"]:
+            dopuszczone = TYPY | TYPY_NOWE if nowe else TYPY
+            assert encja["typ"] in dopuszczone, f"{etykieta}: nieznany typ {encja['typ']}"
+            start, koniec = encja["start"], encja["koniec"]
+            assert 0 <= start < koniec <= len(tekst), f"{etykieta}: złe offsety {encja}"
+            assert tekst[start:koniec] == encja["tekst"], (
+                f"{etykieta}: tekst[{start}:{koniec}] != {encja['tekst']!r}"
+            )
+            if encja["typ"] in TYPY_Z_SUMA:
+                assert encja.get("suma") in (True, False), f"{etykieta}: brak pola suma"
+            else:
+                assert "suma" not in encja, f"{etykieta}: pole suma tylko dla {TYPY_Z_SUMA}"
+            for s2, k2 in zakresy:
+                assert start >= k2 or koniec <= s2, f"{etykieta}: nakładające się encje {encja}"
+            zakresy.append((start, koniec))
+
+
+def test_sumy_kontrolne_probek(probki: list[dict]):
+    for probka in probki:
+        etykieta = f"{probka['plik']}:{probka['linia']} ({probka['id']})"
+        for encja in probka["encje"]:
+            if encja["typ"] not in TYPY_Z_SUMA:
+                continue
+            nr = _numer_znormalizowany(encja["tekst"])
+            poprawny = NUMER_DO_WALIDATORA[encja["typ"]](nr)
+            assert poprawny == encja["suma"], (
+                f"{etykieta}: {encja['typ']} {nr} ma suma={encja['suma']}, a walidator mówi {poprawny}"
+            )
+
+
+def _pokrywajace(probka: dict, typ: str, pozycja: int, dlugosc: int) -> list[dict]:
+    return [
+        e
+        for e in probka["encje"]
+        if e["typ"] == typ and e["start"] <= pozycja and pozycja + dlugosc <= e["koniec"]
+    ]
+
+
+def _samotne_wystapienia(tekst: str, wzor: str) -> list[int]:
+    """Positions of occurrences of `wzor` not embedded in a longer alphanumeric string.
+
+    The prefix of a valid REGON-9 inside a 14-digit trap is not
+    a standalone REGON-9 — we do not require coverage of such embedded occurrences.
+    """
+    pozycje = []
+    start = 0
+    while (pozycja := tekst.find(wzor, start)) >= 0:
+        przed = tekst[pozycja - 1] if pozycja else ""
+        za = tekst[pozycja + len(wzor)] if pozycja + len(wzor) < len(tekst) else ""
+        if not przed.isalnum() and not za.isalnum():
+            pozycje.append(pozycja)
+        start = pozycja + 1
+    return pozycje
+
+
+def test_pulapki_i_numery_z_numery_json(probki: list[dict]):
+    """Standalone "correct" numbers from numery.json must have an entity
+    with suma=true; "wrong" ones (traps) must not be covered by an entity of their type."""
+    numery = json.loads((KORPUS / "numery.json").read_text(encoding="utf-8"))
+    for typ, klucz in KLUCZ_NUMEROW.items():
+        listy_poprawnych = [numery[klucz]["poprawne"]]
+        if klucz == "regon":  # 14-digit REGON is the same type
+            listy_poprawnych.append(numery["regon14"]["poprawne"])
+        for nr in [n for lista in listy_poprawnych for n in lista]:
+            for probka in probki:
+                for pozycja in _samotne_wystapienia(probka["tekst"], nr):
+                    pokrywajace = _pokrywajace(probka, typ, pozycja, len(nr))
+                    assert pokrywajace, f"{probka['id']}: poprawny {typ} {nr} bez encji"
+                    assert all(e["suma"] for e in pokrywajace), f"{probka['id']}: {nr} z suma!=true"
+        for nr in numery[klucz]["bledne"]:
+            for probka in probki:
+                for pozycja in _samotne_wystapienia(probka["tekst"], nr):
+                    assert not _pokrywajace(probka, typ, pozycja, len(nr)), (
+                        f"{probka['id']}: pułapka {typ} {nr} przykryta encją"
+                    )
+
+
+def test_pokrycie_typow(probki: list[dict]):
+    pozytywne: dict[str, int] = {}
+    for probka in probki:
+        for encja in probka["encje"]:
+            pozytywne[encja["typ"]] = pozytywne.get(encja["typ"], 0) + 1
+    for typ in TYPY - {"INNE"}:
+        assert pozytywne.get(typ, 0) >= 3, f"typ {typ}: tylko {pozytywne.get(typ, 0)} encji pozytywnych (wymagane ≥ 3)"
+    assert any(len(p["encje"]) == 0 for p in probki), "brak próbek negatywnych (encje: [])"
+
+
+def test_pokrycie_pulapek_i_tagow(probki: list[dict]):
+    numery = json.loads((KORPUS / "numery.json").read_text(encoding="utf-8"))
+    wszystkie_teksty = [p["tekst"] for p in probki]
+    wymagane_pulapki = {"pesel": 2, "nip": 2, "regon": 1, "regon14": 1, "iban": 1, "dowod": 1}
+    for klucz, minimum in wymagane_pulapki.items():
+        uzyte = sum(1 for nr in numery[klucz]["bledne"] if any(nr in t for t in wszystkie_teksty))
+        assert uzyte >= minimum, f"pułapki {klucz}: {uzyte} (wymagane ≥ {minimum})"
+    tagi = [t for p in probki for t in p.get("tagi", [])]
+    for tag, minimum in (("homonim", 3), ("rzeczownik-nazwisko", 2), ("odmiana", 5)):
+        assert tagi.count(tag) >= minimum, f"tag {tag}: {tagi.count(tag)} (wymagane ≥ {minimum})"
