@@ -277,7 +277,9 @@ To change a dependency: edit `narzedzia/wymagania-budowy.in`, regenerate the `.t
 ## 12. Contributions and repository hygiene
 
 - Write a failing test first for behavior changes; keep `pytest` and `ruff` green.
-- Small, atomic commits with English messages; stage explicit paths, not `git add -A`.
+- Small, atomic commits; stage explicit paths, not `git add -A`. The message is a short,
+  neutral English subject such as `bug fixing`, `language change` or `documentation`,
+  without details of what was changed, why, or how the code looked before.
 - The repository holds the product only: code, tests and documentation for users and admins.
   No work notes, backlogs, chat transcripts, agent reports or consultation logs, and no
   mention of which tool or person suggested a change.
