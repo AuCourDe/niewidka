@@ -189,6 +189,41 @@ def test_zapis_uszkodzonej_mapy_nie_powstaje(magazyn):
     assert magazyn.lista() == []
 
 
+ID_C = "ef" * 16
+
+
+def test_poprawki_zadania_to_jedna_pozycja_listy(magazyn):
+    # every correction issues a new map; the list shows the job once, by its newest version
+    for identyfikator in (ID_A, ID_B):
+        magazyn.zapisz(
+            zaszyfruj(mapa(identyfikator), KLUCZ), mapa(identyfikator), {"OSOBA": 1}, zadanie="z1"
+        )
+    magazyn.zapisz(zaszyfruj(mapa(ID_C), KLUCZ), mapa(ID_C), {"OSOBA": 1})
+    assert sorted(w["identyfikator"] for w in magazyn.lista()) == sorted([ID_B, ID_C])
+    assert len(magazyn.lista(wszystkie=True)) == 3
+    assert magazyn.wersje(ID_A) == magazyn.wersje(ID_B) == [ID_B, ID_A]  # newest first
+    assert magazyn.wersje(ID_C) == [ID_C]
+    assert magazyn.wersje("12" * 16) == []
+
+
+def test_wersje_obejmuja_mape_bazowa_zapisana_bez_zadania(magazyn):
+    # the job id is the id of its first map; a first map stored by an older program version
+    # (no "zadanie" field) still belongs to the job
+    magazyn.zapisz(zaszyfruj(mapa(ID_A), KLUCZ), mapa(ID_A), {"OSOBA": 1})
+    magazyn.zapisz(zaszyfruj(mapa(ID_B), KLUCZ), mapa(ID_B), {"OSOBA": 1}, zadanie=ID_A)
+    assert magazyn.wersje(ID_A) == magazyn.wersje(ID_B) == [ID_B, ID_A]
+    assert [w["identyfikator"] for w in magazyn.lista()] == [ID_B]
+
+
+def test_posprzataj_widzi_starsze_wersje_zadania(magazyn, zegar):
+    magazyn.zapisz(zaszyfruj(mapa(ID_A), KLUCZ), mapa(ID_A), {"OSOBA": 1}, zadanie="z1")
+    zegar.przesun(days=20)
+    magazyn.zapisz(zaszyfruj(mapa(ID_B), KLUCZ), mapa(ID_B), {"OSOBA": 1}, zadanie="z1")
+    zegar.przesun(days=11)
+    assert magazyn.posprzataj() == [ID_A]  # expires although only the newer version is listed
+    assert magazyn.usun_wszystkie() == 1
+
+
 # --- API: the store in /api/ukryj, /api/przywroc, /api/mapy ----------------------
 
 import base64
@@ -385,8 +420,9 @@ async def test_przywroc_bez_wskazania_mapy_wybierz_mape(konfig_api):
 
 
 @pytest.mark.anyio
-async def test_przywroc_bez_dopisku_jeden_kandydat_z_kompletem_znacznikow(konfig_api):
-    # exactly one candidate with ALL markers = chosen
+async def test_przywroc_bez_dopisku_jeden_kandydat_wymaga_potwierdzenia(konfig_api):
+    # markers are numbered from 1 in every document, so a reply without the note may come from a
+    # document whose map is not stored: the only candidate is suggested, never used silently
     app = create_app(konfig_api, detektor=RegulyDetektor())
     async with _klient(app) as klient:
         odpowiedz, czesci = await _ukryj(klient, app)
@@ -395,10 +431,110 @@ async def test_przywroc_bez_dopisku_jeden_kandydat_z_kompletem_znacznikow(konfig
         przywroc = await klient.post(
             "/api/przywroc", data={"tekst": bez_dopisku}, headers=_naglowki(app)
         )
-    assert przywroc.status_code == 200
+        assert przywroc.status_code == 422
+        dane = przywroc.json()
+        assert dane["kod"] == "wybierz_mape"
+        assert [k["id"] for k in dane["kandydaci"]] == [identyfikator]
+        potwierdzone = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku, "identyfikator": identyfikator},
+            headers=_naglowki(app),
+        )
+    assert potwierdzone.status_code == 200
+    assert potwierdzone.text == TEKST
+    assert "x-niewidka-mapa-wybrana-automatycznie" not in potwierdzone.headers
+
+
+@pytest.mark.anyio
+async def test_przywroc_bez_dopisku_znacznik_dopisany_przez_czat_nie_wyklucza_mapy(konfig_api):
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, czesci = await _ukryj(klient, app)
+        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+        bez_dopisku = _wynik_txt(identyfikator, czesci).split("\n", 1)[1]
+        przywroc = await klient.post(
+            "/api/przywroc", data={"tekst": bez_dopisku + " Zob. [PESEL_7]."}, headers=_naglowki(app)
+        )
+    assert przywroc.status_code == 422
+    assert [k["id"] for k in przywroc.json()["kandydaci"]] == [identyfikator]
+
+
+async def _popraw(klient, app, zadanie: str, ukryj=()):
+    odpowiedz = await klient.post(
+        "/api/popraw", json={"zadanie": zadanie, "ukryj": list(ukryj)}, headers=_naglowki(app)
+    )
+    assert odpowiedz.status_code == 200, odpowiedz.text
+    with zipfile.ZipFile(__import__("io").BytesIO(odpowiedz.content)) as paczka:
+        czesci = {nazwa: paczka.read(nazwa) for nazwa in paczka.namelist()}
+    return odpowiedz, czesci
+
+
+@pytest.mark.anyio
+async def test_poprawiony_dokument_to_jedno_zadanie_na_liscie(konfig_api):
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, _ = await _ukryj(klient, app)
+        zadanie = odpowiedz.headers["x-niewidka-zadanie"]
+        await _popraw(klient, app, zadanie, ukryj=["Kowalski"])
+        ostatnia, _ = await _popraw(klient, app, zadanie)
+        najnowsza = ostatnia.headers["x-niewidka-identyfikator"]
+        lista = (await klient.get("/api/mapy", headers=_naglowki(app))).json()["mapy"]
+        assert [w["id"] for w in lista] == [najnowsza]
+        assert (await klient.delete(f"/api/mapy/{najnowsza}", headers=_naglowki(app))).status_code == 200
+    assert app.state.magazyn.lista(wszystkie=True) == []  # every version of the job is gone
+
+
+@pytest.mark.anyio
+async def test_wersje_z_roznymi_danymi_pod_tym_samym_znacznikiem_bez_zgadywania(konfig_api):
+    # "Ukryj wszędzie" numbers its markers anew in every correction: INNE_1 is "dalej" in one version
+    # and "kolegą" in the next, so a reply without the note must not be restored with either
+    tekst = "PESEL 44051401359 spotkał się z kolegą, a potem poszedł dalej."
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, _ = await _ukryj(klient, app, tekst)
+        zadanie = odpowiedz.headers["x-niewidka-zadanie"]
+        skopiowana, czesci = await _popraw(klient, app, zadanie, ukryj=["dalej"])
+        id_skopiowanej = skopiowana.headers["x-niewidka-identyfikator"]
+        ostatnia, _ = await _popraw(klient, app, zadanie, ukryj=["kolegą"])
+        bez_dopisku = _wynik_txt(id_skopiowanej, czesci).split("\n", 1)[1]
+        assert "[INNE_1]" in bez_dopisku and "dalej" not in bez_dopisku
+        przywroc = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku, "identyfikator": ostatnia.headers["x-niewidka-identyfikator"]},
+            headers=_naglowki(app),
+        )
+        assert przywroc.status_code == 422, przywroc.text
+        assert przywroc.json()["kod"] == "wybierz_mape" and "kolegą" not in przywroc.text
+        plikiem = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku},
+            files={"mapa": ("m.nwidka", _mapa_paczka(id_skopiowanej, czesci))},
+            headers=_naglowki(app),
+        )
+    assert plikiem.status_code == 200
+    assert plikiem.text.endswith("spotkał się z kolegą, a potem poszedł dalej.")
+
+
+@pytest.mark.anyio
+async def test_wybrane_zadanie_przywraca_wersja_ze_znacznikami_odpowiedzi(konfig_api):
+    # the text was copied before the last correction: its markers are in an earlier version
+    app = create_app(konfig_api, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz, _ = await _ukryj(klient, app)
+        zadanie = odpowiedz.headers["x-niewidka-zadanie"]
+        skopiowana, czesci = await _popraw(klient, app, zadanie, ukryj=["Kowalski"])
+        id_skopiowanej = skopiowana.headers["x-niewidka-identyfikator"]
+        ostatnia, _ = await _popraw(klient, app, zadanie)  # the correction undone
+        bez_dopisku = _wynik_txt(id_skopiowanej, czesci).split("\n", 1)[1]
+        assert "[INNE_1]" in bez_dopisku
+        przywroc = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku, "identyfikator": ostatnia.headers["x-niewidka-identyfikator"]},
+            headers=_naglowki(app),
+        )
+    assert przywroc.status_code == 200, przywroc.text
     assert przywroc.text == TEKST
-    assert przywroc.headers["x-niewidka-identyfikator"] == identyfikator
-    assert przywroc.headers.get("x-niewidka-mapa-wybrana-automatycznie") == "1"
+    assert przywroc.headers["x-niewidka-identyfikator"] == id_skopiowanej
 
 
 @pytest.mark.anyio

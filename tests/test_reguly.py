@@ -91,6 +91,64 @@ def test_iban_bledna_suma_podejrzany():
     assert wynik[0].podejrzana is True
 
 
+def _konta(tekst: str):
+    return [(tekst[z.start : z.koniec], z.suma_kontrolna) for z in znajdz(tekst) if z.typ is TypEncji.IBAN]
+
+
+def test_nrb_bez_pl_w_zapisach_spotykanych_w_pismach():
+    # NRB = IBAN without the country code; the checksum is the IBAN one with "PL" in front
+    for numer in (
+        "61 1090 1014 0000 0712 1981 2874",
+        "61109010140000071219812874",
+        "61-1090-1014-0000-0712-1981-2874",
+        "6110 9010 1400 0007 1219 8128 74",
+        "61 1090 1014 0000 0712 1981 2874",
+    ):
+        assert _konta(f"Konto: {numer}.") == [(numer, True)], numer
+
+
+def test_iban_ze_spacja_po_pl():
+    assert _konta("Konto: PL 61 1090 1014 0000 0712 1981 2874.") == [
+        ("PL 61 1090 1014 0000 0712 1981 2874", True)
+    ]
+
+
+def test_nrb_bledna_suma_podejrzany():
+    wynik = _podejrzane("Konto: 61 1090 1014 0000 0712 1981 2875.")
+    assert [z.typ for z in wynik] == [TypEncji.IBAN]
+
+
+def test_nrb_nie_lapie_fragmentu_dluzszego_ciagu():
+    assert _konta("Kod 611090101400000712198128741 i 161109010140000071219812874.") == []
+
+
+def test_nrb_caly_numer_w_jednej_encji():
+    from niewidka.detektory import RegulyDetektor
+
+    tekst = "Przelew na 61 1090 1014 0000 0712 1981 2874 wykonany."
+    wynik = RegulyDetektor().znajdz(tekst)
+    assert [(tekst[z.start : z.koniec], z.typ) for z in wynik] == [
+        ("61 1090 1014 0000 0712 1981 2874", TypEncji.IBAN)
+    ]
+
+
+def test_paszport_wykryty_bez_sumy_kontrolnej():
+    # two letters + seven digits; no checksum we could verify, so it stays correctable
+    for numer in ("ZE 1234567", "ZE1234567"):
+        tekst = f"Paszport nr {numer} wydany w Gdańsku."
+        wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.DOKUMENT]
+        assert [(tekst[z.start : z.koniec], z.suma_kontrolna, z.podejrzana) for z in wynik] == [
+            (numer, False, False)
+        ], numer
+
+
+def test_kod_waluty_przed_kwota_nigdy_nie_jest_pewnym_dowodem():
+    # "PLN 100000" happens to pass the ID card sum (by hand: 25*7+21*3+23*1+1*9 = 270): an amount
+    for tekst in ("Kwota PLN 100000 do zapłaty.", "Prowizja EUR 100000."):
+        wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.DOKUMENT]
+        assert [z.suma_kontrolna for z in wynik] == [False], tekst
+
+
 def test_dowod_ze_spacja():
     tekst = "Dowód ABC 412345 stracił ważność."
     wynik = [z for z in znajdz(tekst) if z.typ is TypEncji.DOKUMENT]

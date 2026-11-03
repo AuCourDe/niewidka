@@ -29,6 +29,16 @@ class NieznanyFormat(Exception):
         super().__init__(f"nieznany format: {format!r}; obsługiwane: {', '.join(wspierane)}")
 
 
+class BladKodowania(Exception):
+    """A text file in no encoding we can read with certainty (binary or an unknown code page)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Nie umiem odczytać tego pliku tekstowego. Otwórz go w Notatniku, zapisz jako UTF-8 "
+            "i spróbuj ponownie."
+        )
+
+
 class AdapterFormatu(Protocol):
     rozszerzenia: frozenset[str]
 

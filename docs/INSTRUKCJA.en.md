@@ -65,8 +65,10 @@ The program may miss something or hide too much. You can fix mistakes right in t
 „To nie dane osobowe” (This is not personal data). The word returns to the text everywhere. For words from the permanent list
 use the „Odkryj tylko w tym dokumencie” (Unhide only in this document) button.
 
-You cannot unhide PESEL, NIP, REGON, IBAN, card numbers and ID card numbers. They have a valid
-checksum, so they are certainly personal data.
+You cannot unhide a number with a valid checksum (PESEL, NIP, REGON, IBAN, card, ID card),
+because it is certainly personal data. The program also hides a number with a wrong checksum,
+because it may be a typo in a real number. Such a number, for example the amount „PLN 500000”,
+you can unhide.
 
 **The program missed an item.** Select it with the mouse in the preview and click „Ukryj wszędzie” (Hide everywhere).
 You can also type it into the „Ukryj wszędzie” field under the preview. The fragment gets the placeholder
@@ -87,8 +89,10 @@ Sometimes the quality check finds suspicious fragments in the text. You will the
 
 1. Send the hidden text to an AI chat and copy the reply.
 2. On the **Przywróć** (Restore) tab choose „Wklej odpowiedź z czatu AI” (Paste a reply from an AI chat) and paste the copied text.
-3. From the **Zadanie** (Job) list choose the document the text comes from. The newest one is selected by default.
-   If the reply contains a map identifier, the program chooses the right map by itself.
+3. If the reply starts with the „ZANONIMIZOWANY…” line, the program finds the map by itself.
+   When the chat removed that line, choose the document the text comes from on the **Zadanie** (Job) list.
+   The program does not guess: it first selects the job that best matches the placeholders
+   and asks you to check it.
 4. Click **Przywróć dane** (Restore data).
 
 The real data replaces the placeholders. If the chat changed or removed a placeholder, you will see it

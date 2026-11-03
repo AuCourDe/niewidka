@@ -87,10 +87,13 @@ async def _ukryj(klient, app, tekst: str = TEKST):
     return odpowiedz, odpowiedz.headers["x-niewidka-zadanie"]
 
 
-async def _popraw(klient, app, zadanie: str, ukryj=(), nie_dane=(), zostaw=()):
+async def _popraw(klient, app, zadanie: str, ukryj=(), nie_dane=(), zostaw=(), na_inne=()):
     return await klient.post(
         "/api/popraw",
-        json={"zadanie": zadanie, "ukryj": list(ukryj), "nie_dane": list(nie_dane), "zostaw": list(zostaw)},
+        json={
+            "zadanie": zadanie, "ukryj": list(ukryj), "nie_dane": list(nie_dane),
+            "zostaw": list(zostaw), "na_inne": list(na_inne),
+        },
         headers=_naglowki(app),
     )
 
@@ -192,6 +195,56 @@ async def test_nie_dane_dla_typu_z_suma_to_422(konfig):
         odpowiedz = await _popraw(klient, app, zadanie, nie_dane=["PESEL_1"])
     assert odpowiedz.status_code == 422
     assert "44051401359" not in odpowiedz.text
+
+
+@pytest.mark.anyio
+async def test_nie_dane_tylko_dla_numeru_bez_pewnej_sumy(konfig):
+    # a wrong checksum is only a doubt (masked by default, the user may take it back);
+    # a matching checksum is always personal data
+    tekst = "Kwota PLN 500000, dowód ABC 412345."
+    app = create_app(konfig, detektor=DetektorZLicznikiem(frazy=()))
+    async with _klient(app) as klient:
+        odpowiedz, zadanie = await _ukryj(klient, app, tekst)
+        assert json.loads(odpowiedz.headers["x-niewidka-pewne"]) == ["DOKUMENT_2"]
+        odkryty = await _popraw(klient, app, zadanie, nie_dane=["DOKUMENT_1"])
+        assert odkryty.status_code == 200, odkryty.text
+        assert "PLN 500000" in _tekst_wyniku(odkryty) and "ABC 412345" not in _tekst_wyniku(odkryty)
+        assert odkryty.headers["x-niewidka-status"] == "ukonczony"
+        assert json.loads(odkryty.headers["x-niewidka-pewne"]) == ["DOKUMENT_2"]
+        pewny = await _popraw(klient, app, zadanie, nie_dane=["DOKUMENT_2"])
+        assert pewny.status_code == 422
+        inne = await _popraw(klient, app, zadanie, na_inne=["DOKUMENT_1"])
+        assert inne.status_code == 200, inne.text
+
+
+@pytest.mark.anyio
+async def test_przywrocenie_wersji_gdy_pozniejsza_poprawka_zabrala_wariant_osoby(konfig):
+    # a later correction hid "J. Nowaku", so OSOBA_1 lost its F2 variant there; the reply copied
+    # before it uses only (marker, variant) pairs of the earlier version: restored exactly
+    tekst = "Jan Nowak spotkał się z kolegą. Mówiono o J. Nowaku, a potem poszedł dalej."
+    app = create_app(konfig, detektor=DetektorZLicznikiem(frazy=("Jan Nowak",)))
+    async with _klient(app) as klient:
+        _, zadanie = await _ukryj(klient, app, tekst)
+        skopiowana = await _popraw(klient, app, zadanie, ukryj=["dalej"])
+        ostatnia = await _popraw(klient, app, zadanie, ukryj=["dalej", "J. Nowaku"])
+        assert ostatnia.status_code == 200, ostatnia.text
+        bez_dopisku = _tekst_wyniku(skopiowana).split("\n", 1)[1]
+        assert "[OSOBA_1_F2]" in bez_dopisku and "[OSOBA_1_F2]" not in _tekst_wyniku(ostatnia)
+        przywroc = await klient.post(
+            "/api/przywroc",
+            data={"tekst": bez_dopisku, "identyfikator": ostatnia.headers["x-niewidka-identyfikator"]},
+            headers=_naglowki(app),
+        )
+    assert przywroc.status_code == 200, przywroc.text
+    assert przywroc.text == tekst
+
+
+def test_z_pewna_suma_tylko_przy_poprawnej_sumie():
+    from niewidka.poprawki import z_pewna_suma
+
+    assert z_pewna_suma("44051401359") and z_pewna_suma("ABC 412345")
+    assert not z_pewna_suma("44051401358") and not z_pewna_suma("PLN 500000")
+    assert not z_pewna_suma("Jan Nowak")
 
 
 @pytest.mark.anyio
@@ -371,6 +424,7 @@ async def test_blokada_tekstowa_zawiera_podglad_i_pozycje_potem_decyzja(konfig):
         assert odpowiedz.status_code == 422, odpowiedz.text
         tresc = odpowiedz.json()
         miejsce = tresc["miejsca"][0]
+        assert miejsce["pewne"] is False and tresc["pewne"] == []
         assert tresc["podglad"].startswith("ZANONIMIZOWANY.")
         # the position points to the start of the fragment in the preview (where 'Wczoraj' starts)
         assert tresc["podglad"][miejsce["pozycja"] :].startswith("Wczoraj")
@@ -405,7 +459,8 @@ def test_ui_dostepnosc_poprawek():
     assert 'document.createElement("button")' in js and "zaslepka-przycisk" in js  # badges as buttons
     assert "Tekst się zmienił. Skopiuj go ponownie." in js
     assert "if (mojaKolejna !== licznikWyniku) return;" in js  # responses to older requests ignored
-    assert '"PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"' in js  # no 'To nie dane' for sums
+    # no "To nie dane" for a matching checksum: the server names those markers and places
+    assert "x-niewidka-pewne" in js and "poprawki.pewne.includes(znacznik)" in js and "miejsce.pewne" in js
 
 
 @pytest.mark.anyio

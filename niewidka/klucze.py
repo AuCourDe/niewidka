@@ -68,15 +68,19 @@ def _z_keyringa(usluga: str) -> str | None:
 
 
 def pobierz_klucz(konfig: Konfig, z_keyringa=_z_keyringa) -> bytes:
-    """32 B key: 1) file from konfig.klucz_plik, 2) keyring[usluga/KONTO].
+    """32 B key: the file from konfig.klucz_plik when one is configured, otherwise
+    keyring[usluga/KONTO].
 
+    A configured file is the only source: when it is missing, the keyring is not asked, because
+    its key would encrypt maps that the file key cannot open later.
     Called on encrypt/decrypt - the application holds the key
     no longer than the operation takes.
     """
     if konfig.klucz_plik:
         sciezka = Path(konfig.klucz_plik).expanduser()
-        if sciezka.is_file():
-            return _z_pliku(sciezka)
+        if not sciezka.is_file():
+            raise BrakKlucza(f"brak pliku klucza mapy wskazanego w ustawieniach: {sciezka}")
+        return _z_pliku(sciezka)
     haslo = z_keyringa(konfig.keyring_usluga)
     if haslo:
         try:

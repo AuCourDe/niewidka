@@ -21,15 +21,9 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-from niewidka.detektory import RegulyDetektor
 from niewidka.pakiety import opublikuj_bez_hasza
-from niewidka.poprawki import TYPY_Z_SUMA, BladPoprawki, sprawdz_liste, znajdz_wystapienia
+from niewidka.poprawki import BladPoprawki, sprawdz_liste, z_pewna_suma, znajdz_wystapienia
 from niewidka.rdzen import Detekcje
-
-
-def z_suma_kontrolna(fragment: str) -> bool:
-    """Whether the rules see a number with a checksum in the fragment."""
-    return any(z.typ in TYPY_Z_SUMA for z in RegulyDetektor().znajdz(fragment))
 
 
 def sprawdz_listy(zawsze: object, nigdy: object) -> tuple[list[str], list[str]]:
@@ -38,9 +32,10 @@ def sprawdz_listy(zawsze: object, nigdy: object) -> tuple[list[str], list[str]]:
     nigdy_ok = sprawdz_liste("nigdy", nigdy)
     if set(zawsze_ok) & set(nigdy_ok):
         raise BladPoprawki("ten sam fragment nie może być na obu listach")
-    if any(z_suma_kontrolna(f) for f in nigdy_ok):
+    if any(z_pewna_suma(f) for f in nigdy_ok):
         raise BladPoprawki(
-            "numerów z sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) nie można dodać do „Nigdy nie ukrywaj”"
+            "numerów z poprawną sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) nie można "
+            "dodać do „Nigdy nie ukrywaj”"
         )
     return zawsze_ok, nigdy_ok
 
@@ -51,11 +46,11 @@ class Listy:
     nigdy: list[str]
 
     def znaczniki_nigdy(self, detekcje: Detekcje) -> list[str]:
-        """Detection markers whose whole text is a "nigdy" item (without checksum types)."""
+        """Detection markers whose whole text is a "nigdy" item (never a matching checksum)."""
         wynik: list[str] = []
         for encje in detekcje.encje:
             for encja in encje:
-                if encja.oznaczenie in wynik or encja.zakres.typ in TYPY_Z_SUMA:
+                if encja.oznaczenie in wynik or encja.zakres.suma_kontrolna:
                     continue
                 tekst = encja.tekst
                 if any(znajdz_wystapienia(tekst, f) == [(0, len(tekst))] for f in self.nigdy):

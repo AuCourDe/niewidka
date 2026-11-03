@@ -174,6 +174,41 @@ class TestSkanSurowy:
 
         assert any(u.typ == "ORYGINAL" and u.czesc == "word/media/skrytka.png" for u in uwagi)
 
+    def test_oryginal_ze_slow_to_cale_slowo_z_odmiana(self):
+        """A surname leaks in its inflected forms ("Lisa", "Lisowi"), but "Lis" inside the
+        style name ListParagraph or the word "Listopad" is not a leak."""
+        dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()
+        wynik = _zakryj_docx_regulami(dane)
+        assert b"List" in zipfile.ZipFile(io.BytesIO(wynik)).read("word/styles.xml")
+        assert kontroluj(wynik, "w.docx", RegulyAtrapa(), oryginaly=["Lis"]) == []
+        assert kontroluj("Listopad był zimny.".encode(), "w.txt", RegulyAtrapa(), oryginaly=["Lis"]) == []
+        for forma in ("Lis", "Lisa", "Lisowi"):
+            ustawienia = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                f'<w:writeProtection w:hash="Pan {forma}"/></w:settings>'
+            ).encode()
+            brudny = _docx_przebuduj(wynik, podmien={"word/settings.xml": ustawienia})
+            uwagi = kontroluj(brudny, "w.docx", RegulyAtrapa(), oryginaly=["Lis"])
+            assert [(u.typ, u.czesc) for u in uwagi] == [("ORYGINAL", "word/settings.xml")], forma
+
+    def test_oryginal_w_odmianie_i_sklejeniu_wykryty_obce_slowa_nie(self):
+        wycieki = [
+            ("Kowalski", "Spotkanie z Kowalskim."), ("Kowalski", "Rodzina Kowalskich."),
+            ("Kowalski", "z Kowalskimi"), ("Nowak", "Nowakowie przyszli"), ("Nowak", "pani Nowakowa"),
+            ("Kowalski", '<w:hyperlink w:tooltip="JanKowalski"/>'), ("Kowalski", "plik Kowalski2024.docx"),
+            ("Kowalski", "Kowalskiego"), ("Kowalska", "Pani Kowalskiej"), ("Lis", "u Lisów"),
+            ("Nowak", "login JNowak"), ("Nowak", "Pani Nowakowska"), ("Nowak", "Anna Nowakówna"),
+            ("jan.nowak@firma.pl", "mailto%3Ajan.nowak@firma.pl"),
+        ]
+        for oryginal, tekst in wycieki:
+            uwagi = kontroluj(tekst.encode(), "w.txt", RegulyAtrapa(), oryginaly=[oryginal])
+            assert "ORYGINAL" in [u.typ for u in uwagi], (oryginal, tekst)
+        obce = [("Lis", "Lista obecności i Listopad."), ("Jan", "Janusz w styczniu (January)."),
+                ("Ewa", "Ewaluacja projektu."), ("Marek", "Dział Marketingu.")]
+        for oryginal, tekst in obce:
+            assert kontroluj(tekst.encode(), "w.txt", RegulyAtrapa(), oryginaly=[oryginal]) == [], (oryginal, tekst)
+
     def test_czysty_wynik_z_oryginalami_zero_ostrzezen(self):
         """PESEL replaced by a marker and absent anywhere in the archive = no alarm."""
         dane = zapisz_podstawowy(Path_tmp() / "w.docx").read_bytes()

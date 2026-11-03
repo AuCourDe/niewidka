@@ -140,6 +140,35 @@ class TestAdapterTekst:
         dok = AdapterTekst().wczytaj(b"x")
         assert AdapterTekst().elementy_nieobslugiwane(dok) == []
 
+    # Windows Notepad and older systems save Polish text in other encodings than UTF-8
+    POLSKI = "Zażółć gęślą jaźń. Pismo z Łodzi, Śródmieście, „cudzysłów”."
+
+    @pytest.mark.parametrize("kodowanie", ["cp1250", "iso8859_2", "utf-16", "utf-16-be"])
+    def test_wczytaj_inne_kodowania_polskiego_tekstu(self, kodowanie):
+        tekst = self.POLSKI if kodowanie != "iso8859_2" else self.POLSKI.replace("„", '"').replace("”", '"')
+        dane = tekst.encode(kodowanie)
+        if kodowanie == "utf-16-be":
+            dane = b"\xfe\xff" + dane  # Notepad writes the byte order mark
+        assert AdapterTekst().wczytaj(dane).segmenty[0].tekst == tekst
+
+    def test_utf32_czytany_a_utf16_bez_znacznika_to_blad(self):
+        # the UTF-32 mark starts with the UTF-16 one; decoded as UTF-16 the text had a NUL between
+        # characters and the rules missed every number
+        from niewidka.formaty import BladKodowania
+
+        tekst = "PESEL 44051401359"
+        assert AdapterTekst().wczytaj(tekst.encode("utf-32")).segmenty[0].tekst == tekst
+        for kodowanie in ("utf-16-le", "utf-16-be", "utf-32-le"):
+            with pytest.raises(BladKodowania):
+                AdapterTekst().wczytaj(tekst.encode(kodowanie))
+
+    def test_plik_binarny_to_czytelny_blad(self):
+        from niewidka.formaty import BladKodowania
+
+        for dane in (b"\x81\x83\x88 bez znaczenia", b"PK\x03\x04\x00\x00\xff\xfe\x00"):
+            with pytest.raises(BladKodowania):
+                AdapterTekst().wczytaj(dane)
+
 
 # --- wstaw_znaczniki: shared segment flow (cut + run copy) ---
 
@@ -618,3 +647,256 @@ class TestPoprawnoscWyniku:
         wynik, mapa, _ = ukryj(sciezka.read_bytes(), "docx", 1, detektor=RegulyDetektor())
         przywrocony, _ = przywroc(wynik, "docx", mapa)
         self._sprawdz(przywrocony)
+
+
+# --- raw packages: content outside plain paragraphs ---
+
+import re
+
+from niewidka.model import TypEncji, Zakres
+
+_NS = (
+    'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+    'xmlns:v="urn:schemas-microsoft-com:vml" '
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+    'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+    'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" '
+    'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+    'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
+)
+_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+_TYP = "application/vnd.openxmlformats-officedocument.wordprocessingml"
+
+
+def _paczka(
+    body: str, czesci: dict[str, str | bytes] | None = None, relacje: str = "", core: bool = True
+) -> bytes:
+    """A minimal package around `body`; `czesci` = extra parts, `relacje` = document relations."""
+    czesci = dict(czesci or {})
+    nadpisania = "".join(
+        f'<Override PartName="/{nazwa}" ContentType="{_TYP}.{nazwa.rsplit("/", 1)[1][:-4]}+xml"/>'
+        for nazwa in czesci
+        if nazwa.endswith(".xml")
+    )
+    bufor = io.BytesIO()
+    with zipfile.ZipFile(bufor, "w") as paczka:
+        paczka.writestr(
+            "[Content_Types].xml",
+            f'{_XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>'
+            f'<Override PartName="/word/document.xml" ContentType="{_TYP}.document.main+xml"/>{nadpisania}</Types>',
+        )
+        paczka.writestr(
+            "_rels/.rels",
+            f'{_XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+            'officeDocument" Target="word/document.xml"/></Relationships>',
+        )
+        paczka.writestr(
+            "word/_rels/document.xml.rels",
+            f'{_XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f"{relacje}</Relationships>",
+        )
+        if core:
+            paczka.writestr(
+                "docProps/core.xml",
+                f'{_XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/'
+                'metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                "<dc:creator>x</dc:creator></cp:coreProperties>",
+            )
+        paczka.writestr("word/document.xml", f"{_XML}<w:document {_NS}><w:body>{body}</w:body></w:document>")
+        for nazwa, tresc in czesci.items():
+            paczka.writestr(nazwa, tresc)
+    return bufor.getvalue()
+
+
+class _Frazy:
+    """Stub person detector: every occurrence of the given phrases."""
+
+    nazwa = "frazy"
+    typy = frozenset({TypEncji.OSOBA})
+
+    def __init__(self, *frazy: str):
+        self.frazy = frazy
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        return [
+            Zakres(m.start(), m.end(), TypEncji.OSOBA, 0.99, self.nazwa)
+            for fraza in self.frazy
+            for m in re.finditer(re.escape(fraza), tekst)
+        ]
+
+
+def _teksty(dane: bytes) -> list[str]:
+    return [s.tekst for s in AdapterDocx().wczytaj(dane).segmenty]
+
+
+def _ukryj_i_przywroc(dane: bytes, *frazy: str):
+    from niewidka.rdzen import przywroc, ukryj
+
+    wynik, mapa, raport = ukryj(dane, "docx", 1, detektor=_Frazy(*frazy))
+    przywrocony, rozbieznosci = przywroc(wynik, "docx", mapa)
+    assert rozbieznosci == []
+    return wynik, raport, przywrocony
+
+
+_POLE_VML = (
+    '<w:r><w:pict><v:shape id="s1"><v:textbox><w:txbxContent>'
+    "<w:p><w:r><w:t>Adresat: Jan Nowak</w:t></w:r></w:p>"
+    "</w:txbxContent></v:textbox></v:shape></w:pict></w:r>"
+)
+
+
+class TestTrescPozaAkapitem:
+    def test_pole_tekstowe_to_osobny_segment_bez_powtorzen(self):
+        body = f'<w:p><w:r><w:t xml:space="preserve">Pismo do </w:t></w:r>{_POLE_VML}</w:p>'
+        assert _teksty(_paczka(body)) == ["Pismo do ", "Adresat: Jan Nowak"]
+
+    def test_pole_tekstowe_ukryte_i_przywrocone(self):
+        body = f'<w:p><w:r><w:t xml:space="preserve">Pismo do Maria Lis </w:t></w:r>{_POLE_VML}</w:p>'
+        wynik, raport, przywrocony = _ukryj_i_przywroc(_paczka(body), "Jan Nowak", "Maria Lis")
+        assert raport.status == "ukonczony"
+        assert _teksty(wynik)[1:] == ["Pismo do [OSOBA_1_F1] ", "Adresat: [OSOBA_2_F1]"]
+        assert "txbxContent" in _document_xml(wynik)
+        assert _teksty(przywrocony) == ["Pismo do Maria Lis ", "Adresat: Jan Nowak"]
+
+    def test_pole_tekstowe_zostaje_gdy_obrazy_sa_usuwane(self):
+        obraz = (
+            '<w:r><w:drawing><wp:inline><wp:docPr id="1" name="x"/><a:graphic><a:graphicData>'
+            '<pic:pic><pic:blipFill><a:blip r:embed="rIdObraz"/></pic:blipFill></pic:pic>'
+            "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+        )
+        pole = (
+            '<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor>'
+            '<wp:docPr id="2" name="y"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent>'
+            "<w:p><w:r><w:t>Adresat: Jan Nowak</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp>"
+            "</a:graphicData></a:graphic></wp:anchor></w:drawing></mc:Choice>"
+            f"<mc:Fallback>{_POLE_VML[5:-6]}</mc:Fallback></mc:AlternateContent></w:r>"
+        )
+        relacja = (
+            '<Relationship Id="rIdObraz" Type="http://schemas.openxmlformats.org/officeDocument/'
+            '2006/relationships/image" Target="media/image1.png"/>'
+        )
+        dane = _paczka(
+            f"<w:p>{obraz}</w:p><w:p>{pole}</w:p>",
+            {"word/media/image1.png": b"\x89PNG\r\n\x1a\n"},
+            relacje=relacja,
+        )
+        wynik, raport, przywrocony = _ukryj_i_przywroc(dane, "Jan Nowak")
+        assert raport.status == "ukonczony"
+        assert _teksty(wynik)[1:] == ["[OBRAZ USUNIĘTY]", "", "Adresat: [OSOBA_1_F1]", "Adresat: [OSOBA_1_F1]"]
+        assert _teksty(przywrocony) == ["[OBRAZ USUNIĘTY]", "", "Adresat: Jan Nowak", "Adresat: Jan Nowak"]
+
+    def test_symbol_i_podzial_strony_zostaja_w_akapicie_ze_znacznikiem(self):
+        body = (
+            '<w:p><w:r><w:t xml:space="preserve">Wnioskodawca Jan Nowak </w:t></w:r>'
+            '<w:r><w:sym w:font="Wingdings" w:char="F0FE"/></w:r>'
+            '<w:r><w:t xml:space="preserve"> zgoda</w:t></w:r><w:r><w:br w:type="page"/></w:r>'
+            "<w:r><w:t>Dalej</w:t></w:r></w:p>"
+        )
+        wynik, _, przywrocony = _ukryj_i_przywroc(_paczka(body), "Jan Nowak")
+        for dane in (wynik, przywrocony):
+            xml = _document_xml(dane)
+            assert re.search(r"zgoda.*w:type=\"page\".*Dalej", xml)
+            assert re.search(r"\]?</w:t></w:r>.*<w:sym [^>]*/>.*zgoda", xml)
+
+    def test_twardy_lacznik_zostaje_na_miejscu(self):
+        body = (
+            '<w:p><w:r><w:t xml:space="preserve">Wnioskodawczyni Anna Nowak</w:t><w:noBreakHyphen/>'
+            '<w:t xml:space="preserve">Kowalska prosi.</w:t></w:r></w:p>'
+        )
+        dane = _paczka(body)
+        assert _teksty(dane) == ["Wnioskodawczyni Anna Nowak-Kowalska prosi."]
+        wynik, _, przywrocony = _ukryj_i_przywroc(dane, "Anna Nowak-Kowalska")
+        assert _teksty(wynik)[1:] == ["Wnioskodawczyni [OSOBA_1_F1] prosi."]
+        assert _teksty(przywrocony) == ["Wnioskodawczyni Anna Nowak-Kowalska prosi."]
+
+    def test_pole_proste_rozpakowane_bez_utraty_tekstu(self):
+        body = '<w:p><w:fldSimple w:instr=" MERGEFIELD Nazwisko "><w:r><w:t>Jan Nowak</w:t></w:r></w:fldSimple></w:p>'
+        wynik, _, przywrocony = _ukryj_i_przywroc(_paczka(body), "Jan Nowak")
+        assert "fldSimple" not in _document_xml(wynik)
+        assert _teksty(przywrocony) == ["Jan Nowak"]
+
+    def test_pole_zlozone_zostaje_zwyklym_tekstem(self):
+        # the instruction may carry data and is removed; Word hides the result of a field whose
+        # code is empty, so the field characters go too and the result is plain text
+        body = (
+            '<w:p><w:r><w:fldChar w:fldCharType="begin"><w:ffData><w:name w:val="Tekst1"/>'
+            '<w:textInput><w:default w:val="Maria Lis"/></w:textInput></w:ffData></w:fldChar></w:r>'
+            '<w:r><w:instrText xml:space="preserve"> FORMTEXT </w:instrText></w:r>'
+            '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>Maria Lis</w:t></w:r>'
+            '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
+        )
+        wynik, _, przywrocony = _ukryj_i_przywroc(_paczka(body), "Maria Lis")
+        for dane in (wynik, przywrocony):
+            xml = _document_xml(dane)
+            assert not re.search(r"fldChar|instrText|ffData|Tekst1", xml), xml
+        assert "Maria Lis" not in _document_xml(wynik)
+        assert _teksty(przywrocony) == ["Maria Lis"]
+
+    def test_sledzone_zmiany_formatowania_i_przeniesienia_przyjete(self):
+        body = (
+            '<w:p><w:r><w:rPr><w:b/><w:rPrChange w:id="5" w:author="Anna Zielińska" '
+            'w:date="2026-01-01T00:00:00Z"><w:rPr/></w:rPrChange></w:rPr><w:t>tekst</w:t></w:r></w:p>'
+            '<w:p><w:moveFrom w:id="6" w:author="Anna Zielińska"><w:r><w:t>stare miejsce</w:t></w:r></w:moveFrom>'
+            '<w:moveTo w:id="7" w:author="Anna Zielińska"><w:r><w:t>nowe miejsce</w:t></w:r></w:moveTo></w:p>'
+        )
+        wynik, _, _ = _ukryj_i_przywroc(_paczka(body))
+        xml = _document_xml(wynik)
+        assert "<w:b/>" in xml
+        assert not re.search(r"rPrChange|moveFrom|moveTo|w:author|Zielińska", xml)
+        assert _teksty(wynik)[1:] == ["tekst", "nowe miejsce"]
+
+    def test_tekst_w_atrybutach_wyczyszczony(self):
+        # a hyperlink tooltip and target location, the editor of a permission range and the list
+        # items of a content control are free text that no segment reads
+        body = (
+            '<w:p><w:hyperlink w:anchor="sekcja" w:tooltip="Kontakt: Jan Nowak" w:docLocation="Jan Nowak">'
+            '<w:r><w:t>Zobacz</w:t></w:r></w:hyperlink><w:permStart w:id="1" w:ed="jan.nowak@example.com"/>'
+            '<w:r><w:t xml:space="preserve"> tekst</w:t></w:r><w:permEnd w:id="1"/></w:p>'
+            '<w:sdt><w:sdtPr><w:dropDownList w:lastValue="Maria Lis">'
+            '<w:listItem w:displayText="Maria Lis" w:value="Maria Lis"/></w:dropDownList></w:sdtPr>'
+            "<w:sdtContent><w:p><w:r><w:t>Wybór</w:t></w:r></w:p></w:sdtContent></w:sdt>"
+        )
+        wynik, raport, _ = _ukryj_i_przywroc(_paczka(body))
+        xml = _document_xml(wynik)
+        assert not re.search(r"Nowak|nowak|Maria Lis|tooltip|docLocation|permStart|listItem|lastValue", xml), xml
+        assert raport.status == "ukonczony"
+        assert _teksty(wynik)[1:] == ["Zobacz tekst", "Wybór"]
+
+    def test_zmienne_dokumentu_usuniete(self):
+        settings = (
+            f"{_XML}<w:settings {_NS}><w:docVars>"
+            '<w:docVar w:name="Klient" w:val="Bartłomiej Wierzbicki, ul. Lipowa 5"/></w:docVars></w:settings>'
+        )
+        dane = _paczka("<w:p><w:r><w:t>Treść pisma.</w:t></w:r></w:p>", {"word/settings.xml": settings})
+        wynik, raport, _ = _ukryj_i_przywroc(dane)
+        tresc = zipfile.ZipFile(io.BytesIO(wynik)).read("word/settings.xml").decode()
+        assert "docVar" not in tresc and "Wierzbicki" not in tresc
+        assert raport.status == "ukonczony"
+
+    def test_przypisy_koncowe_usuwane_jak_dolne(self):
+        przypisy = (
+            f'{_XML}<w:endnotes {_NS}><w:endnote w:id="1"><w:p><w:r><w:t>Jan Nowak</w:t></w:r></w:p>'
+            "</w:endnote></w:endnotes>"
+        )
+        relacja = (
+            '<Relationship Id="rIdKonc" Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+            'relationships/endnotes" Target="endnotes.xml"/>'
+        )
+        body = '<w:p><w:r><w:t>Pismo.</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r></w:p>'
+        dane = _paczka(body, {"word/endnotes.xml": przypisy}, relacje=relacja)
+        wynik, _, _ = _ukryj_i_przywroc(dane)
+        paczka = zipfile.ZipFile(io.BytesIO(wynik))
+        assert "word/endnotes.xml" not in paczka.namelist()
+        assert "endnoteReference" not in _document_xml(wynik)
+        for nazwa in ("[Content_Types].xml", "word/_rels/document.xml.rels"):
+            assert b"endnotes" not in paczka.read(nazwa), nazwa
+
+    def test_paczka_bez_core_xml(self):
+        dane = _paczka("<w:p><w:r><w:t>Pismo do Jan Nowak.</w:t></w:r></w:p>", core=False)
+        wynik, _, przywrocony = _ukryj_i_przywroc(dane, "Jan Nowak")
+        assert _teksty(wynik)[1:] == ["Pismo do [OSOBA_1_F1]."]
+        assert _teksty(przywrocony) == ["Pismo do Jan Nowak."]

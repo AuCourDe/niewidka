@@ -9,6 +9,15 @@ import keyring
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _katalog_danych_testu(tmp_path_factory, monkeypatch):
+    """Every test gets its own data directory: maps, the registry of issued maps, lists and
+    the journal never land in the user's real profile."""
+    profil = tmp_path_factory.mktemp("profil")
+    monkeypatch.setenv("XDG_DATA_HOME", str(profil))
+    monkeypatch.setenv("LOCALAPPDATA", str(profil))
+
+
 @pytest.fixture(scope="session")
 def katalog_modeli() -> Path:
     """Weights directory from NIEWIDKA_MODELE_KATALOG; without weights, tests marked `model` are skipped."""

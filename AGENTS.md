@@ -42,12 +42,15 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 Hide (`niewidka/rdzen.py: ukryj`):
 
 1. **Format adapter** (`formaty/tekst.py`, `formaty/docx_.py`) splits the document into
-   segments and runs. DOCX: structure allowlist, comments, footnotes, headers, footers,
-   thumbnails, extra properties and (by default) images are removed; an unknown part is
-   rejected. ZIP reading goes through `archiwum.py` (real byte budget, fail-closed).
+   segments and runs. DOCX: structure allowlist, comments, footnotes, endnotes, headers,
+   footers, thumbnails, document variables, extra properties and (by default) images are
+   removed; tracked changes are accepted; fields become plain text (their result stays);
+   a text box paragraph is a segment of its own;
+   an unknown part is rejected. ZIP reading goes through `archiwum.py` (real byte budget, fail-closed).
 2. **Detectors** (`detektory.py`) run on sliding windows: `reguly.py` (regex + checksums for
-   PESEL, NIP, REGON, IBAN, ID card, card/Luhn, IP; valid sum = confidence 1.0, wrong sum =
-   "suspicious" 0.5, never dropped) plus the ONNX token-classification model of the package.
+   PESEL, NIP, REGON, IBAN (also the domestic NRB form), ID card, card/Luhn, IP; valid sum =
+   confidence 1.0, wrong sum = "suspicious" 0.5, never dropped) plus the ONNX
+   token-classification model of the package.
    Level 2 lowers the person threshold and adds a second pass shifted by half a window;
    level 3 adds the GUS first-name list and, if installed, the extended model.
    With `[inferencja] adres` set, `zdalny.py` sends text to the shared server instead.
@@ -68,7 +71,11 @@ personal data), "Odkryj". Numbers with a valid checksum can never be marked as "
 Constant lists "Zawsze ukrywaj" / "Nigdy nie ukrywaj" (`listy.py`) apply the same way.
 
 Restore (`rdzen.py: przywroc`): the map comes from an uploaded `.nwidka`, from the id in the
-header note, or from the store by id; unknown or changed tags are reported as discrepancies.
+header note, or from the store by the job the user picked; unknown or changed tags are
+reported as discrepancies. Tags are numbered from 1 in every document, so without the note
+the API never picks a map by itself: it returns `wybierz_mape` with the best-matching jobs.
+Every preview correction issues a new map; the store keeps all versions of a job and lists
+the newest one (`MagazynMap.lista`, `wersje`).
 
 ## 3. Repository layout
 
@@ -179,9 +186,9 @@ Errors return `{"blad": "..."}` with Polish text.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/ukryj` | form: `poziom` 1-3, exactly one of `tekst` or `plik`; returns a ZIP (result + `.nwidka`) with `x-niewidka-*` headers: map id, task id, statistics, warnings, R95 |
+| `POST /api/ukryj` | form: `poziom` 1-3, exactly one of `tekst` or `plik`; returns a ZIP (result + `.nwidka`) with `x-niewidka-*` headers: map id, task id, statistics, warnings, R95, markers with a valid checksum (`pewne`) |
 | `POST /api/popraw` | JSON: `zadanie` + full lists `ukryj`, `nie_dane`, `zostaw`, `na_inne`, `odkryj`; recomputes without the model |
-| `POST /api/przywroc` | form: `wynik` file or `tekst`, plus `mapa` file or `identyfikator` (or the id in the header note) |
+| `POST /api/przywroc` | form: `wynik` file or `tekst`, plus `mapa` file or `identyfikator` (or the id in the header note); with neither, 422 `wybierz_mape` lists the best-matching jobs |
 | `GET /api/mapy`, `DELETE /api/mapy/{id}`, `DELETE /api/mapy` | stored maps |
 | `GET`/`PUT /api/listy` | constant lists |
 | `GET`/`POST /api/pakiety` | package status, `pobierz` (download) and `instaluj` (from folder) |

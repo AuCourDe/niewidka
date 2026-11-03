@@ -397,6 +397,20 @@ def test_poziom3_lapie_co_poziom1_przeoczy(katalog_modeli):
     assert trafienia[3] == {(11, 28)}  # level 3: the first-name dictionary catches 'Adama Mickiewicza'
 
 
+@pytest.mark.model
+@pytest.mark.parametrize("poziom", [1, 2, 3])
+def test_dlugi_tekst_nazwisko_na_koncu_ukryte(katalog_modeli, poziom):
+    """A pasted text is one segment; a name far past the first 512 tokens is hidden too."""
+    akapit = (
+        "Zgodnie z regulaminem wspólnoty przedstawiamy sprawozdanie z prac remontowych "
+        "prowadzonych w budynku w minionym kwartale oraz plan na kolejne miesiące. "
+    )
+    tekst = (akapit * 40 + "Sprawę prowadzi Jan Kowalski z działu technicznego.").encode()
+    wynik, _, raport = ukryj(tekst, "txt", poziom, konfig=Konfig(modele_katalog=katalog_modeli))
+    assert b"Kowalski" not in wynik
+    assert raport.statystyki.get("OSOBA") == 1
+
+
 def test_filtr_bez_daty():
     detektor = _BezDaty(RegulyDetektor())
     znaleziska = detektor.znajdz("PESEL 44051401359 z dnia 13.05.1982")

@@ -113,9 +113,14 @@ class MagazynMap:
 
     # --- write and read ---------------------------------------------------------
 
-    def zapisz(self, szyfrogram: bytes, mapa: Mapa, statystyki: dict[str, int]) -> datetime | None:
+    def zapisz(
+        self, szyfrogram: bytes, mapa: Mapa, statystyki: dict[str, int], zadanie: str | None = None
+    ) -> datetime | None:
         """Ciphertext + metadata into the store; returns the expiry date or None
-                (retention 0 = no automatic write). Non-maps say "nie mapa"."""
+                (retention 0 = no automatic write). Non-maps say "nie mapa".
+                `zadanie`: the job a preview correction belongs to; every correction issues a
+                new map, and all of them stay (a text copied before a correction must restore)
+                as numbered versions of one job."""
         naglowek(szyfrogram)  # BladMapy before anything is created on disk
         if self.retencja_dni <= 0:
             return None
@@ -130,6 +135,12 @@ class MagazynMap:
             "statystyki": dict(statystyki),
         }
         with self.blokada:
+            if zadanie is not None:
+                metadane["zadanie"] = str(zadanie)
+                metadane["wersja"] = 1 + max(
+                    (w["wersja"] for w in self.lista(wszystkie=True) if w.get("zadanie") == zadanie),
+                    default=0,
+                )
             self.katalog.mkdir(parents=True, exist_ok=True)
             opublikuj_bez_hasza(szyfrogram, self.katalog / f"{identyfikator}.nwidka", self.katalog)
             opublikuj_bez_hasza(
@@ -146,27 +157,51 @@ class MagazynMap:
         plik = self.katalog / f"{identyfikator}.nwidka"
         return plik.read_bytes() if plik.is_file() else None
 
-    def lista(self) -> list[dict]:
-        """Map metadata, newest first; damaged entries skipped (fail-safe)."""
+    def lista(self, wszystkie: bool = False) -> list[dict]:
+        """Map metadata, newest first; damaged entries skipped (fail-safe). A corrected job is
+                listed once, by its newest version; `wszystkie` lists every stored map."""
         if not self.katalog.is_dir():
             return []
         wynik = []
         for plik in self.katalog.glob("*.json"):
             try:
                 wpis = json.loads(plik.read_text(encoding="utf-8"))
-                wynik.append(
-                    {
-                        "identyfikator": str(wpis["identyfikator"]),
-                        "utworzono": str(wpis["utworzono"]),
-                        "wygasa": str(wpis["wygasa"]),
-                        "poziom": int(wpis["poziom"]),
-                        "statystyki": {str(k): int(v) for k, v in wpis["statystyki"].items()},
-                    }
-                )
-            except (ValueError, KeyError, TypeError, OSError):
+                pozycja = {
+                    "identyfikator": str(wpis["identyfikator"]),
+                    "utworzono": str(wpis["utworzono"]),
+                    "wygasa": str(wpis["wygasa"]),
+                    "poziom": int(wpis["poziom"]),
+                    "statystyki": {str(k): int(v) for k, v in wpis["statystyki"].items()},
+                }
+                if "zadanie" in wpis:
+                    pozycja["zadanie"] = str(wpis["zadanie"])
+                    pozycja["wersja"] = int(wpis["wersja"])
+                wynik.append(pozycja)
+            except (ValueError, KeyError, TypeError, OSError, AttributeError):
                 continue
-        wynik.sort(key=lambda w: (w["utworzono"], w["identyfikator"]), reverse=True)
+        if not wszystkie:
+            najnowsze: dict[str, dict] = {}
+            for pozycja in wynik:
+                klucz = pozycja.get("zadanie") or pozycja["identyfikator"]
+                if klucz not in najnowsze or pozycja.get("wersja", 0) > najnowsze[klucz].get("wersja", 0):
+                    najnowsze[klucz] = pozycja
+            wynik = list(najnowsze.values())
+        wynik.sort(key=lambda w: (w["utworzono"], w.get("wersja", 0), w["identyfikator"]), reverse=True)
         return wynik
+
+    def wersje(self, identyfikator: str) -> list[str]:
+        """Ids of every stored version of the job this map belongs to, newest first (just the
+                map itself when it has no job, nothing when it is not stored)."""
+        identyfikator = sprawdz_id(identyfikator)
+        wszystkie = self.lista(wszystkie=True)
+        wpis = next((w for w in wszystkie if w["identyfikator"] == identyfikator), None)
+        if wpis is None:
+            return []
+        # the job id is the id of its first map, which an older program stored without the field
+        zadanie = wpis.get("zadanie") or wpis["identyfikator"]
+        wersje = [w for w in wszystkie if w.get("zadanie") == zadanie or w["identyfikator"] == zadanie]
+        wersje.sort(key=lambda w: w.get("wersja", 0), reverse=True)
+        return [w["identyfikator"] for w in wersje]
 
     # --- deletion ---------------------------------------------------------------
 
@@ -176,7 +211,7 @@ class MagazynMap:
 
     def usun_wszystkie(self) -> int:
         ile = 0
-        for wpis in self.lista():
+        for wpis in self.lista(wszystkie=True):
             ile += int(self.usun(wpis["identyfikator"]))
         return ile
 
@@ -187,7 +222,7 @@ class MagazynMap:
             return []
         teraz = self.zegar()
         przeterminowane = []
-        for wpis in self.lista():
+        for wpis in self.lista(wszystkie=True):
             try:
                 wygasa = datetime.fromisoformat(wpis["wygasa"])
             except ValueError:

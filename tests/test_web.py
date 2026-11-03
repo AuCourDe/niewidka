@@ -259,11 +259,13 @@ async def test_ustawienia_zapisane_mapy_z_usuwaniem(klient):
 @pytest.mark.anyio
 async def test_wybierz_mape_prowadzi_do_listy_zadan(klient):
     """A 422 with the wybierz_mape code does not become a generic error; the interface
-        shows the message and leads to the job list."""
+        shows the message, selects the best-matching job and leads to the job list."""
     apka = (await klient.get("/apka.js")).text
     assert 'wybierz_mape' in apka
-    assert "Wybierz zadanie z listy" in apka
-    assert 'lista-zadan' in apka, "po komunikacie fokus/akcja na liście zadań"
+    assert "Zaznaczyłem zadanie, które najlepiej pasuje do znaczników. " in apka
+    assert "kandydaci" in apka and 'lista-zadan' in apka, "po komunikacie fokus/akcja na liście zadań"
+    # a suggested job never silently applies to another reply, and the list resets after a restore
+    assert "lista.dataset.propozycja = \"1\";" in apka and 'listaPo.value = "";' in apka
 
 
 @pytest.mark.anyio

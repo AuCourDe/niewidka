@@ -93,6 +93,11 @@ async def test_put_listy_wymaga_tokenu_i_waliduje(konfig_list):
             "/api/listy", json={"zawsze": [], "nigdy": ["44051401359"]}, headers=_naglowki(app)
         )
         assert pesel.status_code == 422 and "44051401359" not in pesel.text
+        kwota = await klient.put(
+            "/api/listy", json={"zawsze": [], "nigdy": ["PLN 500000"]}, headers=_naglowki(app)
+        )
+        assert kwota.status_code == 200, kwota.text
+        await klient.put("/api/listy", json={"zawsze": [], "nigdy": []}, headers=_naglowki(app))
         odczyt = await klient.get("/api/listy", headers=_naglowki(app))
         assert odczyt.json()["zawsze"] == [] and odczyt.json()["tylko_administrator"] is False
 

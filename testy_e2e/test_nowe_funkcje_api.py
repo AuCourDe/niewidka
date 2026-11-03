@@ -26,8 +26,10 @@ ok("PESEL ukryty", "44051401359" not in wynik)
 znaczniki = re.findall(r"\[[A-Z_]+_\d+(?:_F\d+)?\]", wynik)
 odp = "Szanowny " + " ".join(znaczniki) + " - odpowiedź przygotowana."
 r = c.post("/api/przywroc", headers=H, data={"tekst": odp})
-ok("przywróć wklejony tekst bez mapy", r.status_code == 200 and "44051401359" in r.text, r.status_code)
-ok("wybór automatyczny zgłoszony", r.headers.get("x-niewidka-mapa-wybrana-automatycznie"))
+kandydaci = r.json().get("kandydaci", []) if r.status_code == 422 else []
+ok("bez dopisku: zadanie do potwierdzenia, nie wybór po cichu", kandydaci, r.status_code)
+r = c.post("/api/przywroc", headers=H, data={"tekst": odp, "identyfikator": kandydaci[0]["id"] if kandydaci else ""})
+ok("przywróć wklejony tekst po wskazaniu zadania", r.status_code == 200 and "44051401359" in r.text, r.status_code)
 # reply with a note
 r2 = c.post("/api/przywroc", headers=H, data={"tekst": wynik})
 ok("przywróć z dopiskiem", r2.status_code == 200 and "Kowalsk" in r2.text, r2.status_code)

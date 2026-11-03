@@ -18,6 +18,8 @@ sp = importlib.util.spec_from_file_location("t", str(Path(__file__).resolve().pa
 t = importlib.util.module_from_spec(sp); sp.loader.exec_module(t)
 
 tmp = Path(tempfile.mkdtemp())
+# the registry of issued maps and the lists default to the data folder: keep them out of the real profile
+os.environ["XDG_DATA_HOME"] = os.environ["LOCALAPPDATA"] = str(tmp / "dane")
 klucz = tmp / "k"; klucz.write_bytes(base64.b64encode(t.KLUCZ)); klucz.chmod(0o600)
 PORT = int(os.environ.get("PORT", "8391"))
 app = t.create_app(t.Konfig(port=PORT, klucz_plik=str(klucz), mapy_katalog=tmp / "m"), detektor=t.DetektorUparty(frazy=("Jan Nowak", "Maria Lis")))

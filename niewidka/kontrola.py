@@ -18,6 +18,7 @@ from niewidka.detektory import Detektor, RegulyDetektor
 from niewidka.formaty import adapter_dla
 from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
+from niewidka.osoby import rdzen_nazwiska
 from niewidka.znaczniki import DOPISEK
 
 _NAZWY_TYPOW = frozenset(typ.value for typ in TypEncji)
@@ -43,7 +44,6 @@ def kontroluj(
     detektor: Detektor,
     oryginaly: list[str] | tuple[str, ...] = (),
     max_rozpakowane: int | None = None,
-    pelne_slowa: frozenset[str] = frozenset(),
 ) -> list[Ostrzezenie]:
     adapter = adapter_dla(nazwa_pliku)
     dok = adapter.wczytaj(dane, max_rozpakowane=max_rozpakowane)
@@ -75,15 +75,38 @@ def kontroluj(
     # raw scan ONLY with the rules + originals from the map - the ONNX model on
     # every XML part took minutes (219 s on the sample, API timeout 120 s) and caused false
     # blocks from metadata; the model works on the adapter-read content, above.
-    uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane, pelne_slowa))
+    uwagi.extend(_skan_surowy(dane, RegulyDetektor(), oryginaly, max_rozpakowane))
     return uwagi
 
 
-def _caly_wyraz(oryginal: str, zawartosc: bytes) -> bool:
-    """The original as a whole word (word boundaries with Polish letters): "Lis" is not a
-        leak in "Listopad". For fragments added by the user (corrections)."""
-    wzorzec = rf"(?<![^\W_]){re.escape(oryginal)}(?![^\W_])"
-    return re.search(wzorzec, zawartosc.decode("utf-8", errors="ignore")) is not None
+# A surname leaks in every case ("Kowalskim", "Kowalskiej", "Nowakowie"), while "Lis" inside the
+# style name ListParagraph or the words "Lista" and "Listopad" is a different word.
+_KONCOWKI = (
+    "owskiego", "owskiemu", "owskiej", "owska", "owską", "owski", "owskim", "ówna", "ówny", "ównie",
+    "ówną", "owie", "owej", "iemu", "iego", "ami", "ach", "owi", "owa", "ową", "owe", "iej", "iem",
+    "ego", "emu", "ów", "om", "em", "im", "ie", "mi", "ch", "a", "e", "i", "m", "o", "u", "y", "ą", "ę",
+)
+_MALE = "a-ząćęłńóśźż"
+_WIELKIE = "A-ZĄĆĘŁŃÓŚŹŻ"
+
+
+def _dopasowanie_oryginalu(oryginal: str) -> tuple[bytes, re.Pattern[str] | None]:
+    """(bytes for a fast exact pre-check, pattern or None). A number, an e-mail or other text that
+        does not start with a capital leaks inside any string, so its bytes are enough. A name
+        continues only with an inflection ending of the original or its stem, and no lower-case
+        letter follows ("Kowalski2024" matches, "Listopad" does not). Anything may precede a name
+        longer than 3 letters ("JNowak"); a short one ("Lis") must not follow a capital."""
+    if not any(znak.isalpha() for znak in oryginal) or not oryginal[0].isupper():
+        return oryginal.encode("utf-8"), None
+    lewa = rf"(?<![{_WIELKIE}])" if len(oryginal) <= 3 else ""
+    if not oryginal[-1].isalpha():
+        prawa = r"(?!\d)" if oryginal[-1].isdigit() else ""
+        return oryginal.encode("utf-8"), re.compile(lewa + re.escape(oryginal) + prawa)
+    ostatnie = re.split(r"\W", oryginal)[-1]
+    rdzen = oryginal[: len(oryginal) - len(ostatnie) + len(rdzen_nazwiska(ostatnie))]
+    rdzenie = "|".join(re.escape(r) for r in sorted({oryginal, rdzen}, key=len, reverse=True))
+    wzorzec = re.compile(rf"{lewa}(?:{rdzenie})(?:{'|'.join(_KONCOWKI)})?(?![{_MALE}])")
+    return min(oryginal, rdzen, key=len).encode("utf-8"), wzorzec
 
 
 def _skan_surowy(
@@ -91,7 +114,6 @@ def _skan_surowy(
     detektor: Detektor,
     oryginaly,
     max_rozpakowane: int | None = None,
-    pelne_slowa: frozenset[str] = frozenset(),
 ) -> list[Ostrzezenie]:
     """Scan each part independently of the adapter: XML value by value,
         the rest byte by byte (only originals from the map). Dedup per (type, fragment,
@@ -101,7 +123,7 @@ def _skan_surowy(
         The detector comes from outside so tests can
         inspect the run; callers do not plug a model in here."""
     czesci = _czesci(dane, max_rozpakowane)
-    znaki_oryginalow = {o: o.encode("utf-8") for o in oryginaly if o}
+    znaki_oryginalow = {o: _dopasowanie_oryginalu(o) for o in oryginaly if o}
     uwagi: list[Ostrzezenie] = []
     for nazwa, zawartosc in czesci:
         widziane_w_czesci: set[tuple[str, str]] = set()
@@ -113,9 +135,16 @@ def _skan_surowy(
             uwagi.append(
                 Ostrzezenie("NAZWA_CZESCI", nazwa[zakres.start : zakres.koniec], -1, nazwa)
             )
-        for oryginal, bajty in znaki_oryginalow.items():
-            if (_caly_wyraz(oryginal, zawartosc) if oryginal in pelne_slowa else bajty in zawartosc):
-                uwagi.append(Ostrzezenie("ORYGINAL", oryginal, -1, nazwa))
+        tekst_czesci: str | None = None
+        for oryginal, (bajty, wzorzec) in znaki_oryginalow.items():
+            if bajty not in zawartosc:  # fast and exact pre-check: every match contains these bytes
+                continue
+            if wzorzec is not None:
+                if tekst_czesci is None:
+                    tekst_czesci = zawartosc.decode("utf-8", errors="ignore")
+                if wzorzec.search(tekst_czesci) is None:
+                    continue
+            uwagi.append(Ostrzezenie("ORYGINAL", oryginal, -1, nazwa))
         if not _xml(nazwa):
             continue
         try:

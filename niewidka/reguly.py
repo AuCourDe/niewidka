@@ -34,7 +34,7 @@ class Regula:
 
 
 def _znormalizuj(zapis: str) -> str:
-    return zapis.replace(" ", "").replace("-", "").upper()
+    return re.sub(r"[   -]", "", zapis).upper()
 
 
 def _pesel_ok(zapis: str) -> bool:
@@ -50,13 +50,20 @@ def _regon_ok(zapis: str) -> bool:
     return len(nr) in (9, 14) and stdnum.pl.regon.is_valid(nr)
 
 
-def _iban_ok(zapis: str) -> bool:
-    return stdnum.iban.is_valid(_znormalizuj(zapis))
+def _konto_ok(zapis: str) -> bool:
+    """IBAN or the domestic NRB (no country code): both carry the IBAN sum of "PL" + 26 digits."""
+    nr = _znormalizuj(zapis).removeprefix("PL")
+    return len(nr) == 26 and nr.isdigit() and stdnum.iban.is_valid("PL" + nr)
+
+
+# Currency codes before an amount ("PLN 100000") look like an ID card series, and some amounts
+# even pass the sum: such a match is only a doubt, masked by default and correctable.
+_WALUTY = frozenset({"PLN", "EUR", "USD", "GBP", "CHF"})
 
 
 def _dowod_ok(zapis: str) -> bool:
     nr = _znormalizuj(zapis)
-    if len(nr) != 9 or not nr[:3].isalpha() or not nr[3:].isdigit():
+    if len(nr) != 9 or not nr[:3].isalpha() or not nr[3:].isdigit() or nr[:3] in _WALUTY:
         return False
     wartosci = [ord(z) - 55 for z in nr[:3]] + [int(c) for c in nr[3:]]
     return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == 0
@@ -98,6 +105,13 @@ _KOD = r"(?<![\d-])\d{2}-\d{3}(?![\d-])"
 # A street name word must not start on the postal code ("al. Pracy 12
 # 25-422 Kielce": without this "25" is eaten as a number and the code is lost).
 _NIE_KOD = rf"(?!{_KOD})"
+# Account number: "PL61 1090 ...", "PL 61 1090 ...", the NRB "61 1090 1014 ..." without the
+# country code, the same digits in IBAN print groups ("6110 9010 ... 74") or with no gaps.
+_ODSTEP = r"[   -]?"
+_KONTO = (
+    rf"(?<![A-Za-z0-9])(?:(?:PL ?)?\d{{2}}(?:{_ODSTEP}\d{{4}}){{6}}"
+    rf"|\d{{4}}(?:{_ODSTEP}\d{{4}}){{5}}{_ODSTEP}\d{{2}})(?![A-Za-z0-9])"
+)
 
 REGULY: tuple[Regula, ...] = (
     Regula(
@@ -126,8 +140,8 @@ REGULY: tuple[Regula, ...] = (
     ),
     Regula(
         typ=TypEncji.IBAN,
-        wzorzec=re.compile(r"(?<![A-Za-z0-9])PL\d{2}(?: ?[A-Z0-9]{4}){6}(?![A-Za-z0-9])"),
-        walidator=_iban_ok,
+        wzorzec=re.compile(_KONTO),
+        walidator=_konto_ok,
         suma_kontrolna=True,
     ),
     Regula(
@@ -135,6 +149,14 @@ REGULY: tuple[Regula, ...] = (
         wzorzec=re.compile(r"(?<![A-Za-z0-9])[A-Z]{3}[ -]?\d{6}(?![A-Za-z0-9])"),
         walidator=_dowod_ok,
         suma_kontrolna=True,
+    ),
+    # passport: two letters + seven digits. No checksum we can verify independently, so a match
+    # is masked with the confidence of a pattern and the user may take it back.
+    Regula(
+        typ=TypEncji.DOKUMENT,
+        wzorzec=re.compile(r"(?<![A-Za-z0-9])[A-Z]{2} ?\d{7}(?![A-Za-z0-9])"),
+        walidator=None,
+        suma_kontrolna=False,
     ),
     # PL phone: optional prefix; landline 2-3-2-2 (in parentheses or
     # with spaces), mobile 3-3-3 (without a prefix only from digit 5-8, so as not to

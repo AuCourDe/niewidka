@@ -95,7 +95,7 @@ const TYPY_WYKRYWANE = [
   ["PESEL", "na przykład 85041212345."],
   ["NIP", "na przykład 526-10-40-828 lub 5261040828."],
   ["REGON", "na przykład 012345678."],
-  ["IBAN", "numer rachunku bankowego, na przykład PL 61 1090 1014 0000 0712 1981 2874."],
+  ["IBAN", "numer rachunku bankowego, na przykład 61 1090 1014 0000 0712 1981 2874 albo PL61 1090 1014 0000 0712 1981 2874."],
   ["DOKUMENT", "dowód osobisty albo paszport, na przykład ABC 123456 lub ZE 1234567."],
   ["EMAIL", "na przykład j.kowalski@urzad.gov.pl."],
   ["TELEFON", "na przykład +48 600 700 800 lub (22) 123 45 67."],
@@ -327,11 +327,12 @@ function komunikat(statusId, klasa, naglowek, tresc) {
 
 function komunikatOdpowiedzi(statusId, status, blad, calosc) {
   const przepis = KOMUNIKATY[status];
-  if (calosc && calosc.kod === "serwer_modeli" && blad) {
+  if (calosc && ["serwer_modeli", "limit_czasu"].includes(calosc.kod) && blad) {  // the server knows best
     komunikat(statusId, "komunikat-blad", "Nie udało się", blad);
     return;
   }
-  const tresc = typeof przepis === "function" ? przepis(blad, calosc) : przepis || `Błąd ${status}. ${blad || ""}`;
+  const zapasowa = status ? `Błąd ${status}. ${blad || ""}` : blad;  // no status = no connection
+  const tresc = typeof przepis === "function" ? przepis(blad, calosc) : przepis || zapasowa;
   komunikat(statusId, "komunikat-blad", "Nie udało się", tresc);
 }
 
@@ -484,16 +485,15 @@ function pokazWynik(naglowki, czesci) {
    Every time we send the full lists, so undoing is a recompute without that entry.
    Fragments live only in this page and in this computer's responses. */
 
-const TYPY_Z_SUMA = ["PESEL", "NIP", "REGON", "IBAN", "KARTA", "DOKUMENT"];
 const MAKS_POZYCJI = 200;
 const MAKS_ZNAKOW = 200;
 
-let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, miejsca: [], trwa: false };
+let poprawki = { zadanie: null, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, pewne: [], miejsca: [], trwa: false };
 let zaznaczone = "";
 let liczbaPozycjiPoprawek = 0;
 
 function nowePoprawki(zadanie) {
-  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, miejsca: [], trwa: false };
+  poprawki = { zadanie, ukryj: [], nieDane: [], zostaw: [], naInne: [], odkryj: [], wlasne: {}, zListy: {}, naInneNowe: {}, pewne: [], miejsca: [], trwa: false };
   document.getElementById("komunikat-poprawek").textContent = "";
   zamknijAkcjeZnacznika();
   ukryjPlywajacy();
@@ -592,6 +592,7 @@ async function przelicz(zmiana, dodanyFragment = null) {
     poprawki.wlasne = JSON.parse(odpowiedz.headers.get("x-niewidka-wlasne") || "{}");
     poprawki.zListy = zListy;
     poprawki.naInneNowe = JSON.parse(odpowiedz.headers.get("x-niewidka-na-inne") || "{}");
+    poprawki.pewne = JSON.parse(odpowiedz.headers.get("x-niewidka-pewne") || "[]");
     poprawki.miejsca = [];
     document.getElementById("wynik").hidden = false;
     pokazWynik(odpowiedz.headers, czesci);
@@ -697,7 +698,8 @@ function pokazAkcjeZnacznika(znacznik) {
   przycisk.disabled = false;
   // an institution or department name taken for a person: change the kind so downstream text does not read "Pan [OSOBA_3]"
   const inne = document.getElementById("akcja-znacznika-inne");
-  inne.hidden = typ === "INNE" || TYPY_Z_SUMA.includes(typ) || znacznik in poprawki.wlasne
+  const pewny = poprawki.pewne.includes(znacznik);  // a matching checksum, known to the server
+  inne.hidden = typ === "INNE" || pewny || znacznik in poprawki.wlasne
     || znacznik in poprawki.zListy;
   inne.onclick = () => przelicz(() => {
     if (!poprawki.naInne.includes(znacznik)) poprawki.naInne.push(znacznik);
@@ -716,11 +718,11 @@ function pokazAkcjeZnacznika(znacznik) {
     przycisk.onclick = () => przelicz(() => {
       if (!poprawki.odkryj.includes(fragment)) poprawki.odkryj.push(fragment);
     });
-  } else if (TYPY_Z_SUMA.includes(typ)) {
+  } else if (pewny) {
     przycisk.textContent = "To nie dane osobowe";
     przycisk.disabled = true;
-    wyjasnienie.textContent = "Tego znacznika nie można zdjąć. Numery z sumą kontrolną (PESEL, NIP, REGON, "
-      + "numer konta, karta, dowód) program rozpoznaje pewnie, więc to na pewno dane.";
+    wyjasnienie.textContent = "Tego znacznika nie można zdjąć. Numer ma poprawną sumę kontrolną, tak jak "
+      + "PESEL, NIP, REGON, numer konta, karta albo dowód, więc to na pewno dane osobowe.";
     przycisk.setAttribute("aria-describedby", "akcja-znacznika-wyjasnienie");
   } else {
     przycisk.textContent = "To nie dane osobowe";
@@ -745,6 +747,7 @@ function pokazBlokadeZMiejscami(odpowiedz) {
   }
   poprawki.zadanie = odpowiedz.zadanie;
   poprawki.miejsca = miejsca;
+  poprawki.pewne = odpowiedz.pewne || [];
   wynikPaczka = null;
   document.getElementById("wynik").hidden = false;
   document.getElementById("naglowek-wyniku").textContent = "Kontrola zatrzymała wynik: zdecyduj o każdym miejscu";
@@ -777,9 +780,9 @@ function pokazBlokadeZMiejscami(odpowiedz) {
     nieDane.type = "button";
     nieDane.className = "przycisk-wtorny";
     nieDane.textContent = "To nie dane";
-    if (TYPY_Z_SUMA.includes(miejsce.typ)) {
+    if (miejsce.pewne) {
       nieDane.disabled = true;
-      nieDane.title = "Numer z sumą kontrolną jest na pewno daną osobową. Możesz go tylko ukryć.";
+      nieDane.title = "Numer z poprawną sumą kontrolną jest na pewno daną osobową. Możesz go tylko ukryć.";
     }
     nieDane.addEventListener("click", () => przelicz(() => {
       if (!poprawki.zostaw.includes(miejsce.fragment)) poprawki.zostaw.push(miejsce.fragment);
@@ -1011,6 +1014,7 @@ function inicjalizujUkrywanie() {
       document.getElementById("wynik").hidden = false;
       nowePoprawki(odpowiedz.headers.get("x-niewidka-zadanie"));
       poprawki.zListy = zListy;
+      poprawki.pewne = JSON.parse(odpowiedz.headers.get("x-niewidka-pewne") || "[]");
       pokazWynik(odpowiedz.headers, czesci);
       ustawPrzyciskUkryj(true);
       zwinWejscie(true);
@@ -1058,6 +1062,15 @@ function inicjalizujPrzywracanie() {
   for (const radio of radiotryby) radio.addEventListener("change", przelaczTryby);
   przelaczTryby();
 
+  // a job suggested for one reply must not silently apply to another one; a job the user picked
+  // stays until the restore
+  const listaZadan = document.getElementById("lista-zadan");
+  listaZadan.addEventListener("change", () => { delete listaZadan.dataset.propozycja; });
+  document.getElementById("tekst-przywroc").addEventListener("input", () => {
+    if (!listaZadan.dataset.propozycja) return;
+    listaZadan.value = "";
+    delete listaZadan.dataset.propozycja;
+  });
   const mapaJest = document.getElementById("mapa-tekst-jest");
   mapaJest.addEventListener("change", () => {
     document.getElementById("plik-mapa-tekst").hidden = !mapaJest.checked;
@@ -1128,15 +1141,14 @@ function inicjalizujPrzywracanie() {
 
       /* explicit: which saved map the data came back from; for a map from a .nwidka file the source is obvious */
       const blokAuto = document.getElementById("mapa-wybrana-auto");
-      const wpisMapy = (mapyZapisane.mapy || []).find(
-        (m) => m.id === odpowiedz.headers.get("x-niewidka-identyfikator"),
-      );
+      // the list shows a job by its newest version, the data may come from an older one
+      const idListy = odpowiedz.headers.get("x-niewidka-mapa-z-listy")
+        || odpowiedz.headers.get("x-niewidka-identyfikator");
+      const wpisMapy = (mapyZapisane.mapy || []).find((m) => m.id === idListy);
       if (wpisMapy && !mapaZPliku) {
         blokAuto.innerHTML = "";
         const opis = document.createElement("p");
-        opis.textContent = odpowiedz.headers.get("x-niewidka-mapa-wybrana-automatycznie")
-          ? `Przywrócono z mapy zadania: ${etykietaZadania(wpisMapy)} (jedyna pasująca).`
-          : `Przywrócono z mapy zadania: ${etykietaZadania(wpisMapy)}.`;
+        opis.textContent = `Przywrócono z mapy zadania: ${etykietaZadania(wpisMapy)}.`;
         blokAuto.append(opis);
         blokAuto.hidden = false;
       } else {
@@ -1149,21 +1161,42 @@ function inicjalizujPrzywracanie() {
         pokazPodgladPrzywrocony(tekst);
         podglad.hidden = false;
       } else {
+        tekstPrzywroconego = "";  // "Kopiuj" must never hand out the text of an earlier restore
         podglad.hidden = true;
       }
+      document.getElementById("kopiuj-przywrocony").hidden = tryb !== "tekst";
       document.getElementById("wynik-przywroc").hidden = false;
       document.getElementById("status-przywroc").innerHTML = "";
+      const listaPo = document.getElementById("lista-zadan");
+      listaPo.value = "";  // the next reply starts from the note again
+      delete listaPo.dataset.propozycja;
       zapowiedz("Dane przywrócone");
     } catch (blad) {
       if (mojaKolejna !== licznikPrzywracania) return;
       if (blad.odpowiedz && blad.odpowiedz.kod === "wybierz_mape") {
-        komunikat("status-przywroc", "komunikat-ostrzezenie", "Wskaż mapę", `${blad.blad} Wybierz zadanie z listy.`);
-        document.getElementById("lista-zadan").focus();
+        /* without the note the server never picks a map by itself: the best match is suggested */
+        const lista = document.getElementById("lista-zadan");
+        const kandydat = (blad.odpowiedz.kandydaci || []).find(
+          (k) => [...lista.options].some((opcja) => opcja.value === k.id),
+        );
+        if (kandydat) {
+          lista.value = kandydat.id;
+          lista.dataset.propozycja = "1";
+          komunikat("status-przywroc", "komunikat-ostrzezenie", "Sprawdź zadanie",
+            "Odpowiedź nie ma dopisku z identyfikatorem mapy, więc nie wiem na pewno, z którego zadania "
+            + "pochodzi. Zaznaczyłem zadanie, które najlepiej pasuje do znaczników. "
+            + "Sprawdź je i kliknij „Przywróć dane”.");
+          lista.focus();
+        } else {
+          komunikat("status-przywroc", "komunikat-ostrzezenie", "Nie wiem, którą mapę użyć", blad.blad);
+        }
       } else {
-        komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message);
+        komunikatOdpowiedzi("status-przywroc", blad.status, blad.blad || blad.message, blad.odpowiedz);
       }
     } finally {
       ustawTrwa(formularz, false);
+      const status = document.getElementById("status-przywroc");
+      if (status.textContent) status.scrollIntoView({ block: "nearest" });  // below the fold on short screens
     }
   });
 
@@ -1311,7 +1344,7 @@ function wypelnijListeZadan() {
   }
   const automat = document.createElement("option");
   automat.value = "";
-  automat.textContent = "Dopasuj automatycznie";
+  automat.textContent = "Rozpoznaj po dopisku w odpowiedzi";
   lista.append(automat);
   for (const wpis of wpisy) {
     const opcja = document.createElement("option");

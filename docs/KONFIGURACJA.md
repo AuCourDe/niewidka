@@ -36,6 +36,7 @@ z magazynu systemu albo ze wskazanego pliku.
   `python -m niewidka.klucze nowy-plik /etc/niewidka/klucz-mapy`. Wskaż go w pliku
   ustawień (`[klucze] plik = "/etc/niewidka/klucz-mapy"`) albo zmienną `NIEWIDKA_KLUCZ_PLIK`.
   Na Linuksie plik musi mieć uprawnienia `0600`, inaczej program go odrzuci.
+  Gdy wskazanego pliku nie ma, program zgłasza błąd i nie sięga po magazyn systemu.
 
 Nowy klucz unieważnia wszystkie stare mapy. Program nie nadpisze istniejącego klucza.
 W magazynie systemu wymianę wymusza `do-keyringa --nadpisz`. Polecenie `nowy-plik`

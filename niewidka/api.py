@@ -33,6 +33,7 @@ from niewidka.aktualizacje import (
 )
 from niewidka.archiwum import BladArchiwum
 from niewidka.formaty import (
+    BladKodowania,
     ElementNieobslugiwany,
     NieznanyFormat,
     adapter_formatu,
@@ -45,7 +46,14 @@ from niewidka.konfig import Konfig, host_w_adresie, host_z_naglowka, wczytaj_kon
 from niewidka.kontrola import Ostrzezenie
 from niewidka.listy import ListyStale
 from niewidka.magazyn import MagazynMap, kontekst_domyslny, wersje_pakietow
-from niewidka.mapa import WZORZEC_ZNACZNIKA, BladMapy, Mapa, odszyfruj, zaszyfruj
+from niewidka.mapa import (
+    WARIANT_DOMYSLNY,
+    BladMapy,
+    Mapa,
+    odszyfruj,
+    zaszyfruj,
+    znajdz_znaczniki,
+)
 from niewidka.pakiety import (
     BladPakietu,
     MenedzerPakietow,
@@ -56,7 +64,14 @@ from niewidka.pakiety import (
     wczytaj_wersje_katalogu,
     zrodlo,
 )
-from niewidka.poprawki import BladPoprawki, PamiecWykryc, popraw, sprawdz_liste
+from niewidka.poprawki import (
+    BladPoprawki,
+    PamiecWykryc,
+    pewne_znaczniki,
+    popraw,
+    sprawdz_liste,
+    z_pewna_suma,
+)
 from niewidka.rdzen import (
     ArchiwumZaDuze,
     identyfikator_z_dopisku,
@@ -92,8 +107,12 @@ class KolejkaPelna(Exception):
 
 
 class PracaPrzekroczylaCzas(Exception):
-    """The work exceeded the time limit; the slot stays held until it actually
-        finishes."""
+    """The work exceeded the time limit. Work that has started keeps the slot until it actually
+        finishes (a thread cannot be stopped); work still waiting for the slot is dropped."""
+
+    def __init__(self, rozpoczeta: bool = True):
+        self.rozpoczeta = rozpoczeta
+        super().__init__("praca przekroczyła limit czasu")
 
 
 class BladKontroli(Exception):
@@ -108,11 +127,13 @@ class BladKontroli(Exception):
         miejsca: list[dict] | None = None,
         podglad: str | None = None,
         zadanie: str | None = None,
+        pewne: list[str] | None = None,
     ):
         self.typy = typy
         self.miejsca = miejsca or []
         self.podglad = podglad
         self.zadanie = zadanie
+        self.pewne = pewne or []
         super().__init__("kontrola zapisu zablokowała wynik")
 
 
@@ -126,6 +147,18 @@ class WybierzMape(Exception):
     def __init__(self, komunikat: str, kandydaci: list[dict]):
         self.kandydaci = kandydaci
         super().__init__(komunikat)
+
+
+def _wartosci(mapa: Mapa) -> dict[tuple[str, str], str]:
+    """(marker, variant) -> original: the key the restore looks up."""
+    return {(w.oznaczenie, wariant): oryginal for w in mapa.wpisy for wariant, oryginal in w.formy.items()}
+
+
+def _rozne_dane(mapy: list[Mapa], pary: set[tuple[str, str]]) -> bool:
+    """Whether a (marker, variant) of the text stands for different data in the given maps (the
+    markers of "Ukryj wszędzie" are numbered anew in every correction)."""
+    wartosci = [_wartosci(m) for m in mapy]
+    return any(len({w[para] for w in wartosci if para in w}) > 1 for para in pary)
 
 
 class BrakMapyWMagazynie(Exception):
@@ -249,20 +282,28 @@ class Kolejka:
         return await self._oczekiwane(praca, limit)
 
     async def _oczekiwane(self, praca, limit: int, liczone: bool = False):
-        zadanie = asyncio.create_task(self._z_slotem(praca, liczone))
+        rozpoczeta = asyncio.Event()
+        zadanie = asyncio.create_task(self._z_slotem(praca, liczone, rozpoczeta))
         zadanie.add_done_callback(_pochlonnij_wyjatek)
         zakonczone, _ = await asyncio.wait({zadanie}, timeout=limit)
         if zadanie not in zakonczone:
+            if not rozpoczeta.is_set():
+                # still waiting for the slot: nobody waits for this result, so it never starts;
+                # its place in the queue is free before the reply goes out
+                zadanie.cancel()
+                await asyncio.wait({zadanie})
+                raise PracaPrzekroczylaCzas(rozpoczeta=False)
             raise PracaPrzekroczylaCzas()  # task keeps working and holds the slot
         return zadanie.result()
 
-    async def _z_slotem(self, praca, liczone: bool):
+    async def _z_slotem(self, praca, liczone: bool, rozpoczeta: asyncio.Event):
         zwolnione = False
         try:
             async with self._slot():
                 if liczone:
                     self.czekajacy -= 1
                     zwolnione = True
+                rozpoczeta.set()  # no await until the thread is submitted
                 return await asyncio.to_thread(praca)
         finally:
             if liczone and not zwolnione:  # cancelled before it got a slot
@@ -371,6 +412,9 @@ def create_app(
         konfig = replace(konfig, mapy_katalog=katalog_danych() / "mapy")
     if konfig.listy_plik is None:
         konfig = replace(konfig, listy_plik=katalog_danych() / "listy.json")
+    if konfig.rejestr_map is None:
+        # a downloaded .nwidka must restore after the program is started again
+        konfig = replace(konfig, rejestr_map=katalog_danych() / "wydane-mapy.jsonl")
     wstrzykniety = detektor
     if konfig.inferencja_adres and klient_inferencji is None:
         klient_inferencji = zbuduj_klienta(konfig)
@@ -577,6 +621,10 @@ def create_app(
             status_code=415,
         )
 
+    @app.exception_handler(BladKodowania)
+    async def _blad_kodowania(request: Request, blad: BladKodowania):
+        return JSONResponse({"blad": str(blad)}, status_code=422)
+
     @app.exception_handler(ElementNieobslugiwany)
     async def _element_nieobslugiwany(request: Request, blad: ElementNieobslugiwany):
         # part names are not returned (PII can sit in a name)
@@ -651,12 +699,21 @@ def create_app(
 
     @app.exception_handler(PracaPrzekroczylaCzas)
     async def _praca_przekroczyla_czas(request: Request, blad: PracaPrzekroczylaCzas):
-        # 503 with retry-after: the work is still running and holds the slot
+        # 503 with retry-after; started work still holds the slot, so the next try may wait
+        if blad.rozpoczeta:
+            komunikat = (
+                f"Praca nad tym dokumentem trwa dłużej niż limit ({konfig.timeout_s} s), więc nie "
+                "czekam na wynik. Podziel dokument na mniejsze części albo wybierz niższy poziom "
+                "jakości. Program kończy jeszcze tę pracę w tle, więc następna próba może chwilę "
+                "poczekać."
+            )
+        else:
+            komunikat = (
+                "Program zajmował się innym dokumentem i nie zdążył zacząć tego. "
+                "Spróbuj ponownie za chwilę."
+            )
         return JSONResponse(
-            {
-                "blad": "praca nad dokumentem przekroczyła limit czasu; "
-                "poczekaj, aż serwer ją dokończy"
-            },
+            {"kod": "limit_czasu", "blad": komunikat},
             status_code=503,
             headers={"retry-after": str(konfig.timeout_s)},
         )
@@ -831,7 +888,9 @@ def create_app(
             "typy": blad.typy,
         }
         if blad.zadanie:
-            odpowiedz.update(zadanie=blad.zadanie, miejsca=blad.miejsca, podglad=blad.podglad)
+            odpowiedz.update(
+                zadanie=blad.zadanie, miejsca=blad.miejsca, podglad=blad.podglad, pewne=blad.pewne
+            )
         return JSONResponse(odpowiedz, status_code=422)
 
     def _format_z_nazwy(nazwa: str) -> str:
@@ -882,7 +941,10 @@ def create_app(
         wynik, mapa, raport, mapa_paczka, zadanie, detekcje, z_listy = await app.state.kolejka.wykonaj(praca)
         # task = id of the base map; corrections are always computed from these detections
         app.state.poprawki.zapamietaj(zadanie, detekcje)
-        return _wydaj_wynik(wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, z_listy=z_listy)
+        return _wydaj_wynik(
+            wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, z_listy=z_listy,
+            pewne=pewne_znaczniki(detekcje) if detekcje is not None else set(),
+        )
 
     def _miejsca_do_decyzji(raport, wynik: bytes, format: str) -> tuple[list[dict], str | None]:
         """List of doubtful places (fragment + position in the preview) and the preview text.
@@ -903,20 +965,26 @@ def create_app(
                 )
             miejsce = zebrane.setdefault(
                 (o.typ, fragment),
-                {"typ": o.typ, "fragment": fragment, "pozycja": pozycja, "wystapien": 0},
+                # "pewne": a matching checksum, so the UI offers no "To nie dane"
+                {
+                    "typ": o.typ, "fragment": fragment, "pozycja": pozycja, "wystapien": 0,
+                    "pewne": z_pewna_suma(fragment),
+                },
             )
             miejsce["wystapien"] += 1
         return list(zebrane.values()), podglad
 
     def _wydaj_wynik(
         wynik, mapa, raport, mapa_paczka, nazwa, format, zadanie, wlasne=None, z_listy=None,
-        na_inne=None,
+        na_inne=None, pewne=frozenset(),
     ) -> Response:
         """Shared by /api/ukryj and /api/popraw: a block (422 with places to decide) or
                 the map write before the response and the ZIP package with headers."""
         if raport.status == "zablokowany":
             miejsca, podglad = _miejsca_do_decyzji(raport, wynik, format)
-            raise BladKontroli(_licznik_typow(raport.ostrzezenia), miejsca, podglad, zadanie)
+            raise BladKontroli(
+                _licznik_typow(raport.ostrzezenia), miejsca, podglad, zadanie, sorted(pewne)
+            )
         _posprzataj()  # clean up expired entries on every call
         mapa_zapisana = None  # expiry datetime or "blad"
         with app.state.magazyn.blokada:  # one lock: store + journal + registry
@@ -927,7 +995,9 @@ def create_app(
             try:
                 # write BEFORE responding: an error does not kill hiding,
                 # the result returns with a "blad" header and the UI asks to download the map
-                mapa_zapisana = app.state.magazyn.zapisz(mapa_paczka, mapa, raport.statystyki)
+                mapa_zapisana = app.state.magazyn.zapisz(
+                    mapa_paczka, mapa, raport.statystyki, zadanie=zadanie
+                )
             except (OSError, BladMapy) as blad:
                 logger.warning("magazyn map niezapisany: %s", type(blad).__name__)
                 mapa_zapisana = "blad"
@@ -948,6 +1018,8 @@ def create_app(
             # ready-made risk texts (the small-sample threshold is computed by the server), not a bare R95
             "x-niewidka-r95": _json_naglowek(opisy_ryzyka(raport.poziom, list(raport.statystyki))),
             "x-niewidka-status": raport.status,
+            # markers of numbers with a matching checksum: no "To nie dane" in the UI
+            "x-niewidka-pewne": _json_naglowek(sorted(pewne)),
             # present only when the map went to the store
             "content-disposition": 'attachment; filename="wynik.zip"',
         }
@@ -1016,6 +1088,7 @@ def create_app(
         odpowiedz = _wydaj_wynik(
             wynik, mapa, raport, mapa_paczka, f"tekst.{detekcje.format}", detekcje.format, zadanie, wlasne,
             z_listy, _nowe_na_bazowe(detekcje, mapa, lista_na_inne, {**wlasne, **z_listy}),
+            pewne=pewne_znaczniki(detekcje),
         )
         try:  # only entry counts, no content (audit journal)
             app.state.magazyn.odnotuj(
@@ -1034,64 +1107,100 @@ def create_app(
             pass
         return odpowiedz
 
-    def _metadane_listy() -> list[dict]:
-        return [
-            {
-                "id": wpis["identyfikator"],
-                "utworzono": wpis["utworzono"],
-                "wygasa": wpis["wygasa"],
-                "poziom": wpis["poziom"],
-                "statystyki": wpis["statystyki"],
-            }
-            for wpis in app.state.magazyn.lista()
-        ]
+    def _opis_mapy(wpis: dict) -> dict:
+        return {
+            "id": wpis["identyfikator"],
+            "utworzono": wpis["utworzono"],
+            "wygasa": wpis["wygasa"],
+            "poziom": wpis["poziom"],
+            "statystyki": wpis["statystyki"],
+        }
 
-    def _mapa_z_magazynu(dane: bytes, format: str, wskazanie: str | None, klucz: bytes) -> tuple[Mapa, bool]:
-        """Map choice without a .nwidka file:
-                a note in the text wins over the `identyfikator` field;
-                without a note the only candidate is a map with the full set of markers from the text
-                (exactly one = chosen, more or zero = wybierz_mape)."""
+    def _metadane_listy() -> list[dict]:
+        return [_opis_mapy(wpis) for wpis in app.state.magazyn.lista()]
+
+    def _zapisana_mapa(identyfikator: str, klucz: bytes) -> Mapa:
+        try:
+            paczka = app.state.magazyn.wczytaj(identyfikator)
+        except ValueError as blad:  # id outside the pattern (including traversal): 422, not 500
+            raise WybierzMape(f"Zły identyfikator mapy: {blad}", []) from None
+        if paczka is None:
+            raise BrakMapyWMagazynie(
+                "Nie ma już zapisanej mapy tego zadania (usunięta albo po okresie "
+                "przechowywania). Jeśli masz plik mapy (.nwidka), przywróć nim."
+            )
+        return odszyfruj(paczka, klucz)
+
+    def _mapa_z_magazynu(dane: bytes, format: str, wskazanie: str | None, klucz: bytes) -> Mapa:
+        """Map choice without a .nwidka file. The note in the text names the exact map and wins
+                over the `identyfikator` field. Without the note the user names the job, and its
+                version holding the most markers of the text is used (the text may have been
+                copied before a later correction). Without both nothing is restored: markers are
+                numbered from 1 in every document, so a reply may come from a document whose map
+                is not stored. The jobs sharing markers with the text are only suggested
+                (`wybierz_mape`, the best match first)."""
         limit = konfig.max_rozpakowane_mb * _MB
         id_z_dopisku = identyfikator_z_dopisku(dane, format, max_rozpakowane_bajtow=limit)
-        wskazane = id_z_dopisku or wskazanie
-        if wskazane is not None:
-            try:
-                paczka = app.state.magazyn.wczytaj(wskazane)
-            except ValueError as blad:  # id outside the pattern (including traversal): 422, not 500
-                raise WybierzMape(f"Zły identyfikator mapy: {blad}", []) from None
-            if paczka is None:
-                raise BrakMapyWMagazynie(
-                    "Nie ma już zapisanej mapy tego zadania (usunięta albo po okresie "
-                    "przechowywania). Jeśli masz plik mapy (.nwidka), przywróć nim."
-                )
-            return odszyfruj(paczka, klucz), False
+        if id_z_dopisku is not None:
+            return _zapisana_mapa(id_z_dopisku, klucz)
         adapter = adapter_formatu(format)
         dok = adapter.wczytaj(dane, max_rozpakowane=limit)
         tresc = "\n".join(s.tekst for s in dok.segmenty)
-        znaczniki = {f"{m.group(1)}_{m.group(2)}" for m in WZORZEC_ZNACZNIKA.finditer(tresc)}
-        if not znaczniki:
-            raise WybierzMape("W tekście nie ma znaczników Niewidki, więc nie wiem, którą mapę użyć.", [])
+        pary = {
+            (oznaczenie, wariant or WARIANT_DOMYSLNY)
+            for _, _, oznaczenie, wariant in znajdz_znaczniki(tresc)
+        }
+
+        def wspolne(mapa_ob: Mapa) -> int:  # (marker, variant) pairs of the text the map restores
+            return len(pary & _wartosci(mapa_ob).keys())
+
+        if wskazanie is not None:
+            wybrana = _zapisana_mapa(wskazanie, klucz)
+            inne = []
+            for wersja in app.state.magazyn.wersje(wskazanie):
+                if wersja == wskazanie:
+                    continue
+                try:
+                    inne.append(_zapisana_mapa(wersja, klucz))
+                except (BladMapy, BrakMapyWMagazynie):
+                    continue  # another version unreadable or gone: the chosen one still restores
+            wersje = [wybrana, *inne]  # the chosen one first, then the newest
+            najwiecej = max(map(wspolne, wersje))
+            najlepsze = [m for m in wersje if wspolne(m) == najwiecej]
+            if _rozne_dane(najlepsze, pary):
+                raise WybierzMape(
+                    "W kolejnych wersjach tego zadania te same znaczniki oznaczają różne dane, a "
+                    "odpowiedź nie ma dopisku z identyfikatorem mapy. Przywróć ją plikiem mapy "
+                    "(.nwidka) z wersji wysłanej do czatu albo wklej odpowiedź razem z linią "
+                    "„ZANONIMIZOWANY…”.",
+                    [],
+                )
+            return najlepsze[0]
+        if not pary:
+            raise WybierzMape("W tekście nie ma znaczników Niewidki, więc nie ma czego przywrócić.", [])
         kandydaci = []
-        for wpis in app.state.magazyn.lista():  # newest first; the note wins above anyway
-            paczka = app.state.magazyn.wczytaj(wpis["identyfikator"])
-            if paczka is None:
-                continue
+        for wpis in app.state.magazyn.lista():  # newest first
             try:
-                mapa_ob = odszyfruj(paczka, klucz)
-            except BladMapy:
-                continue  # an unreadable map is not a candidate
-            if {w.oznaczenie for w in mapa_ob.wpisy} >= znaczniki:
-                kandydaci.append(wpis)
-        if len(kandydaci) == 1:
-            return odszyfruj(app.state.magazyn.wczytaj(kandydaci[0]["identyfikator"]), klucz), True
-        if len(kandydaci) > 1:
+                ile = max(
+                    wspolne(_zapisana_mapa(wersja, klucz))
+                    for wersja in app.state.magazyn.wersje(wpis["identyfikator"])
+                )
+            except (BladMapy, BrakMapyWMagazynie, ValueError):
+                continue  # an unreadable or vanished map is not a candidate
+            if ile:
+                kandydaci.append((ile, wpis))
+        if kandydaci:
+            # only the best matches (a marker the chat made up does not rule a map out),
+            # newest first; metadata only, never map content
+            najwiecej = max(ile for ile, _ in kandydaci)
             raise WybierzMape(
-                "Kilka zapisanych zadań pasuje do tych znaczników. Wybierz zadanie z listy.",
-                kandydaci,  # metadata ONLY of the matching ones, not the whole store
+                "Odpowiedź nie ma dopisku z identyfikatorem mapy, więc nie wiem na pewno, z którego "
+                "zadania pochodzi. Wybierz je z listy i kliknij „Przywróć dane”.",
+                [_opis_mapy(wpis) for ile, wpis in kandydaci if ile == najwiecej],
             )
         raise WybierzMape(
-            "Żadna zapisana mapa nie zawiera już tych znaczników. Wybierz mapę z pliku "
-            "(.nwidka), jeśli ją masz.",
+            "Żadna zapisana mapa nie pasuje do znaczników z tej odpowiedzi. Jeśli masz plik mapy "
+            "(.nwidka), zaznacz „Mam plik mapy (.nwidka)” i wskaż go.",
             [],
         )
 
@@ -1124,7 +1233,6 @@ def create_app(
 
         def praca():
             klucz = pobierz_klucz(konfig)
-            wybrana_automatycznie = False
             if dane_mapy is not None:
                 # first the registry of issued ciphertexts, only then
                 # decryption: an old map with a guessed id does not pass
@@ -1135,7 +1243,7 @@ def create_app(
                 if mapa_ob.identyfikator not in app.state.identyfikatory:
                     raise BladMapy("niezgodny identyfikator mapy — mapa z innego zadania albo sesji")
             else:
-                mapa_ob, wybrana_automatycznie = _mapa_z_magazynu(dane_wyniku, format, identyfikator, klucz)
+                mapa_ob = _mapa_z_magazynu(dane_wyniku, format, identyfikator, klucz)
                 del klucz
             przywrocony, rozbieznosci = przywroc(
                 dane_wyniku, format, mapa_ob, max_rozpakowane_bajtow=konfig.max_rozpakowane_mb * _MB
@@ -1144,9 +1252,11 @@ def create_app(
                 app.state.magazyn.odnotuj("przywrocono", mapa_ob.identyfikator, mapa_ob.poziom)
             except ValueError:  # foreign id: audit without junk in the journal
                 pass
-            return przywrocony, rozbieznosci, mapa_ob.identyfikator, wybrana_automatycznie
+            # the job as the list shows it (its newest version), also when an older one was used
+            wersje = app.state.magazyn.wersje(mapa_ob.identyfikator)
+            return przywrocony, rozbieznosci, mapa_ob.identyfikator, (wersje or [None])[0]
 
-        plik_przywrocony, rozbieznosci, identyfikator_mapy, wybrana_automatycznie = (
+        plik_przywrocony, rozbieznosci, identyfikator_mapy, mapa_z_listy = (
             await app.state.kolejka.wykonaj(praca)
         )
         naglowki = {
@@ -1155,9 +1265,8 @@ def create_app(
             ),
             "x-niewidka-identyfikator": identyfikator_mapy,
         }
-        if wybrana_automatycznie:
-            # one candidate chosen for the user, explicitly
-            naglowki["x-niewidka-mapa-wybrana-automatycznie"] = "1"
+        if mapa_z_listy is not None:
+            naglowki["x-niewidka-mapa-z-listy"] = mapa_z_listy
         if wynik is not None:
             naglowki["content-disposition"] = (
                 f'attachment; filename="PRZYWROCONY_{identyfikator_mapy}.{format}"'
@@ -1185,9 +1294,13 @@ def create_app(
         try:
             with app.state.magazyn.blokada:
                 _skresl_z_rejestru(app.state.magazyn.posprzataj())
-                usunieto = app.state.magazyn.usun(identyfikator)
-                if usunieto:
-                    _skresl_z_rejestru([identyfikator])
+                # the list shows a corrected job once: "Usuń" removes all its versions
+                usunieto = [
+                    wersja
+                    for wersja in app.state.magazyn.wersje(identyfikator)
+                    if app.state.magazyn.usun(wersja)
+                ]
+                _skresl_z_rejestru(usunieto)
         except ValueError as blad:  # bad id: 422, not 500 (path traversal)
             raise HTTPException(status_code=422, detail=str(blad)) from None
         if not usunieto:
@@ -1198,7 +1311,7 @@ def create_app(
     async def endpoint_usun_wszystkie_mapy() -> JSONResponse:
         with app.state.magazyn.blokada:
             usuniete = app.state.magazyn.posprzataj()
-            for wpis in app.state.magazyn.lista():
+            for wpis in app.state.magazyn.lista(wszystkie=True):
                 if app.state.magazyn.usun(wpis["identyfikator"]):
                     usuniete.append(wpis["identyfikator"])
             _skresl_z_rejestru(usuniete)

@@ -28,10 +28,13 @@ from niewidka.model import Encja, TypEncji, Zakres
 from niewidka.osoby import rdzen_nazwiska
 from niewidka.rdzen import Detekcje, Raport, _BezDaty, uwagi_obrazow, zloz_wynik
 
-# types with a checksum: a certain detection, so "To nie dane" is blocked for them
-TYPY_Z_SUMA = frozenset(
-    {TypEncji.PESEL, TypEncji.NIP, TypEncji.REGON, TypEncji.IBAN, TypEncji.KARTA, TypEncji.DOKUMENT}
-)
+
+def z_pewna_suma(fragment: str) -> bool:
+    """Whether the rules see a number with a MATCHING checksum in the fragment: such a number is
+    always personal data. A wrong sum is only a doubt: masked, but the user may take it back."""
+    return any(z.suma_kontrolna for z in RegulyDetektor().znajdz(fragment))
+
+
 MAKS_POZYCJI = 200
 MAKS_ZNAKOW = 200
 
@@ -162,6 +165,11 @@ def _z_wykryciami(zakres: tuple[int, int], encje: list[Encja]) -> tuple[int, int
     return start, koniec
 
 
+def pewne_znaczniki(detekcje: Detekcje) -> set[str]:
+    """Markers of numbers with a matching checksum: never "To nie dane", never another kind."""
+    return {e.oznaczenie for encje in detekcje.encje for e in encje if e.zakres.suma_kontrolna}
+
+
 def popraw(
     detekcje: Detekcje,
     ukryj: Iterable[str],
@@ -195,19 +203,20 @@ def popraw(
         raise BladPoprawki("dokument zmienił się od ukrycia; ukryj go ponownie")
 
     typy_znacznikow = {e.oznaczenie: e.zakres.typ for encje in stare for e in encje}
+    pewne = pewne_znaczniki(detekcje)
     for znacznik in nie_dane:
         if not _ZNACZNIK.fullmatch(znacznik) or znacznik not in typy_znacznikow:
             raise BladPoprawki("nieznany znacznik w polu nie_dane")
-        if typy_znacznikow[znacznik] in TYPY_Z_SUMA:
+        if znacznik in pewne:
             raise BladPoprawki(
-                "dla numerów z sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) "
+                "dla numerów z poprawną sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) "
                 "nie ma opcji „To nie dane”"
             )
 
     for znacznik in na_inne:
         if not _ZNACZNIK.fullmatch(znacznik) or znacznik not in typy_znacznikow:
             raise BladPoprawki("nieznany znacznik w polu na_inne")
-        if typy_znacznikow[znacznik] in TYPY_Z_SUMA or typy_znacznikow[znacznik] is TypEncji.INNE:
+        if znacznik in pewne or typy_znacznikow[znacznik] is TypEncji.INNE:
             raise BladPoprawki("tego znacznika nie można oznaczyć jako inne dane")
 
     # ranges from the "ukryj" list in every segment, separately for each entry
@@ -299,8 +308,6 @@ def popraw(
         detektor_kontroli,
         oryginaly=oryginaly,
         max_rozpakowane=detekcje.max_rozpakowane_bajtow,
-        # user fragments are whole words: "Lis" is not a leak in "Listopad"
-        pelne_slowa=frozenset(f for o in wlasne for f in wpisy[o].formy.values()),
     )
     tekst_wyniku = "\n".join(
         s.tekst
@@ -314,13 +321,12 @@ def popraw(
     for o in detekcje.ostrzezenia_tekstu:
         if o.fragment and o.fragment in tekst_jak_w_kontroli and (o.typ, o.fragment) not in znane:
             ostrzezenia.append(replace(o, start=-1))  # the position from the base result is already stale
-    suma = {t.value for t in TYPY_Z_SUMA}
     pozostale = []
     for o in ostrzezenia:
         fragment = _normalizuj(o.fragment)
-        if o.typ in suma:  # a certain detection is not removed, and asking to remove it is an error
+        if z_pewna_suma(o.fragment):  # never removed, and asking to remove it is an error
             if fragment in zostaw:
-                raise BladPoprawki("dla numerów z sumą kontrolną nie ma opcji „To nie dane”")
+                raise BladPoprawki("dla numerów z poprawną sumą kontrolną nie ma opcji „To nie dane”")
         elif fragment and any(fragment in wyjatek for wyjatek in wyjatki):
             continue
         pozostale.append(o)

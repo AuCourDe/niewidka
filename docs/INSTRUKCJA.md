@@ -64,8 +64,9 @@ Program może coś pominąć albo ukryć za dużo. Błędy poprawisz od razu w p
 „To nie dane osobowe”. Słowo wróci do tekstu w każdym miejscu. Dla słów ze stałej listy
 użyj przycisku „Odkryj tylko w tym dokumencie”.
 
-Numerów PESEL, NIP, REGON, IBAN, numerów kart i dowodów nie odkryjesz. Mają poprawną
-sumę kontrolną, więc na pewno są danymi osobowymi.
+Numeru z poprawną sumą kontrolną (PESEL, NIP, REGON, IBAN, karta, dowód) nie odkryjesz,
+bo na pewno jest daną osobową. Numer z błędną sumą program też ukrywa, bo może to być
+literówka w prawdziwym numerze. Taki numer, na przykład kwotę „PLN 500000”, możesz odkryć.
 
 **Program pominął daną.** Zaznacz ją myszą w podglądzie i kliknij „Ukryj wszędzie”.
 Możesz też wpisać ją w pole „Ukryj wszędzie” pod podglądem. Fragment dostanie znacznik
@@ -86,8 +87,10 @@ Czasem kontrola jakości znajdzie w tekście podejrzane fragmenty. Zobaczysz wte
 
 1. Wyślij ukryty tekst do czatu AI i skopiuj odpowiedź.
 2. Na zakładce **Przywróć** wybierz „Wklej odpowiedź z czatu AI” i wklej skopiowany tekst.
-3. Z listy **Zadanie** wybierz dokument, z którego pochodzi tekst. Domyślnie jest najnowszy.
-   Jeśli odpowiedź zawiera identyfikator mapy, program sam wybierze właściwą mapę.
+3. Jeśli odpowiedź zaczyna się od linii „ZANONIMIZOWANY…”, program sam znajdzie mapę.
+   Gdy czat usunął tę linię, wybierz z listy **Zadanie** dokument, z którego pochodzi tekst.
+   Program nie zgaduje: najpierw zaznaczy zadanie, które najlepiej pasuje do znaczników,
+   i poprosi o sprawdzenie.
 4. Kliknij **Przywróć dane**.
 
 Prawdziwe dane zastąpią znaczniki. Jeśli czat zmienił albo usunął znacznik, zobaczysz to

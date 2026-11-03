@@ -25,8 +25,8 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 | Znacznik | Co to jest | Jak wykrywa |
 |---|---|---|
 | `OSOBA` | imiona i nazwiska, także w odmianie | model językowy, na poziomie 3 także słownik imion GUS |
-| `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numery z sumą kontrolną | reguły i suma kontrolna |
-| `DOKUMENT` | numery dowodów osobistych | reguły i suma kontrolna |
+| `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numery z sumą kontrolną, numer konta także bez „PL” | reguły i suma kontrolna |
+| `DOKUMENT` | numery dowodów osobistych i paszportów | reguły; dla dowodu także suma kontrolna |
 | `ADRES`, `TELEFON`, `EMAIL`, `DATA` | adresy, telefony, e-maile, daty | reguły i model |
 | `IP`, `SWIFT`, `LOGIN` | adresy IP, kody banków, loginy | reguły; pakiet rozszerzony na poziomie 3 |
 | `INNE` | wszystko, co dodasz sam | Twoje poprawki i stałe listy |
@@ -83,8 +83,11 @@ Numerów z poprawną sumą kontrolną nie da się odkryć. Program uznaje je za 
 
 Program przyjmuje `.txt` i `.docx` do 25 MB. Wynik ma ten sam format co plik wejściowy,
 a dokument `.docx` zachowuje układ i style treści. Z `.docx` program usuwa komentarze,
-przypisy, nagłówki, stopki, miniaturę i dodatkowe właściwości pliku, bo tam często zostają
-nazwiska i e-maile. Obrazy domyślnie też usuwa, bo nie czyta z nich tekstu. Dokument
+przypisy dolne i końcowe, nagłówki, stopki, miniaturę, zmienne dokumentu i dodatkowe
+właściwości pliku, bo tam często zostają nazwiska i e-maile. Śledzone zmiany przyjmuje,
+a pola (na przykład korespondencji seryjnej) zamienia na zwykły tekst.
+Tekst w polach tekstowych ukrywa tak samo jak resztę treści. Obrazy domyślnie usuwa,
+bo nie czyta z nich tekstu. Dokument
 z nieznaną częścią wewnętrzną odrzuca. Skanów i PDF nie obsługuje.
 
 ## Sposoby wdrożenia

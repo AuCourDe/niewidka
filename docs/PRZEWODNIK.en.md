@@ -26,8 +26,8 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 | Placeholder | What it is | How it is detected |
 |---|---|---|
 | `OSOBA` | first and last names, also in inflected forms | language model, at level 3 also the GUS first-name dictionary |
-| `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numbers with a checksum | rules and checksum |
-| `DOKUMENT` | ID card numbers | rules and checksum |
+| `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numbers with a checksum, an account number also without „PL” | rules and checksum |
+| `DOKUMENT` | ID card and passport numbers | rules; for an ID card also the checksum |
 | `ADRES`, `TELEFON`, `EMAIL`, `DATA` | addresses, phone numbers, e-mails, dates | rules and model |
 | `IP`, `SWIFT`, `LOGIN` | IP addresses, bank codes, logins | rules; Extended package at level 3 |
 | `INNE` | anything you add yourself | your corrections and permanent lists |
@@ -84,8 +84,10 @@ Numbers with a valid checksum cannot be unhidden. The program always treats them
 
 The program accepts `.txt` and `.docx` up to 25 MB. The result has the same format as the input file,
 and a `.docx` document keeps the layout and styles of the content. From `.docx` the program removes comments,
-footnotes, headers, footers, the thumbnail and extra file properties, because names and e-mails
-often remain there. By default it also removes images, because it does not read text from them. A document
+footnotes and endnotes, headers, footers, the thumbnail, document variables and extra file properties,
+because names and e-mails often remain there. It accepts tracked changes and turns fields (for example
+mail merge fields) into plain text. Text in text boxes is hidden
+like the rest of the content. By default it removes images, because it does not read text from them. A document
 with an unknown internal part is rejected. Scans and PDF are not supported.
 
 ## Deployment options

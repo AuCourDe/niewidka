@@ -51,9 +51,19 @@ def test_keyring_gdy_brak_pliku():
     assert pobierz_klucz(konfig, z_keyringa=lambda usluga: base64.b64encode(KLUCZ).decode()) == KLUCZ
 
 
-def test_plik_ustawiony_a_nieobecny_siega_keyringa():
-    konfig = Konfig(klucz_plik="/tmp/nie-ma.b64")
-    assert pobierz_klucz(konfig, z_keyringa=lambda usluga: base64.b64encode(KLUCZ).decode()) == KLUCZ
+def test_plik_ustawiony_a_nieobecny_to_blad_bez_keyringa(tmp_path: Path):
+    # the configured file is the only source: a keyring key would encrypt maps that the file
+    # key cannot open once the file is back
+    konfig = Konfig(klucz_plik=str(tmp_path / "nie-ma.b64"))
+    wolania: list[str] = []
+
+    def keyring(usluga: str) -> str:
+        wolania.append(usluga)
+        return base64.b64encode(KLUCZ).decode()
+
+    with pytest.raises(BrakKlucza, match="pliku klucza"):
+        pobierz_klucz(konfig, z_keyringa=keyring)
+    assert wolania == []
 
 
 def test_zla_dlugosc_klucza_w_pliku(tmp_path: Path):

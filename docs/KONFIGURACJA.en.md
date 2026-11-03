@@ -36,6 +36,7 @@ from the system store or from a specified file.
   `python -m niewidka.klucze nowy-plik /etc/niewidka/klucz-mapy`. Point to it in the settings
   file (`[klucze] plik = "/etc/niewidka/klucz-mapy"`) or with the `NIEWIDKA_KLUCZ_PLIK` variable.
   On Linux the file must have `0600` permissions, otherwise the program rejects it.
+  When the configured file is missing, the program reports an error and does not use the system store.
 
 A new key invalidates all old maps. The program will not overwrite an existing key.
 In the system store, replacing the key is forced with `do-keyringa --nadpisz`. The `nowy-plik`

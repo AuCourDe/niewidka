@@ -202,6 +202,55 @@ async def test_zly_klucz_422(klucz_plik, tmp_path):
 
 
 @pytest.mark.anyio
+async def test_pobrana_mapa_dziala_po_ponownym_uruchomieniu(klucz_plik):
+    """The registry of issued maps lives in the data folder in the browser version too:
+    a downloaded .nwidka restores after the program is closed and started again."""
+    konfig = Konfig(klucz_plik=klucz_plik, mapy_retencja_dni=0)
+    app = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(app) as klient:
+        odpowiedz = await _ukryj_tekst(klient, app)
+    czesci = _zip(odpowiedz.content)
+    identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+    po_ponownym_uruchomieniu = create_app(konfig, detektor=RegulyDetektor())
+    async with _klient(po_ponownym_uruchomieniu) as klient:
+        wynik = await klient.post(
+            "/api/przywroc",
+            files={
+                "wynik": ("w.txt", czesci[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"]),
+                "mapa": ("m.nwidka", czesci[f"{identyfikator[:12]}.nwidka"]),
+            },
+            headers=_naglowki(po_ponownym_uruchomieniu),
+        )
+    assert wynik.status_code == 200, wynik.text
+    assert wynik.content.decode() == TEKST
+
+
+@pytest.mark.anyio
+async def test_ukryj_plik_txt_w_windows_1250(konfig):
+    app = create_app(konfig, detektor=RegulyDetektor())
+    tekst = "Zażółć gęślą jaźń, PESEL 44051401359."
+    async with _klient(app) as klient:
+        odpowiedz = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("pismo.txt", tekst.encode("cp1250"))},
+            headers=_naglowki(app),
+        )
+        assert odpowiedz.status_code == 200, odpowiedz.text
+        identyfikator = odpowiedz.headers["x-niewidka-identyfikator"]
+        wynik = _zip(odpowiedz.content)[f"ZANONIMIZOWANY_{identyfikator[:12]}.txt"].decode("utf-8")
+        assert "Zażółć gęślą jaźń, PESEL [PESEL_1]." in wynik
+        binarny = await klient.post(
+            "/api/ukryj",
+            data={"poziom": "1"},
+            files={"plik": ("pismo.txt", b"\x81\x83\x88 bez znaczenia")},
+            headers=_naglowki(app),
+        )
+    assert binarny.status_code == 422
+    assert "UTF-8" in binarny.json()["blad"]
+
+
+@pytest.mark.anyio
 async def test_zmieniony_bajt_mapy_422(konfig):
     app = create_app(konfig, detektor=RegulyDetektor())
     async with _klient(app) as klient:
@@ -794,18 +843,21 @@ async def test_host_ipv6_w_nawiasach(klucz_plik):
 
 
 @pytest.mark.anyio
-async def test_kolejka_liczy_miejsce_po_timeoucie_zadania_do_startu():
+async def test_kolejka_porzuca_prace_ktora_nie_zdazyla_ruszyc():
+    # a request that timed out while waiting for the slot never runs later and frees its place
     kolejka = api.Kolejka(maks=1, timeout_s=1)
     brama = threading.Event()
-    czekajace = [asyncio.create_task(kolejka.wykonaj(lambda: brama.wait(3), timeout_s=1))]
+    wykonane = []
+    zajety = asyncio.create_task(kolejka.wykonaj(lambda: brama.wait(3), timeout_s=5))
     await asyncio.sleep(0.1)  # slot occupied
-    pierwsze = asyncio.create_task(kolejka.wykonaj(lambda: None, timeout_s=0.1))
-    with pytest.raises(api.PracaPrzekroczylaCzas):
-        await pierwsze
-    assert kolejka.czekajacy == 1  # task after timeout still waits for the slot
-    with pytest.raises(api.KolejkaPelna):
-        await kolejka.wykonaj(lambda: None)
+    with pytest.raises(api.PracaPrzekroczylaCzas) as blad:
+        await kolejka.wykonaj(lambda: wykonane.append("spozniona"), timeout_s=0.1)
+    assert blad.value.rozpoczeta is False
+    assert kolejka.czekajacy == 0  # the place in the queue is free again
+    kolejna = asyncio.create_task(kolejka.wykonaj(lambda: wykonane.append("kolejna"), timeout_s=5))
+    await asyncio.sleep(0.1)
+    assert kolejka.czekajacy == 1
     brama.set()
-    await asyncio.gather(*czekajace, return_exceptions=True)
-    await asyncio.sleep(0.2)
+    await asyncio.gather(zajety, kolejna)
+    assert wykonane == ["kolejna"]  # the abandoned work never started
     assert kolejka.czekajacy == 0

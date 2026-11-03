@@ -149,6 +149,10 @@ class OnnxDetektor:
                     tokenizer_obj = Tokenizer.from_str(tokenizer.decode("utf-8"))
                 else:
                     tokenizer_obj = Tokenizer.from_file(str(tokenizer))
+                # tokenizer.json may cap encodings at the model length (bardsai: 512);
+                # the windows below need the whole text
+                tokenizer_obj.no_truncation()
+                tokenizer_obj.no_padding()
             self._tokenizer = tokenizer_obj
             if sesja is None:
                 import onnxruntime as ort
@@ -200,6 +204,8 @@ class OnnxDetektor:
     def _znajdz(self, tekst: str) -> list[Zakres]:
         np = self._np
         enc = self._tokenizer.encode(tekst, add_special_tokens=True)
+        if getattr(enc, "overflowing", None):  # the cut-off rest would go unchecked
+            raise BladDetektora(f"{self.nazwa}: tokenizer obciął tekst")
         tokeny = list(zip(enc.ids, enc.offsets))
         wynik: list[Zakres] = []
         # Second pass of windows shifted by half a step: an entity on a window boundary

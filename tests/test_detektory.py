@@ -272,19 +272,31 @@ class AtrapaSesja:
 ID_O = 0
 ID_B_KLASA1 = 1  # B-KLASA1 in the configuration stub (B: 1-4, I: 5-8)
 ID_I_KLASA1 = 5  # I-KLASA1
+ID2ETYKIETA = {
+    i: e
+    for i, e in enumerate(
+        ["O"] + [f"B-KLASA{i}" for i in range(1, 5)] + [f"I-KLASA{i}" for i in range(1, 5)]
+    )
+}
+
+
+class SesjaPoIdTokenu:
+    """Logits by token id: ids in `osoby` get B-KLASA1, every other token O."""
+
+    wejscia: ClassVar[list[str]] = ["input_ids", "attention_mask"]
+
+    def __init__(self, osoby: set[int]):
+        self.osoby = osoby
+
+    def run(self, wyjscia, feed):
+        etykiety = [ID_B_KLASA1 if int(t) in self.osoby else ID_O for t in feed["input_ids"][0]]
+        return [[[[4.0 if k == e else 0.0 for k in range(len(ID2ETYKIETA))] for e in etykiety]]]
 
 
 def zbuduj_onnx(
     tmp_path, slowa, etykieta_na_token, tokenizer=None, sesja=None, próg=None, pół_krok=False
 ):
-    config = {
-        "id2label": {
-            i: e
-            for i, e in enumerate(
-                ["O"] + [f"B-KLASA{i}" for i in range(1, 5)] + [f"I-KLASA{i}" for i in range(1, 5)]
-            )
-        }
-    }
+    config = {"id2label": ID2ETYKIETA}
     (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
     pliki = {}
     for nazwa in ("model.onnx", "tokenizer.json"):
@@ -362,6 +374,47 @@ class TestOnnxDetektor:
         assert wywolania == [510, 510, 510]  # 510-token windows, fed as-is
         assert wynik == []
 
+    def test_tokenizer_z_obcinaniem_widzi_caly_tekst(self):
+        # tokenizer.json of the basic package truncates at 512 tokens; the windows must
+        # still cover the whole text, so a name past the cap is found
+        from tokenizers import Tokenizer
+        from tokenizers.models import WordLevel
+        from tokenizers.pre_tokenizers import WhitespaceSplit
+
+        slowa = [f"w{i}" for i in range(40)]
+        slownik = {"[UNK]": 0, "Kowalski": 1, **{s: i + 2 for i, s in enumerate(slowa)}}
+        tokenizer = Tokenizer(WordLevel(slownik, unk_token="[UNK]"))
+        tokenizer.pre_tokenizer = WhitespaceSplit()
+        tokenizer.enable_truncation(max_length=16)
+        tekst = " ".join(slowa) + " Kowalski"
+        d = OnnxDetektor(
+            nazwa="onnx:test",
+            model=b"m",
+            tokenizer=tokenizer.to_str().encode("utf-8"),
+            etykiety={("KLASA1",): TypEncji.OSOBA},
+            id2etykieta=ID2ETYKIETA,
+            okno=8,
+            krok=6,
+            sesja=SesjaPoIdTokenu({1}),
+            laduj_manifest=False,
+        )
+        wynik = d.znajdz(tekst)
+        assert {(z.start, z.koniec) for z in wynik} == {(len(tekst) - 8, len(tekst))}
+
+    def test_obciete_kodowanie_fail_closed(self, tmp_path):
+        class ObcinajacyTokenizer(AtrapaTokenizer):
+            def encode(self, tekst, add_special_tokens=True):
+                enc = super().encode(tekst, add_special_tokens)
+                enc.overflowing = [enc]
+                return enc
+
+        d = zbuduj_onnx(
+            tmp_path, ["Jan"], None, sesja=AtrapaSesja([ID_O] * 3),
+            tokenizer=ObcinajacyTokenizer(["Jan"]),
+        )
+        with pytest.raises(BladDetektora, match="obciął"):
+            d.znajdz("Jan")
+
     def test_okno_przycina_tokeny_specjalne(self, tmp_path):
         # <s> O, B-KLASA1 in the middle: entity in the middle of the window caught correctly.
         sesja = AtrapaSesja([ID_O, 1, ID_O, ID_O])
@@ -417,10 +470,13 @@ class TestWczytajBardsai:
 
     @pytest.mark.model
     def test_zywy_model_dlugi_tekst_okna(self, model_bardsai):
-        tekst = "Uczestnik Jan Kowalski. " * 120  # ~1200 tokens
+        zdanie = "Uczestnik Jan Kowalski. "
+        tekst = zdanie * 120  # well past the 512-token cap of tokenizer.json
         wynik = model_bardsai.znajdz(tekst)
-        oczekiwane = 120
-        assert sum(1 for z in wynik if z.typ is TypEncji.OSOBA) >= oczekiwane * 0.9
+        # overlapping windows return the same name twice: count distinct ranges
+        osoby = {(z.start, z.koniec) for z in wynik if z.typ is TypEncji.OSOBA}
+        assert len(osoby) >= 120 * 0.9
+        assert max(koniec for _, koniec in osoby) > len(tekst) - len(zdanie)
 
 
 class AtrapaDetektor:
@@ -915,11 +971,21 @@ def test_wczytaj_bardsai_laduje_zweryfikowane_bajty(monkeypatch, tmp_path):
         onnxruntime, "InferenceSession",
         lambda bajty, providers=None: (widziane.setdefault("model", bajty), _AtrapaSesji())[1],
     )
+    class AtrapaTokenizera:
+        def __init__(self, lancuch):
+            widziane["tokenizer"] = lancuch
+
+        def no_truncation(self):
+            widziane["bez_obciecia"] = True
+
+        def no_padding(self):
+            pass
+
     monkeypatch.setattr(
-        tokenizers.Tokenizer, "from_str",
-        classmethod(lambda cls, lancuch: widziane.setdefault("tokenizer", lancuch)),
+        tokenizers.Tokenizer, "from_str", classmethod(lambda cls, lancuch: AtrapaTokenizera(lancuch))
     )
     detektor = wczytaj_bardsai(katalog, katalog_pakietow=zaufany)
+    assert widziane["bez_obciecia"] is True
     assert widziane["model"] == tresci["model.onnx"]
     assert widziane["tokenizer"] == tresci["tokenizer.json"].decode("utf-8")  # same bytes, decoded
     assert detektor._id2etykieta == {"0": "B-PERSON_NAME", "1": "I-PERSON_NAME"}

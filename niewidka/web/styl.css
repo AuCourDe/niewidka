@@ -860,9 +860,11 @@ input[type="range"] { margin: 0.1rem 0; }
 #form-przywroc .wyjasnienie { margin: 0; }
 #form-przywroc .pole-przywroc { margin: 0; }
 #form-przywroc .przelacznik { margin: 0; }
-#form-przywroc #tryb-tekst { display: flex; flex-direction: column; gap: 0.6rem; flex: 1 1 0; min-height: 0; }
-#form-przywroc #tryb-tekst > .pole-przywroc:first-child { flex: 1 1 0; display: flex; flex-direction: column; min-height: 8rem; }
-#tekst-przywroc { flex: 1 1 0; min-height: 5rem; resize: none; }
+/* the reply field grows into free space but never shrinks below its content: a message under
+   the form makes the column scroll instead of pushing the fields over each other */
+#form-przywroc #tryb-tekst { display: flex; flex-direction: column; gap: 0.6rem; flex: 1 0 auto; }
+#form-przywroc #tryb-tekst > .pole-przywroc:first-child { flex: 1 0 auto; display: flex; flex-direction: column; }
+#tekst-przywroc { flex: 1 0 8rem; min-height: 8rem; resize: none; }
 #form-przywroc .przycisk-glowny { margin-top: 0; }
 .kolumna-wynik #wynik-przywroc h2 { font-size: 1.05rem; }
 .stan-pusty-przywroc h2 { font-size: 1.05rem; }
@@ -922,7 +924,5 @@ input[type="range"] { margin: 0.1rem 0; }
   .uklad.wejscie-zwiniete #form-ukryj { display: none; }
   .szczegoly-tresc { position: static; width: auto; box-shadow: none; margin-top: 0.3rem; flex-basis: 100%; }
   #widok-tekstu textarea { min-height: 9rem; }
-  #form-przywroc #tryb-tekst > .pole-przywroc:first-child { min-height: 0; }
-  #tekst-przywroc { min-height: 8rem; }
   #panel-ustawienia:not([hidden]) { overflow: visible; }
 }

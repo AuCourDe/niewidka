@@ -38,7 +38,7 @@ def _q(nazwa: str) -> str:
     return f"{{{W}}}{nazwa}"
 
 
-_TEKSTOWE = frozenset({_q("t"), _q("tab")})
+_TEKSTOWE = frozenset({_q("t"), _q("tab"), _q("noBreakHyphen")})
 
 
 def _lamanie_tekstu(element: etree._Element) -> bool:
@@ -46,14 +46,27 @@ def _lamanie_tekstu(element: etree._Element) -> bool:
     return element.tag == _q("br") and element.get(_q("type"), "textWrapping") == "textWrapping"
 
 
+def _wlasny(element: etree._Element, przodek: etree._Element) -> bool:
+    """The nearest ancestor of `element` with the tag of `przodek` is `przodek` itself: runs and
+    text of a text box nested in a run belong to the text box paragraph, not the outer one."""
+    rodzic = element.getparent()
+    while rodzic is not None and rodzic.tag != przodek.tag:
+        rodzic = rodzic.getparent()
+    return rodzic is przodek
+
+
 def _tekst_runu(run: etree._Element) -> str:
-    """Run text in document order; a tab is `\\t`, a line break `\\n`."""
+    """Run text in document order; a tab is `\\t`, a line break `\\n`, a non-breaking hyphen `-`."""
     czesci = []
-    for element in run.iter(_q("t"), _q("tab"), _q("br")):
+    for element in run.iter(_q("t"), _q("tab"), _q("br"), _q("noBreakHyphen")):
+        if not _wlasny(element, run):
+            continue
         if element.tag == _q("t"):
             czesci.append(element.text or "")
         elif element.tag == _q("tab"):
             czesci.append("\t")
+        elif element.tag == _q("noBreakHyphen"):
+            czesci.append("-")
         elif _lamanie_tekstu(element):
             czesci.append("\n")
     return "".join(czesci)
@@ -71,6 +84,7 @@ def _rozszerzenie(nazwa: str) -> str:
 USUWANE = (
     "word/comments",  # comments
     "word/footnotes",  # footnotes
+    "word/endnotes",  # endnotes
     "word/header",  # headers
     "word/footer",  # footers
     "docProps/app",  # application properties (company etc.)
@@ -177,7 +191,7 @@ class AdapterDocx:
                 text; image relations added to `usun_relacje` (they disappear from .rels on save)."""
         usuniete = 0
         grafiki = list(drzewo.iter(_q("drawing"))) + list(drzewo.iter(_q("pict")))
-        for grafika in grafiki:
+        for grafika in filter(_obraz, grafiki):  # a text box without a picture stays
             for element in grafika.iter():
                 for atrybut in (f"{{{R}}}embed", f"{{{R}}}id", f"{{{R}}}link"):
                     if atrybut in element.attrib:
@@ -198,25 +212,32 @@ class AdapterDocx:
 
     def _wyczysc_drzewo(self, drzewo: etree._Element, rels_xml: bytes, zasoby: dict) -> None:
         """Clean the content of document.xml before reading segments."""
-        # tracked changes: a deleted w:del disappears (deleted text is not content),
-        # an unwrapped w:ins = accepting the change (content enters the segments)
-        for del_element in list(drzewo.iter(_q("del"))):
-            del_element.getparent().remove(del_element)
-        for ins_element in list(drzewo.iter(_q("ins"))):
-            rodzic = ins_element.getparent()
-            for dziecko in list(ins_element):
-                ins_element.addprevious(dziecko)
-            rodzic.remove(ins_element)
-        # identity from revisions/fields: author/date/initials are kept nowhere
+        # tracked changes are accepted: deleted text (w:del, the source of a move) is not
+        # content, inserted text (w:ins, the target of a move) is unwrapped into the
+        # segments, and records of the old formatting disappear
+        for element in list(drzewo.iter(*map(_q, _ZMIANY_USUWANE))):
+            element.getparent().remove(element)
+        for element in list(drzewo.iter(_q("ins"), _q("moveTo"))):
+            _rozpakuj(element)
+        # identity from revisions: no date or initials, the author (required by the schema)
+        # stays empty
         for element in drzewo.iter():
-            for atrybut in (f"{{{W}}}author", f"{{{W}}}date", f"{{{W}}}initials"):
-                if atrybut in element.attrib:
-                    del element.attrib[atrybut]
-        # fields: the instruction disappears, the field result (w:t) stays as text
-        for instrukcja in list(drzewo.iter(_q("instrText"))):
-            instrukcja.getparent().remove(instrukcja)
-        for fld in list(drzewo.iter(_q("fldSimple"))):
-            fld.attrib.pop(f"{{{W}}}instr", None)
+            if f"{{{W}}}author" in element.attrib:
+                element.set(f"{{{W}}}author", "")
+            for atrybut in (f"{{{W}}}date", f"{{{W}}}initials"):
+                element.attrib.pop(atrybut, None)
+        # fields: the instruction disappears and the field result (w:t) stays as plain text.
+        # The field characters go too: Word hides the result of a field whose code is empty,
+        # and form field data (w:ffData in w:fldChar) holds names and default texts.
+        for element in list(drzewo.iter(_q("instrText"), _q("fldChar"))):
+            run = element.getparent()
+            run.remove(element)
+            if run.tag == _q("r") and all(dziecko.tag == _q("rPr") for dziecko in run):
+                run.getparent().remove(run)
+        for fld in list(drzewo.iter(_q("fldSimple"))):  # w:instr is required: unwrap instead
+            for dane_pola in fld.findall(_q("fldData")):
+                fld.remove(dane_pola)
+            _rozpakuj(fld)
         # orphaned w:t (e.g. w:ins without w:r) -> wrap in w:r, otherwise the
         # text bypasses segments and detection
         for t in list(drzewo.iter(_q("t"))):
@@ -226,7 +247,10 @@ class AdapterDocx:
             run = rodzic.makeelement(_q("r"), {})
             rodzic.insert(list(rodzic).index(t), run)
             run.append(t)
-        for nazwa in ("commentRangeStart", "commentRangeEnd", "commentReference", "footnoteReference"):
+        for nazwa in (
+            "commentRangeStart", "commentRangeEnd", "commentReference", "footnoteReference",
+            "endnoteReference",
+        ):
             for element in list(drzewo.iter(_q(nazwa))):
                 rodzic = element.getparent()
                 rodzic.remove(element)
@@ -268,6 +292,14 @@ class AdapterDocx:
             anchor = link.get(_q("anchor"))
             if anchor:
                 link.set(_q("anchor"), zakladki.get(anchor, "_Bm0"))
+            for atrybut in ("tooltip", "docLocation"):  # free text no segment reads
+                link.attrib.pop(_q(atrybut), None)
+        # permission ranges name their editors (logins, e-mails); content control lists keep every
+        # choice and the last one as text: the shown text stays in the content
+        for element in list(drzewo.iter(_q("permStart"), _q("permEnd"), _q("listItem"))):
+            element.getparent().remove(element)
+        for lista in drzewo.iter(_q("dropDownList"), _q("comboBox")):
+            lista.attrib.pop(_q("lastValue"), None)
         # content controls: alias/tag with PII - the nodes disappear
         for nazwa in ("alias", "tag"):
             for element in list(drzewo.iter(_q(nazwa))):
@@ -294,6 +326,8 @@ class AdapterDocx:
             runy, teksty, starts = [], [], []
             biezacy = 0
             for run_element in akapit.iter(_q("r")):
+                if not _wlasny(run_element, akapit):
+                    continue  # a text box paragraph is a segment of its own
                 tekst = _tekst_runu(run_element)
                 runy.append(RunInfo(tekst, run_element))
                 starts.append(biezacy)
@@ -314,7 +348,14 @@ class AdapterDocx:
             for nr, (tekst, idx) in enumerate(fragmenty)
         ]
         for i, stary in enumerate([r.element for r in stare]):
-            for nowy in [n.element for n, (t, idx) in zip(nowe, fragmenty) if idx == i]:
+            nowe_runu = [n.element for n, (_, idx) in zip(nowe, fragmenty) if idx == i]
+            if not nowe_runu:
+                # no text of this run is left (an empty run or one swallowed by a marker):
+                # what is not text stays (symbol, page break, field character, drawing)
+                reszta = self._kopiuj_run(stary, "")
+                if any(dziecko.tag != _q("rPr") for dziecko in reszta):
+                    nowe_runu = [reszta]
+            for nowy in nowe_runu:
                 stary.addprevious(nowy)
             stary.getparent().remove(stary)
         segment.runs = nowe
@@ -327,14 +368,16 @@ class AdapterDocx:
 
     def _kopiuj_run(self, element: etree._Element, tekst: str, z_reszta: bool = True) -> etree._Element:
         """A run clone with style (rPr). Text, tabs and line breaks are rebuilt from `tekst`;
-                the remaining non-text content goes only to the first fragment of the run (`z_reszta`)."""
-        klon = copy.deepcopy(element)
-        for dziecko in list(klon):
-            if dziecko.tag == _q("rPr"):
-                continue
-            tekstowe = dziecko.tag in _TEKSTOWE or _lamanie_tekstu(dziecko)
-            if tekstowe or not z_reszta:
-                klon.remove(dziecko)
+                the remaining non-text content is MOVED to the first fragment of the run
+                (`z_reszta`), so the paragraphs of a text box inside stay the segments they are."""
+        klon = element.makeelement(element.tag, dict(element.attrib))
+        styl = element.find(_q("rPr"))
+        if styl is not None:
+            klon.append(copy.deepcopy(styl))
+        if z_reszta:
+            for dziecko in list(element):
+                if dziecko is not styl and dziecko.tag not in _TEKSTOWE and not _lamanie_tekstu(dziecko):
+                    klon.append(dziecko)
         for czesc in re.split(r"([\t\n])", tekst):
             if czesc == "\t":
                 etree.SubElement(klon, _q("tab"))
@@ -389,7 +432,8 @@ class AdapterDocx:
                     czesci.pop(plik_rels)
                 else:
                     czesci[plik_rels] = przefiltrowane
-        czesci["docProps/core.xml"] = _wyczysc_core(czesci["docProps/core.xml"])
+        if "docProps/core.xml" in czesci:  # optional in a package
+            czesci["docProps/core.xml"] = _wyczysc_core(czesci["docProps/core.xml"])
         do_usuniecia = [n for n in czesci if n != "word/document.xml" and _usuwana(n)]
         do_usuniecia += [n for n in czesci if n == "word/_rels/document.xml.rels"]
         # relations of removed parts go together with them
@@ -423,6 +467,42 @@ class AdapterDocx:
 
 def _usuwana(nazwa: str) -> bool:
     return nazwa.startswith(USUWANE)
+
+
+# Accepting tracked changes: deleted content, move ranges and old formatting records go.
+_ZMIANY_USUWANE = (
+    "del", "moveFrom",
+    "moveFromRangeStart", "moveFromRangeEnd", "moveToRangeStart", "moveToRangeEnd",
+    "customXmlInsRangeStart", "customXmlInsRangeEnd", "customXmlDelRangeStart",
+    "customXmlDelRangeEnd", "customXmlMoveFromRangeStart", "customXmlMoveFromRangeEnd",
+    "customXmlMoveToRangeStart", "customXmlMoveToRangeEnd",
+    "rPrChange", "pPrChange", "sectPrChange", "tblPrChange", "tblPrExChange", "tblGridChange",
+    "trPrChange", "tcPrChange", "numberingChange",
+)
+
+
+def _rozpakuj(element: etree._Element) -> None:
+    """The children take the place of the element (the wrapper disappears, the content stays)."""
+    for dziecko in list(element):
+        element.addprevious(dziecko)
+    element.getparent().remove(element)
+
+
+_RELACJE_GRAFIKI = (f"{{{R}}}embed", f"{{{R}}}id", f"{{{R}}}link")
+
+
+def _obraz(grafika: etree._Element) -> bool:
+    """A graphic that points at a picture part; a shape with only a text box is not an image,
+    and a picture INSIDE its text box is a graphic of its own."""
+    for element in grafika.iter():
+        if not any(atrybut in element.attrib for atrybut in _RELACJE_GRAFIKI):
+            continue
+        rodzic = element
+        while rodzic is not grafika and rodzic.tag != _q("txbxContent"):
+            rodzic = rodzic.getparent()
+        if rodzic is grafika:
+            return True
+    return False
 
 
 # --- neutralizing media names ---------------------------------------
@@ -550,9 +630,14 @@ def _przefiltruj_content_types(
 
 
 def _wyczysc_settings(settings_xml: bytes) -> bytes:
-    """the trace of the template, protection and editing session disappears from settings.xml."""
+    """the trace of the template, protection and editing session disappears from settings.xml, and
+    so do document variables (templates and mail merge keep names and addresses there) and the
+    separators of the removed footnote and endnote parts."""
     korzen = etree.fromstring(settings_xml, _parser())
-    for nazwa in ("attachedTemplate", "documentProtection", "writeProtection", "mailMerge", "rsids"):
+    for nazwa in (
+        "attachedTemplate", "documentProtection", "writeProtection", "mailMerge", "rsids",
+        "docVars", "footnote", "endnote",
+    ):
         for element in list(korzen.iter(_q(nazwa))):
             element.getparent().remove(element)
     for element in korzen.iter():
