@@ -32,7 +32,19 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 | `INNE` | wszystko, co dodasz sam | Twoje poprawki i stałe listy |
 
 Ta sama osoba ma ten sam znacznik w całym tekście, także w innej formie
-(„Jana Kowalskiego” to nadal `[OSOBA_1]`). Daty można wyłączyć w ustawieniach.
+(„Jana Kowalskiego” to nadal `[OSOBA_1]`). Samo nazwisko („Pani Kowalska”) dostaje numer
+jedynej osoby o tym nazwisku. Gdy w tekście są dwie osoby o tym samym nazwisku, samo nazwisko
+dostaje osobny numer, bo program nie zgaduje, o którą chodzi. Same tytuły („Pan”, „Pani”)
+zostają widoczne.
+
+Ten sam numer w dwóch zapisach to jeden znacznik z wariantem: NIP `123-456-32-18` to
+`[NIP_1]`, a ten sam NIP bez kresek to `[NIP_1_F2]`. Przywracanie oddaje każdy zapis tak,
+jak był w oryginale.
+
+Adres obejmuje ulicę z numerem, kod pocztowy i miejscowość. Ulica bez „ul.” jest
+rozpoznawana, gdy stoi tuż przed kodem pocztowym („Lipowa 5, 80-001 Gdańsk”). Słowo
+z wielkiej litery i numer tuż przed kodem też zostaną ukryte jako adres. Daty można
+wyłączyć w ustawieniach.
 
 ## Trzy poziomy jakości
 

@@ -54,9 +54,15 @@ Hide (`niewidka/rdzen.py: ukryj`):
    Level 2 lowers the person threshold and adds a second pass shifted by half a window;
    level 3 adds the GUS first-name list and, if installed, the extended model.
    With `[inferencja] adres` set, `zdalny.py` sends text to the shared server instead.
-3. **Merging** (`scalanie.py`) turns candidates into entities; **people** (`osoby.py`) groups
-   inflected forms of one person.
-4. **Tags** (`znaczniki.py`) replace entities and add the header note.
+3. **Merging** (`scalanie.py`) turns candidates into entities (a person inside an address
+   does not take over the address label; a card number inside an account number is dropped);
+   **people** (`osoby.py`) groups inflected forms of one person by the stem from `odmiana.py`,
+   the single rule stemmer shared with corrections, lists and the check. A bare surname joins
+   the only person with it; with several candidates it gets one separate group. Entities made
+   only of titles ("Pan", "Pani") are dropped in `ukryj` and ignored by the check.
+4. **Tags** (`znaczniki.py`) replace entities and add the header note. Numbers (PESEL, NIP,
+   REGON, IBAN, card, document) compare without hyphens and spaces: one number in two notations
+   is `[NIP_1]` and `[NIP_1_F2]`.
 5. **Write check** (`kontrola.py`) reads the result like a foreign document and scans it again
    at every level (DOCX also raw, part by part). Findings that are not tags become warnings;
    with `kontrola.blokada` they block copy and download until the user decides (STOP).

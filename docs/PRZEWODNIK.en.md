@@ -33,7 +33,19 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 | `INNE` | anything you add yourself | your corrections and permanent lists |
 
 The same person has the same placeholder throughout the text, also in another form
-(„Jana Kowalskiego”, a grammatical case of the name, is still `[OSOBA_1]`). Dates can be turned off in the settings.
+(„Jana Kowalskiego”, a grammatical case of the name, is still `[OSOBA_1]`). A bare surname
+(„Pani Kowalska”) gets the number of the only person with that surname. When two people in
+the text share a surname, the bare surname gets a separate number, because the program does
+not guess which one is meant. Titles alone („Pan”, „Pani”) stay visible.
+
+The same number written in two ways is one placeholder with a variant: the NIP `123-456-32-18`
+is `[NIP_1]`, and the same NIP without hyphens is `[NIP_1_F2]`. Restore brings back each
+notation exactly as it was in the original.
+
+An address covers the street with its number, the postal code and the town. A street without
+„ul.” is recognised when it stands right before a postal code („Lipowa 5, 80-001 Gdańsk”).
+A capitalised word with a number right before a postal code is also hidden as an address.
+Dates can be turned off in the settings.
 
 ## Three quality levels
 
