@@ -47,15 +47,37 @@ def test_dluzszy_wygrywa_gdy_bez_sum():
 
 
 def test_pelne_pokrycie_roznych_typow_etykieta_wewnetrznego():
-    # a surname inside an address: the more specific type wins;
-    # the whole union is masked anyway, we only choose the label.
+    # the more specific inner type wins the label; the whole union is masked anyway
+    kandydaci = [
+        _zakres(0, 20, TypEncji.INNE),
+        _zakres(4, 14, TypEncji.TELEFON),
+    ]
+    wynik = scal("x" * 30, kandydaci)
+    assert (wynik[0].start, wynik[0].koniec) == (0, 20)
+    assert wynik[0].typ is TypEncji.TELEFON
+
+
+def test_patron_ulicy_nie_przejmuje_adresu():
+    # "ul. Józefa Piłsudskiego 12": a person inside an address stays part of the address,
+    # otherwise the city in it would be searched for as a person's name
     kandydaci = [
         _zakres(0, 20, TypEncji.ADRES),
         _zakres(4, 14, TypEncji.OSOBA),
     ]
     wynik = scal("x" * 30, kandydaci)
     assert (wynik[0].start, wynik[0].koniec) == (0, 20)
-    assert wynik[0].typ is TypEncji.OSOBA
+    assert wynik[0].typ is TypEncji.ADRES
+
+
+def test_karta_w_rachunku_z_literowka_nie_przejmuje_etykiety():
+    # "PL61 1090 1014 0000 0712 1981 2875": wrong IBAN sum, a 20-digit window passes Luhn
+    kandydaci = [
+        Zakres(0, 34, TypEncji.IBAN, 0.5, "regula", suma_kontrolna=False, podejrzana=True),
+        Zakres(5, 34, TypEncji.KARTA, 1.0, "regula", suma_kontrolna=True),
+    ]
+    (wynik,) = scal("x" * 34, kandydaci)
+    assert (wynik.start, wynik.koniec, wynik.typ) == (0, 34, TypEncji.IBAN)
+    assert wynik.podejrzana and not wynik.suma_kontrolna
 
 
 def test_identyczne_zakresy_rozne_typy_suma_wygrywa():

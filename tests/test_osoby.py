@@ -1,7 +1,8 @@
 """Tests of grouping people by inflected forms."""
 
 from niewidka.model import Encja, TypEncji, Zakres
-from niewidka.osoby import pogrupuj, rdzen_nazwiska
+from niewidka.odmiana import rdzen as rdzen_nazwiska
+from niewidka.osoby import _rozbij, pogrupuj
 
 
 def _osoba(tekst: str) -> Encja:
@@ -45,11 +46,11 @@ def test_inicjaly_przy_dwoch_imionach_osobne_od_obu():
     assert len({e.klucz_grupy for e in encje}) == 3
 
 
-def test_dwa_same_nazwiska_bez_imion_to_osobne_grupy():
-    # Counterexample: with no first name, each bare surname stays separate.
-    encje = [_osoba("Kowalskiego"), _osoba("Kowalski")]
+def test_same_nazwiska_bez_imion_to_jedna_osoba():
+    # "Sprawę prowadzi Kowalski. Kowalskiego poinformowano." is one person, not one per occurrence
+    encje = [_osoba("Kowalskiego"), _osoba("Kowalski"), _osoba("Kowalski")]
     pogrupuj(encje)
-    assert encje[0].klucz_grupy != encje[1].klucz_grupy
+    assert len({e.klucz_grupy for e in encje}) == 1
 
 
 def test_samo_nazwisko_łączy_sie_z_jedynym_inicjałem():
@@ -81,10 +82,13 @@ def test_samo_nazwisko_dolacza_do_jedynej_osoby():
 
 
 def test_samo_nazwisko_przy_dwoch_osobach_rozdzielone():
-    encje = [_osoba("Jan Kowalski"), _osoba("Piotr Kowalski"), _osoba("najemca Kowalski")]
+    encje = [
+        _osoba("Jan Kowalski"), _osoba("Piotr Kowalski"), _osoba("najemca Kowalski"), _osoba("Kowalskiego")
+    ]
     pogrupuj(encje)
     klucze = [e.klucz_grupy for e in encje]
     assert klucze[0] != klucze[2] and klucze[1] != klucze[2]
+    assert klucze[2] == klucze[3]  # bare occurrences share one ambiguous group
 
 
 def test_tytuly_nie_sa_imieniem():
@@ -97,3 +101,35 @@ def test_encje_bez_osoby_niezmienione():
     pesel = Encja(zakres=Zakres(0, 11, TypEncji.PESEL, 1.0, "regula", True), tekst="44051401359")
     pogrupuj([pesel])
     assert pesel.klucz_grupy is None
+
+
+def test_odmiany_z_naprawy_2026_11_to_jedna_osoba():
+    pary = [
+        ("Anna Kowalska", "Anny Kowalskiej"), ("Anna Kowalska", "Annie Kowalskiej"),
+        ("Jan Nowak", "Janem Nowakiem"), ("Marek Zawadzki", "Marka Zawadzkiego"),
+        ("Paweł Kot", "Pawła Kota"), ("Agnieszka Lis", "Agnieszce Lis"),
+        ("Jan Kowalski-Nowak", "Janowi Kowalskiemu-Nowakowi"), ("Maria Nowicka", "Marii Nowickiej"),
+        ("Krzysztof Dąb", "Krzysztofem Dębem"), ("Beata Krupa-Dąbrowska", "Beacie Krupie-Dąbrowskiej"),
+        ("Andrzej Nowicki", "Panem Andrzejem Nowickim"), ("Anna Kowalska", "Panią Annę Kowalską"),
+    ]
+    for a, b in pary:
+        encje = [_osoba(a), _osoba(b)]
+        pogrupuj(encje)
+        assert encje[0].klucz_grupy == encje[1].klucz_grupy, (a, b)
+
+
+def test_imie_na_ska_nie_jest_odwracane():
+    assert _rozbij("Agnieszka Lis") == (rdzen_nazwiska("Agnieszka"), "lis")
+    assert _rozbij("Nowicka Anna") == (rdzen_nazwiska("Anna"), rdzen_nazwiska("Nowicka"))
+
+
+def test_tytul_malą_literą_nie_kasuje_imienia():
+    assert _rozbij("ks. Jan Kowalski") == ("jan", rdzen_nazwiska("Kowalski"))
+    assert _rozbij("Panią Annę Kowalską") == (rdzen_nazwiska("Anna"), rdzen_nazwiska("Kowalska"))
+
+
+def test_samo_imie_dolacza_do_jedynej_osoby_z_tym_imieniem():
+    encje = [_osoba("Jan Piotr Zawadzki"), _osoba("Panie Janie"), _osoba("Katarzyna Lis"), _osoba("Katarzyno")]
+    pogrupuj(encje)
+    assert encje[0].klucz_grupy == encje[1].klucz_grupy
+    assert encje[2].klucz_grupy == encje[3].klucz_grupy

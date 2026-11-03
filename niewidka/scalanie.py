@@ -3,9 +3,10 @@
 Overlapping ranges form a group; the masked area of a group is the UNION of ranges
 (picking a single winner would leave holes), and only the label is chosen:
 checksum > inner one on full coverage > length > confidence >
-source (rule > model). Deterministic regardless of input order."""
+source (rule > model). Deterministic regardless of input order. Exception: a person inside an
+address (the street patron) does not take the address label."""
 
-from niewidka.model import Zakres
+from niewidka.model import TypEncji, Zakres
 
 
 def _priorytet(kandydat: Zakres, wewnętrzny: bool) -> tuple:
@@ -47,7 +48,8 @@ def _bez_fragmentow_pewnych(kandydaci: list[Zakres]) -> list[Zakres]:
         a separate datum (a Luhn window inside an IBAN is not a card). A fragment range is a
         subset of the carrier's range, so the masked union does not change.
         """
-    pewne = [z for z in kandydaci if z.suma_kontrolna]
+    # an account number carries its checksum even when mistyped: a Luhn window inside it is not a card
+    nosniki = [z for z in kandydaci if z.suma_kontrolna or z.typ is TypEncji.IBAN]
     return [
         z
         for z in kandydaci
@@ -56,7 +58,8 @@ def _bez_fragmentow_pewnych(kandydaci: list[Zakres]) -> list[Zakres]:
             and (p.start, p.koniec) != (z.start, z.koniec)
             and p.start <= z.start
             and z.koniec <= p.koniec
-            for p in pewne
+            and (p.suma_kontrolna or z.typ is TypEncji.KARTA)
+            for p in nosniki
         )
     ]
 
@@ -73,6 +76,7 @@ def _zwyciezca(grupa: list[Zakres]) -> Zakres:
                 and (inny.start, inny.koniec) != (z.start, z.koniec)
                 and inny.start <= z.start
                 and z.koniec <= inny.koniec
+                and not (z.typ is TypEncji.OSOBA and inny.typ is TypEncji.ADRES)
                 for inny in grupa
             ),
         ),

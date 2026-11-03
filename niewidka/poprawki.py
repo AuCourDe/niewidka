@@ -6,9 +6,7 @@ the model: numbers of existing markers do not change, new ones get the next numb
 The check after a correction is the rules, the originals from the map and the model findings from the base result
 that are still in the text (the model is not called a second time).
 
-SIMPLIFICATION: inflection matching uses the same ending stem as person grouping
-(`osoby.rdzen_nazwiska`), so short words (up to 3 letters) inflect invisibly
-("Ewa"/"Ewy" are different words to the program). When to extend: once lemmatization (Morfeusz) is available."""
+Inflection matching uses the same stemmer as person grouping (`odmiana.rdzen`)."""
 
 from __future__ import annotations
 
@@ -25,7 +23,7 @@ from niewidka.jakosc import r95_z_kalibracji
 from niewidka.kontrola import Ostrzezenie, kontroluj
 from niewidka.mapa import WZORZEC_ZNACZNIKA, Mapa
 from niewidka.model import Encja, TypEncji, Zakres
-from niewidka.osoby import rdzen_nazwiska
+from niewidka.odmiana import rdzen
 from niewidka.rdzen import Detekcje, Raport, _BezDaty, uwagi_obrazow, zloz_wynik
 
 
@@ -103,7 +101,7 @@ def sprawdz_liste(nazwa: str, wartosc: object) -> list[str]:
 
 
 def _klucz(slowo: str) -> str:
-    return "-".join(rdzen_nazwiska(czlon) for czlon in slowo.split("-"))
+    return rdzen(slowo)
 
 
 def znajdz_wystapienia(tekst: str, fragment: str) -> list[tuple[int, int]]:

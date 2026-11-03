@@ -341,3 +341,18 @@ def test_nazwa_typu_danych_to_nie_wyciek():
             return [Zakres(i, i + 5, TypEncji.OSOBA, 0.9, self.nazwa)] if i >= 0 else []
 
     assert kontroluj(b"Numer PESEL [PESEL_1] podano.", "w.txt", Etykiety()) == []
+
+
+def test_sam_tytul_w_wyniku_nie_blokuje():
+    from niewidka.model import TypEncji, Zakres
+
+    class Atrapa:
+        nazwa = "atrapa"
+        typy = frozenset({TypEncji.OSOBA})
+
+        def znajdz(self, tekst):
+            start = tekst.find("Pan\n")
+            return [Zakres(start, start + 3, TypEncji.OSOBA, 0.9, self.nazwa)] if start != -1 else []
+
+    wynik = _zakryj(b"Pan\nWzywam Pana na rozprawe.")
+    assert kontroluj(wynik, "wynik.txt", Atrapa()) == []

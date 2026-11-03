@@ -29,8 +29,8 @@ from niewidka.mapa import (
     rozbieznosci_wpisow,
 )
 from niewidka.model import Encja, TypEncji, Zakres
-from niewidka.osoby import _TYTUŁY as _TYTULY_OSOB
-from niewidka.osoby import pogrupuj
+from niewidka.odmiana import rdzen
+from niewidka.osoby import jest_tytulem, pogrupuj, sam_tytul
 from niewidka.scalanie import scal
 from niewidka.znaczniki import (
     dopisek,
@@ -91,78 +91,81 @@ class ZnacznikiWTresci(BladMapy):
 
 MAKS_PRZEBIEGOW = 5  # measured 2026-10-28: the sample letter needs up to 4 (the model is non-deterministic)
 TYPY_ENCJI = {typ.value for typ in TypEncji}
-# to a person from the check we add up to 2 following capitalised words on the same
-# line: the model catches "Jan Marek" once and "Nowicki" another time (measured 2026-10-28).
-# Always whole words.
-_ODSTEP = "[ \t\u00a0\u202f]+"
-_SLOWO_NAZWISKA = re.compile(rf"{_ODSTEP}([^\W\d_][\w'’\-]*)")
+# to a person from the check we add following capitalised words on the same line, up to
+# three words in total: the model catches "Jan Marek" once and "Nowicki" another time
+# (measured 2026-10-28). One space between words only (two signature columns are separate
+# people), never a job title or an institution ("Anna Kwiatkowska Dyrektor Biura").
+_MAKS_SLOW_OSOBY = 3
+_SLOWO_NAZWISKA = re.compile(r"[ \u00a0\u202f]([^\W\d_][\w'’\-]*)")
 _W_SLOWIE = re.compile(r"[\w'’\-]*")
+_NIE_NAZWISKA = frozenset(
+    rdzen(slowo)
+    for slowo in (
+        "dyrektor", "prezes", "wiceprezes", "kierownik", "naczelnik", "inspektor", "referent",
+        "specjalista", "sekretarz", "zastępca", "starszy", "główny", "radca", "prokurator",
+        "sędzia", "komornik", "notariusz", "kanclerz", "rektor", "dziekan", "burmistrz",
+        "prezydent", "wójt", "starosta", "wojewoda", "marszałek", "minister", "biuro", "wydział",
+        "zarząd", "oddział", "urząd", "departament", "sąd", "spółka", "referat", "zespół",
+        "komisja", "rada", "dział", "sekcja", "kancelaria", "ulica", "aleja", "osiedle",
+    )
+)
 
 
-def _koniec_osoby(tekst: str, koniec: int) -> int:
+def _koniec_osoby(tekst: str, start: int, koniec: int) -> int:
     koniec = _W_SLOWIE.match(tekst, koniec).end()  # fragment cut off mid-word
-    for _ in range(2):
+    slow = len(tekst[start:koniec].split())
+    while slow < _MAKS_SLOW_OSOBY:
         slowo = _SLOWO_NAZWISKA.match(tekst, koniec)
-        if not slowo or not slowo.group(1)[0].isupper():
+        if (
+            not slowo
+            or not slowo.group(1)[0].isupper()
+            or rdzen(slowo.group(1)) in _NIE_NAZWISKA
+            or jest_tytulem(slowo.group(1))
+        ):
             break
         koniec = slowo.end()
+        slow += 1
     return koniec
 
 
 _SLOWO_Z_WIELKIEJ = re.compile(r"[^\W\d_][\w'’\-]*")
 
 
-def _wspolny_poczatek(a: str, b: str) -> int:
-    n = 0
-    for x, y in zip(a, b):
-        if x != y:
-            break
-        n += 1
-    return n
+def _ksztalt_osoby(tekst: str) -> bool:
+    """A person-shaped entity: 1-3 words, no digits, no address marker. Only those feed the
+    search for other forms, otherwise a city inside an address becomes a "person"."""
+    slowa = tekst.split()
+    return (
+        1 <= len(slowa) <= _MAKS_SLOW_OSOBY
+        and not any(znak.isdigit() for znak in tekst)
+        and not any(rdzen(s.strip(",.")) in _NIE_NAZWISKA for s in slowa)
+        and not any(s.lower().rstrip(".") in ("ul", "al", "os", "pl") for s in slowa)
+    )
 
 
-def _czlon_pasuje(znany: str, kandydat: str) -> bool:
-    """Same base form after a common prefix: Zawadzki/Zawadzkiemu,
-    Marek/Markowi (movable "e"), Anna/Annie. A short prefix is not enough,
-    so that "Nowak" does not match "Nowy"."""
-    warianty = {znany}
-    if len(znany) >= 4 and znany[-2] == "e" and znany[-1] in "kc":
-        warianty.add(znany[:-2] + znany[-1])  # Marek → Mark-owi, Jacek → Jack-a
-    for wzor in warianty:
-        p = _wspolny_poczatek(wzor, kandydat)
-        if len(wzor) <= 4:  # Anna/Annie, Jan/Jana: threshold based on the length of the KNOWN form
-            if p >= max(3, len(wzor) - 1):
-                return True
-        elif p >= 4 and p >= len(wzor) - 3:
-            return True
-    return False
-
-
-def _formy_znanych_osob(teksty: list[str], zajete: list[list[Zakres]], osoby: list[str]) -> set[str]:
+def _formy_znanych_osob(teksty: list[str], zajete: list[list[Zakres]], osoby: list[str]) -> list[str]:
     """Other forms of people already detected in the document (API tests 2026-10-29: "Marek
     Zawadzki-Herbert" hidden, "Markowi Zawadzkiemu-Herbertowi" visible). A person detected
-    once must disappear in every inflected form, at every level."""
-    znane = {
-        slowo.lower()
-        for osoba in osoby
-        for slowo in _SLOWO_Z_WIELKIEJ.findall(osoba)
-        if len(slowo) >= 3 and slowo.lower().strip(".") not in _TYTULY_OSOB
-    }
+    once must disappear in every inflected form, at every level. A form matches by an equal
+    stem (`odmiana.rdzen`), whole words only: "Market" is not "Marek", "Lista" is not "Lis"."""
+    znane: set[str] = set()
+    for osoba in osoby:
+        for slowo in _SLOWO_Z_WIELKIEJ.findall(osoba):
+            if len(slowo) < 3 or jest_tytulem(slowo):
+                continue
+            znane.add(rdzen(slowo))
+            znane.update(rdzen(czlon) for czlon in slowo.split("-") if len(czlon) >= 3)
     wynik: set[str] = set()
     for tekst, zakresy in zip(teksty, zajete):
         for m in _SLOWO_Z_WIELKIEJ.finditer(tekst):
             slowo = m.group()
-            if len(slowo) < 3 or not slowo[0].isupper() or slowo.lower() in _TYTULY_OSOB:
+            if len(slowo) < 3 or not slowo[0].isupper() or jest_tytulem(slowo):
                 continue
             if any(z.start < m.end() and m.start() < z.koniec for z in zakresy):
                 continue
-            czlony = slowo.lower().split("-")
-            for znany in znane:
-                zczlony = znany.split("-")
-                if len(zczlony) == len(czlony) and all(map(_czlon_pasuje, zczlony, czlony)):
-                    wynik.add(slowo)
-                    break
-    return wynik
+            if rdzen(slowo) in znane and rdzen(slowo) not in _NIE_NAZWISKA:
+                wynik.add(slowo)
+    return sorted(wynik)
 
 
 class _ZDopelnieniem:
@@ -183,13 +186,12 @@ class _ZDopelnieniem:
     def znajdz(self, tekst: str):
         dodatkowe = []
         for fragment, typ in self._fragmenty.items():
-            start = tekst.find(fragment)
-            while start != -1:
-                koniec = start + len(fragment)
+            # whole words only: the fragment "Ewa" must not hide "Ewakuacja"
+            for m in re.finditer(rf"(?<!\w){re.escape(fragment)}(?!\w)", tekst):
+                koniec = m.end()
                 if typ is TypEncji.OSOBA:
-                    koniec = _koniec_osoby(tekst, koniec)
-                dodatkowe.append(Zakres(start, koniec, typ, 1.0, "kontrola"))
-                start = tekst.find(fragment, start + 1)
+                    koniec = _koniec_osoby(tekst, m.start(), koniec)
+                dodatkowe.append(Zakres(m.start(), koniec, typ, 1.0, "kontrola"))
         bazowe = self._wewnetrzny.znajdz(tekst)
         return scal(tekst, bazowe + dodatkowe) if dodatkowe else bazowe
 
@@ -340,6 +342,7 @@ def ukryj(
             [
                 Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec])
                 for z in detektor_przebiegu.znajdz(segment.tekst)
+                if not (z.typ is TypEncji.OSOBA and sam_tytul(segment.tekst[z.start : z.koniec]))
             ]
             for segment in dok.segmenty
         ]
@@ -378,7 +381,13 @@ def ukryj(
         for forma in _formy_znanych_osob(
             teksty_wejscia,
             [[e.zakres for e in encje] for encje in segmenty_encji],
-            [e.tekst for e in wszystkie if e.zakres.typ is TypEncji.OSOBA],
+            [
+                e.tekst
+                for e in wszystkie
+                if e.zakres.typ is TypEncji.OSOBA
+                and e.zakres.zrodlo != "kontrola"
+                and _ksztalt_osoby(e.tekst)
+            ],
         ):
             if forma not in fragmenty:
                 nowe[forma] = TypEncji.OSOBA

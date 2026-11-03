@@ -21,6 +21,7 @@ from niewidka.rdzen import (
     ukryj,
     zbuduj_detektor,
 )
+from niewidka.scalanie import scal
 from niewidka.znaczniki import DOPISEK, zakoduj_identyfikator
 
 TEKST = b"Jan Kowalski, PESEL 44051401359. Telefon +48 601 234 567, e-mail jan@example.com."
@@ -433,3 +434,112 @@ def test_zbuduj_detektor_przekazuje_stan_pakietu_rozszerzonego(monkeypatch, tmp_
     assert otrzymane["pakiet_rozszerzony"] is True
     rdzen.zbuduj_detektor(3, Konfig(modele_katalog=tmp_path))
     assert otrzymane["pakiet_rozszerzony"] is False
+
+
+# --- logic fixes 2026-11 -------------------------------------------------------
+
+
+class _Frazy:
+    """OSOBA stub: the FIRST occurrence of each phrase only, like a model that misses a repeat."""
+
+    nazwa = "atrapa-pierwsze"
+    typy = frozenset({TypEncji.OSOBA})
+
+    def __init__(self, *frazy: str):
+        self.frazy = frazy
+
+    def znajdz(self, tekst: str) -> list[Zakres]:
+        wynik = list(RegulyDetektor().znajdz(tekst))
+        for fraza in self.frazy:
+            start = tekst.find(fraza)
+            if start != -1:
+                wynik.append(Zakres(start, start + len(fraza), TypEncji.OSOBA, 0.99, self.nazwa))
+        return scal(tekst, wynik)
+
+
+def _ukryj_tekst(tekst: str, detektor) -> tuple[str, dict]:
+    wynik, mapa, _ = ukryj(tekst.encode(), "txt", 1, detektor=detektor)
+    return wynik.decode().split("\n", 1)[1], {w.oznaczenie: w.formy for w in mapa.wpisy}
+
+
+def test_odmiany_jednej_osoby_dostaja_jeden_numer():
+    tekst = (
+        "Pani Anna Kowalska złożyła wniosek. Wniosek Pani Anny Kowalskiej rozpatrzono. "
+        "Sprawę prowadzi Marek Zawadzki, a pismo Marka Zawadzkiego trafiło do Jana Nowaka. "
+        "Z Janem Nowakiem można się kontaktować."
+    )
+    frazy = ("Anna Kowalska", "Anny Kowalskiej", "Marek Zawadzki", "Marka Zawadzkiego",
+             "Jana Nowaka", "Janem Nowakiem")
+    tresc, wpisy = _ukryj_tekst(tekst, _Frazy(*frazy))
+    osoby = [k for k in wpisy if k.startswith("OSOBA")]
+    assert len(osoby) == 3, wpisy
+    assert all(f not in tresc for f in frazy)
+
+
+def test_formy_znanej_osoby_nie_lapia_podobnych_slow():
+    tekst = (
+        "Marek Zawadzki złożył skargę. Market przy placu jest czynny. Marzec był zimny. "
+        "Ewa Lis odpowie. Ewakuacja trwa. Lista załączników poniżej. Listopad minął. "
+        "Markowi Zawadzkiemu i Ewie Lis przekazano odpowiedź."
+    )
+    tresc, wpisy = _ukryj_tekst(tekst, _Frazy("Marek Zawadzki", "Ewa Lis"))
+    for slowo in ("Market", "Marzec", "Ewakuacja", "Lista", "Listopad"):
+        assert slowo in tresc, (slowo, tresc)
+    assert "Markowi" not in tresc and "Zawadzkiemu" not in tresc and "Ewie" not in tresc
+    assert len([k for k in wpisy if k.startswith("OSOBA")]) == 2
+
+
+def test_stanowisko_nie_jest_doklejane_do_osoby():
+    tekst = (
+        "Sprawę prowadzi Anna Kwiatkowska. Podpisano: Anna Kwiatkowska Dyrektor Biura Obsługi. "
+        "Przekazano Dyrektorowi Departamentu Finansów do decyzji. Departament odpowie."
+    )
+
+    class _ModelPierwszy(_Frazy):
+        # the "model" sees the person in the first sentence only; the check finds the second
+        def znajdz(self, tekst):
+            return super().znajdz(tekst) if "Sprawę" in tekst else _Frazy("Anna Kwiatkowska").znajdz(tekst)
+
+    tresc, wpisy = _ukryj_tekst(tekst, _ModelPierwszy("Anna Kwiatkowska"))
+    assert "Dyrektor Biura Obsługi" in tresc
+    assert "Dyrektorowi Departamentu Finansów" in tresc and "Departament odpowie" in tresc
+    assert [k for k in wpisy if k.startswith("OSOBA")] == ["OSOBA_1"]
+
+
+def test_dwie_kolumny_podpisow_to_dwie_osoby():
+    tekst = "Wynajmujący: Marek Zawadzki-Herbert. Najemca: Anna Nowak.\n\nMarek Zawadzki-Herbert          Anna Nowak"
+    _, wpisy = _ukryj_tekst(tekst, _Frazy("Marek Zawadzki-Herbert", "Anna Nowak"))
+    formy = [f for k, w in wpisy.items() if k.startswith("OSOBA") for f in w.values()]
+    assert all("  " not in f for f in formy), formy
+    assert len([k for k in wpisy if k.startswith("OSOBA")]) == 2
+
+
+def test_patron_ulicy_nie_zamienia_miasta_w_osobe():
+    tekst = "Mieszka przy ul. Józefa Piłsudskiego 12, 00-001 Warszawa. W Warszawie jest sąd. Warszawa to stolica."
+    tresc, wpisy = _ukryj_tekst(tekst, _Frazy("Józefa Piłsudskiego"))
+    assert "[ADRES_1]" in tresc and "W Warszawie" in tresc and "Warszawa to stolica" in tresc
+    assert not any(k.startswith("OSOBA") for k in wpisy)
+
+
+def test_odsylacze_w_nawiasach_nie_blokuja_dokumentu():
+    tresc, _ = _ukryj_tekst("Patrz [ZAL_1] i [PKT_2]. Tel. 601 234 567.", RegulyDetektor())
+    assert "[ZAL_1]" in tresc and "[PKT_2]" in tresc and "[TELEFON_1]" in tresc
+    with pytest.raises(BladMapy):
+        ukryj("Wynik [OSOBA_1] wkleiłem ponownie.".encode(), "txt", 1, detektor=RegulyDetektor())
+
+
+def test_przywrocenie_zostawia_obce_odsylacze():
+    tekst = "Patrz [ZAL_1]. Tel. 601 234 567."
+    wynik, mapa, _ = ukryj(tekst.encode(), "txt", 1, detektor=RegulyDetektor())
+    przywrocony, rozbieznosci = przywroc(wynik, "txt", mapa)
+    assert przywrocony.decode() == tekst
+    assert rozbieznosci == []
+
+
+def test_sam_tytul_nie_jest_osoba():
+    # a model may tag a lone salutation line; "Pan" is no personal data, and keeping it
+    # in the map made the check block the document over a visible "Pana"
+    tekst = "Pan\nWzywam Pana Jana Kowalskiego na rozprawę."
+    wynik, mapa = _ukryj_tekst(tekst, _Frazy("Pan", "Jana Kowalskiego"))
+    assert not any("Pan" in formy.values() for formy in mapa.values())
+    assert wynik.startswith("Pan\nWzywam Pana [OSOBA_1_F1]")

@@ -207,7 +207,9 @@ async function otworzZip(blob) {
 
 /* ---------- preview with placeholders ---------- */
 
-const WZORZEC_ZNACZNIKA = /\[([A-Z]+)_(\d+)(?:_F\d+)?\]/g;
+/* only Niewidka types (niewidka/model.py TypEncji): "[ZAL_1]" in a document is plain text */
+const WZORZEC_ZNACZNIKA =
+  /\[(OSOBA|PESEL|NIP|REGON|ADRES|TELEFON|EMAIL|IBAN|DOKUMENT|DATA|IP|KARTA|SWIFT|LOGIN|INNE)_(\d+)(?:_F\d+)?\]/g;
 const POCZATEK_DOPISEKU = "ZANONIMIZOWANY.";
 
 // raw result text for "Kopiuj": the preview shows badges ("OSOBA 1"),

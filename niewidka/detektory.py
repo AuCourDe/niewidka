@@ -13,7 +13,7 @@ from typing import Protocol
 
 from niewidka.konfig import PROG_OSOBA_DOMYSLNY
 from niewidka.model import TypEncji, Zakres
-from niewidka.osoby import rdzen_nazwiska
+from niewidka.odmiana import rdzen
 from niewidka.pakiety import KATALOG_PAKIETOW, BladPakietu, Pakiet, wczytaj_bajty_pakietu
 from niewidka.reguly import REGULY
 from niewidka.reguly import znajdz as znajdz_reguly
@@ -586,7 +586,7 @@ def _sasiad_wielkimi(tekst: str, start: int, koniec: int) -> bool:
 class SlownikImionDetektor:
     """Dictionary-based OSOBA detector: a first name from the list + the next
         capitalized word, in any inflected form - matched by the
-        first-name stem (`osoby.rdzen_nazwiska`, the same ending heuristic).
+        first-name stem (`odmiana.rdzen`, the same stemmer).
 
         SIMPLIFICATION: stem = dropping one inflectional ending instead of
         lemmatization (Jan/Jana/Janem, Anna/Anny/Annie work); extend when
@@ -613,7 +613,7 @@ class SlownikImionDetektor:
                 continue  # both words capitalized ("marki Skoda" is not Marek)
             if not tekst[e1 : s2].isspace():
                 continue  # only whitespace between the words
-            if rdzen_nazwiska(tekst[s1:e1]) in self._stemy:
+            if rdzen(tekst[s1:e1]) in self._stemy:
                 wynik.append(Zakres(s1, e2, TypEncji.OSOBA, 1.0, self.nazwa))
         return wynik
 
@@ -645,7 +645,7 @@ def wczytaj_imiona(plik: Path) -> dict[str, str]:
             continue
         imię = linia.split("\t", 1)[0].strip()
         if imię and imię.isalpha():
-            stemy[rdzen_nazwiska(imię)] = imię
+            stemy[rdzen(imię)] = imię
     if not stemy:
         raise BladDetektora(f"pusty słownik imion: {plik}")
     return stemy

@@ -63,7 +63,13 @@ _WALUTY = frozenset({"PLN", "EUR", "USD", "GBP", "CHF"})
 
 def _dowod_ok(zapis: str) -> bool:
     nr = _znormalizuj(zapis)
-    if len(nr) != 9 or not nr[:3].isalpha() or not nr[3:].isdigit() or nr[:3] in _WALUTY:
+    if (
+        len(nr) != 9
+        or not nr[:3].isalpha()
+        or not nr[3:].isdigit()
+        or nr[:3] in _WALUTY
+        or nr[3:] == "000000"
+    ):
         return False
     wartosci = [ord(z) - 55 for z in nr[:3]] + [int(c) for c in nr[3:]]
     return sum(w * waga for w, waga in zip(wartosci, _WAGI_DOWODU)) % 10 == 0
@@ -122,7 +128,10 @@ REGULY: tuple[Regula, ...] = (
     ),
     Regula(
         typ=TypEncji.NIP,
-        wzorzec=re.compile(r"(?<!\d)\d{3}[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}(?!\d)"),
+        # 3-3-2-2, 10 digits, or the older 3-2-2-3 with hyphens
+        wzorzec=re.compile(
+            r"(?<!\d)(?:\d{3}[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}|\d{3}-\d{2}-\d{2}-\d{3})(?!\d)"
+        ),
         walidator=_nip_ok,
         suma_kontrolna=True,
     ),
@@ -187,12 +196,15 @@ REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.ADRES,
         wzorzec=re.compile(
-            r"(?:ulica|aleja|osiedle|ul\.|al\.|os\.|plac|pl\.)\s+"
+            # "Ul." / "Al." at the start of a line too; case-insensitive only for the marker word
+            r"(?<!\w)(?i:ulica|aleja|osiedle|ul\.|al\.|os\.|plac|pl\.)\s+"
             r"[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*"
             rf"(?:\s+{_NIE_KOD}[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*)*"
             rf"\s+{_NIE_KOD}\d+[A-Za-z]?(?:\s*(?:/\s*\d+|m\.\s*\d+))?"
             rf"(?:\s*,?\s*{_KOD}(?:\s+{_MIEJSCOWOSC})?)?"
-            rf"|{_KOD}\s+{_MIEJSCOWOSC}"
+            # a street without the marker word, anchored by the postal code right after it
+            rf"|(?:(?<!\w)[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:[ \t]+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*){{0,3}}"
+            rf"[ \t]+\d+[A-Za-z]?(?:[ \t]*/[ \t]*\d+)?[ \t]*,?[ \t]*)?{_KOD}\s+{_MIEJSCOWOSC}"
         ),
         walidator=None,
         suma_kontrolna=False,

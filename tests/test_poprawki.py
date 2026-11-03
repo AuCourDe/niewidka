@@ -37,7 +37,7 @@ class DetektorZLicznikiem:
     nazwa = "atrapa-licznik"
     typy = frozenset({TypEncji.OSOBA})
 
-    def __init__(self, frazy: tuple[str, ...] = ("Jan Nowak", "Maria Lis", "Piotr Wron")):
+    def __init__(self, frazy: tuple[str, ...] = ("Jan Nowak", "Maria Lis", "Piotra Wronę")):
         self.frazy = frazy
         self.wywolania = 0
         self._reguly = RegulyDetektor()
@@ -154,6 +154,7 @@ async def test_numeracja_stabilna_nowe_dostaja_kolejne(konfig):
         pierwsza, zadanie = await _ukryj(klient, app)
         baza = _tekst_wyniku(pierwsza)
         assert "[OSOBA_3" in baza and "[OSOBA_2" in baza
+        assert "Listopad" in baza  # a month is not a form of the surname Lis
         odpowiedz = await _popraw(klient, app, zadanie, ukryj=["Dalej"], nie_dane=["OSOBA_2"])
     assert odpowiedz.status_code == 200, odpowiedz.text
     tekst = _tekst_wyniku(odpowiedz)

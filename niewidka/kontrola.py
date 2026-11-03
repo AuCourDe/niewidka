@@ -18,7 +18,8 @@ from niewidka.detektory import Detektor, RegulyDetektor
 from niewidka.formaty import adapter_dla
 from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
-from niewidka.osoby import rdzen_nazwiska
+from niewidka.odmiana import temat
+from niewidka.osoby import sam_tytul
 from niewidka.znaczniki import DOPISEK
 
 _NAZWY_TYPOW = frozenset(typ.value for typ in TypEncji)
@@ -64,6 +65,8 @@ def kontroluj(
         for zakres in detektor.znajdz(tekst_bez_znacznikow):
             if tekst_bez_znacznikow[zakres.start : zakres.koniec].strip().upper() in _NAZWY_TYPOW:
                 continue  # label "PESEL"/"NIP" before a masked number, not data
+            if zakres.typ is TypEncji.OSOBA and sam_tytul(tekst_bez_znacznikow[zakres.start : zakres.koniec]):
+                continue  # a bare "Pan" / "Pani" names nobody
             uwagi.append(
                 Ostrzezenie(
                     zakres.typ.value,
@@ -103,7 +106,7 @@ def _dopasowanie_oryginalu(oryginal: str) -> tuple[bytes, re.Pattern[str] | None
         prawa = r"(?!\d)" if oryginal[-1].isdigit() else ""
         return oryginal.encode("utf-8"), re.compile(lewa + re.escape(oryginal) + prawa)
     ostatnie = re.split(r"\W", oryginal)[-1]
-    rdzen = oryginal[: len(oryginal) - len(ostatnie) + len(rdzen_nazwiska(ostatnie))]
+    rdzen = oryginal[: len(oryginal) - len(ostatnie) + len(temat(ostatnie))]
     rdzenie = "|".join(re.escape(r) for r in sorted({oryginal, rdzen}, key=len, reverse=True))
     wzorzec = re.compile(rf"{lewa}(?:{rdzenie})(?:{'|'.join(_KONCOWKI)})?(?![{_MALE}])")
     return min(oryginal, rdzen, key=len).encode("utf-8"), wzorzec

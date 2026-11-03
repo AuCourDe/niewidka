@@ -12,11 +12,16 @@ from dataclasses import dataclass, field
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from niewidka.model import TypEncji
+
 MAGIC = b"NWID"
 WERSJA = 1
 WARIANT_DOMYSLNY = "F1"  # a [PESEL_1] marker without the _Fk suffix maps to F1
 
-WZORZEC_ZNACZNIKA = re.compile(r"\[([A-Z]+)_(\d+)(?:_(F\d+))?\]")
+# only Niewidka types: "[ZAL_1]" or "[PKT_2]" in a document is ordinary text
+WZORZEC_ZNACZNIKA = re.compile(
+    rf"\[({'|'.join(typ.value for typ in TypEncji)})_(\d+)(?:_(F\d+))?\]"
+)
 
 
 class BladMapy(Exception):

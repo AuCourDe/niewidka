@@ -401,3 +401,52 @@ def test_adres_miejscowosc_ze_spacja_nierozdzielajaca():
     # NBSP in 'Nowy Dwór Mazowiecki' left 'Dwór Mazowiecki'
     tekst = "ul. Długa 5, 05-100 Nowy\u00a0Dwór\u00a0Mazowiecki"
     assert _znalezione(tekst, TypEncji.ADRES) == [tekst]
+
+
+# --- logic fixes 2026-11 -----------------------------------------------------
+
+def test_adres_z_wielkiej_litery_caly():
+    for tekst, adres in [
+        ("Ul. Lipowa 5, 80-001 Gdańsk", "Ul. Lipowa 5, 80-001 Gdańsk"),
+        ("Al. Jerozolimskie 100, 00-001 Warszawa", "Al. Jerozolimskie 100, 00-001 Warszawa"),
+        ("Pl. Zamkowy 1", "Pl. Zamkowy 1"),
+        ("UL. LIPOWA 5", "UL. LIPOWA 5"),
+    ]:
+        wynik = [tekst[z.start : z.koniec] for z in znajdz(tekst) if z.typ is TypEncji.ADRES]
+        assert wynik == [adres], (tekst, wynik)
+
+
+def test_slowo_ulica_wewnatrz_wyrazu_to_nie_adres():
+    assert [z for z in znajdz("Mikulica 5 23") if z.typ is TypEncji.ADRES] == []
+
+
+def test_nip_w_starym_zapisie():
+    dobre = [z for z in znajdz("NIP 123-45-63-218") if z.typ is TypEncji.NIP]
+    assert len(dobre) == 1 and dobre[0].suma_kontrolna
+    zle = [z for z in znajdz("NIP 123-45-63-219") if z.typ is TypEncji.NIP]
+    assert len(zle) == 1 and zle[0].podejrzana
+
+
+def test_dowod_z_samych_zer_nie_jest_pewny():
+    (dowod,) = [z for z in znajdz("dowód AAA 000000") if z.typ is TypEncji.DOKUMENT]
+    assert dowod.podejrzana and not dowod.suma_kontrolna
+
+
+def test_adres_ulica_bez_prefiksu_przed_kodem():
+    # the postal code anchors the street written without "ul."
+    assert _znalezione("Proszę pisać na Lipowa 5, 80-001 Gdańsk.", TypEncji.ADRES) == [
+        "Lipowa 5, 80-001 Gdańsk"
+    ]
+    assert _znalezione("Adres: Armii Krajowej 12/4 80-001 Gdańsk.", TypEncji.ADRES) == [
+        "Armii Krajowej 12/4 80-001 Gdańsk"
+    ]
+
+
+def test_adres_bez_prefiksu_nie_lapie_telefonu():
+    znalezione = _znalezione("Tel 600 100 200, 00-001 Warszawa.", TypEncji.ADRES)
+    assert znalezione == ["00-001 Warszawa"]
+
+
+def test_adres_bez_prefiksu_znane_nadmaskowanie():
+    # accepted: any "Word N," right before a postal code reads as a street
+    assert _znalezione("Faktura 5, 00-001 Warszawa.", TypEncji.ADRES) == ["Faktura 5, 00-001 Warszawa"]
