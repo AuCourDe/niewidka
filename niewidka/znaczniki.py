@@ -3,6 +3,8 @@ form variant, so restoring by (label, variant) does not depend on position or
 paraphrase. The note has no square brackets, so the check does not mistake it for a marker.
 """
 
+import re
+
 from niewidka.model import Encja, TypEncji
 
 DOPISEK = (
@@ -12,6 +14,17 @@ DOPISEK = (
 
 
 _ALFABET_ID = "abcdefghijklmnop"
+
+# numbers whose notation varies (hyphens, spaces, letter case) but whose value does not
+_TYPY_NUMEROW = frozenset(
+    {TypEncji.PESEL, TypEncji.NIP, TypEncji.REGON, TypEncji.IBAN, TypEncji.KARTA, TypEncji.DOKUMENT}
+)
+
+
+def _wartosc(encja: Encja) -> str:
+    if encja.zakres.typ in _TYPY_NUMEROW:
+        return re.sub(r"[\s\-]", "", encja.tekst).upper()
+    return " ".join(encja.tekst.split())
 
 
 def zakoduj_identyfikator(identyfikator: str) -> str:
@@ -43,7 +56,8 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
     its own. Other types: the same value (text ignoring whitespace differences)
     shares a number, so a repeated PESEL is still one [PESEL_1]. Each unique surface form of a person has a stable
     variant number Fk (assigned by first occurrence; the same form = the same
-    Fk). Other types have no variant.
+    Fk). Numbers (PESEL, NIP, ...) compare without hyphens and spaces; the first notation
+    has no variant ([NIP_1] = F1), each further notation gets F2, F3 ([NIP_1_F2]).
     """
     liczniki: dict[str, int] = {}
     numery: dict[str, str] = {}
@@ -53,7 +67,7 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
         if encja.zakres.typ is TypEncji.OSOBA:
             grupa = encja.klucz_grupy or f"#{pozycja}"
         else:
-            grupa = encja.klucz_grupy or "=" + " ".join(encja.tekst.split())
+            grupa = encja.klucz_grupy or "=" + _wartosc(encja)
         identyfikator = f"{typ}\x00{grupa}"
         if identyfikator not in numery:
             liczniki[typ] = liczniki.get(typ, 0) + 1
@@ -64,6 +78,12 @@ def nadaj_oznaczenia(encje: list[Encja]) -> None:
             if encja.tekst not in formy_grupy:
                 formy_grupy[encja.tekst] = f"F{len(formy_grupy) + 1}"
             encja.wariant = formy_grupy[encja.tekst]
+        elif encja.zakres.typ in _TYPY_NUMEROW:
+            formy_grupy = formy.setdefault(identyfikator, {})
+            if encja.tekst not in formy_grupy:
+                formy_grupy[encja.tekst] = f"F{len(formy_grupy) + 1}"
+            wariant = formy_grupy[encja.tekst]
+            encja.wariant = None if wariant == "F1" else wariant
 
 
 def znacznik_encji(encja: Encja) -> str:

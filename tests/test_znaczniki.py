@@ -103,3 +103,23 @@ def test_bez_oznaczen_jawny_blad():
 def test_dopisek_bez_nawiasow_kwadratowych():
     # a literal [TYP_N] in the note would be caught by the result check.
     assert "[" not in DOPISEK and "]" not in DOPISEK
+
+
+def test_ten_sam_numer_w_dwoch_zapisach_to_jeden_znacznik():
+    """A NIP written with and without hyphens is one number: [NIP_1] and [NIP_1_F2],
+    so cloud AI does not see two taxpayers; the map restores each notation."""
+    tekst = "NIP 123-456-32-18, dalej 1234563218 oraz 123-456-32-18."
+    encje = [
+        _encja(TypEncji.NIP, "123-456-32-18", 4),
+        _encja(TypEncji.NIP, "1234563218", 25),
+        _encja(TypEncji.NIP, "123-456-32-18", 41),
+    ]
+    nadaj_oznaczenia(encje)
+    assert [e.oznaczenie for e in encje] == ["NIP_1", "NIP_1", "NIP_1"]
+    assert [e.wariant for e in encje] == [None, "F2", None]
+    nowy, mapa = _zloz(tekst, encje)
+    assert "NIP [NIP_1], dalej [NIP_1_F2] oraz [NIP_1]." in nowy
+    from niewidka.rdzen import przywroc
+
+    przywrocony, _ = przywroc(nowy.encode("utf-8"), "txt", mapa)
+    assert przywrocony.decode("utf-8") == tekst
