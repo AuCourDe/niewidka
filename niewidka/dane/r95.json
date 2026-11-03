@@ -1,7 +1,7 @@
 {
-  "korpus_probek": 230,
+  "korpus_probek": 233,
   "wzor": "beta.ppf(0.95, FN+1, TP+FN-FN) — górna granica Cloppera-Pearsona stopy ucieczek",
-  "wygenerowano": "2026-10-28T15:28:00+00:00",
+  "wygenerowano": "2026-11-03T14:08:01+00:00",
   "maszyna": "x86_64",
   "poziomy": {
     "1": {
@@ -12,8 +12,10 @@
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,
         "IBAN": 0.393,
+        "IP": 1.0,
+        "KARTA": 1.0,
         "NIP": 0.3482,
-        "OSOBA": 0.0736,
+        "OSOBA": 0.0452,
         "PESEL": 0.3482,
         "REGON": 0.3482,
         "TELEFON": 0.3123,
@@ -51,12 +53,20 @@
           "k": 0,
           "n": 6
         },
+        "IP": {
+          "k": 0,
+          "n": 0
+        },
+        "KARTA": {
+          "k": 0,
+          "n": 0
+        },
         "NIP": {
           "k": 0,
           "n": 7
         },
         "OSOBA": {
-          "k": 3,
+          "k": 1,
           "n": 103
         },
         "PESEL": {
@@ -76,8 +86,8 @@
           "n": 3
         },
         "financial.credit_card": {
-          "k": 3,
-          "n": 3
+          "k": 6,
+          "n": 6
         },
         "financial.swift_bic": {
           "k": 3,
@@ -129,8 +139,10 @@
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,
         "IBAN": 0.393,
+        "IP": 1.0,
+        "KARTA": 1.0,
         "NIP": 0.3482,
-        "OSOBA": 0.0599,
+        "OSOBA": 0.0452,
         "PESEL": 0.3482,
         "REGON": 0.3482,
         "TELEFON": 0.3123,
@@ -168,12 +180,20 @@
           "k": 0,
           "n": 6
         },
+        "IP": {
+          "k": 0,
+          "n": 0
+        },
+        "KARTA": {
+          "k": 0,
+          "n": 0
+        },
         "NIP": {
           "k": 0,
           "n": 7
         },
         "OSOBA": {
-          "k": 2,
+          "k": 1,
           "n": 103
         },
         "PESEL": {
@@ -193,8 +213,8 @@
           "n": 3
         },
         "financial.credit_card": {
-          "k": 3,
-          "n": 3
+          "k": 6,
+          "n": 6
         },
         "financial.swift_bic": {
           "k": 3,
@@ -247,8 +267,10 @@
         "DOKUMENT": 0.4507,
         "EMAIL": 0.3482,
         "IBAN": 0.393,
+        "IP": 1.0,
+        "KARTA": 1.0,
         "NIP": 0.3482,
-        "OSOBA": 0.0599,
+        "OSOBA": 0.0452,
         "PESEL": 0.3482,
         "REGON": 0.3482,
         "TELEFON": 0.3123,
@@ -286,12 +308,20 @@
           "k": 0,
           "n": 6
         },
+        "IP": {
+          "k": 0,
+          "n": 0
+        },
+        "KARTA": {
+          "k": 0,
+          "n": 0
+        },
         "NIP": {
           "k": 0,
           "n": 7
         },
         "OSOBA": {
-          "k": 2,
+          "k": 1,
           "n": 103
         },
         "PESEL": {
@@ -311,8 +341,8 @@
           "n": 3
         },
         "financial.credit_card": {
-          "k": 3,
-          "n": 3
+          "k": 6,
+          "n": 6
         },
         "financial.swift_bic": {
           "k": 3,

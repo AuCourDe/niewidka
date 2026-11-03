@@ -90,5 +90,7 @@ def opisy_ryzyka(
             continue
         dane = proba.get(typ, {})
         n, k = dane.get("n"), dane.get("k")
+        if n == 0:  # no example of the type in the corpus: no estimate, like no calibration
+            continue
         wynik[typ] = {"r95": wartosc, "n": n, "k": k, "opis": opis_ryzyka(wartosc, n, k)}
     return wynik

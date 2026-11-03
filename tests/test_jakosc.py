@@ -89,5 +89,14 @@ class TestOpisyRyzyka:
         opisy = opisy_ryzyka(1, ["PESEL"], katalog_danych=tmp_path)
         assert list(opisy) == ["PESEL"]
 
+    def test_typ_bez_zadnej_probki_nie_wychodzi(self, tmp_path):
+        # a type the corpus has no example of has no estimate at all ("0 pominięć na 0" says nothing)
+        (tmp_path / "r95.json").write_text(
+            json.dumps({"poziomy": {"1": {"r95": {"IP": 1.0, "PESEL": 0.3482},
+                                          "proba": {"IP": {"k": 0, "n": 0}, "PESEL": {"k": 0, "n": 7}}}}}),
+            encoding="utf-8",
+        )
+        assert list(opisy_ryzyka(1, ["IP", "PESEL"], katalog_danych=tmp_path)) == ["PESEL"]
+
     def test_poziom_bez_kalibracji_pusta_mapa(self, tmp_path):
         assert opisy_ryzyka(3, ["PESEL"], katalog_danych=tmp_path) == {}

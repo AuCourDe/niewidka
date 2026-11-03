@@ -14,13 +14,13 @@ independently of the models. IP addresses and card numbers are already detected 
 
 ## Detection levels
 
-Measured on a corpus of 182 made-up samples with Polish personal data.
+Measured on a corpus of 233 made-up samples with Polish personal data (2026-11-03).
 
 | Level | Composition | OSOBA recall / precision | R95 OSOBA |
 |---|---|---|---|
-| 1 Szybko (Fast) | rules + basic model | 0.971 / 0.943 | 0.0736 |
-| 2 Dokładniej (More thorough) | 1 + person confidence threshold 0.2 + a second pass over windows shifted by half | 0.981 / 0.953 | 0.0599 |
-| 3 Najdokładniej (Most thorough) | 2 + GUS first-name dictionary (CC0), with the Extended package also IP, SWIFT, logins | 0.981 / 0.953 | 0.0599 |
+| 1 Szybko (Fast) | rules + basic model | 0.990 / 0.962 | 0.0452 |
+| 2 Dokładniej (More thorough) | 1 + person confidence threshold 0.2 + a second pass over windows shifted by half | 0.990 / 0.944 | 0.0452 |
+| 3 Najdokładniej (Most thorough) | 2 + GUS first-name dictionary (CC0), with the Extended package also IP, SWIFT, logins | 0.990 / 0.936 | 0.0452 |
 
 R95 is the upper bound (95%) of the share of personal data that may remain in the text. Full
 values for every type and level are in `niewidka/dane/r95.json`, and `/api/stan` provides them to

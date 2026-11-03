@@ -14,13 +14,13 @@ niezależnie od modeli. Adresy IP i numery kart wykrywa już pakiet podstawowy.
 
 ## Poziomy wykrywania
 
-Pomiar na korpusie 182 zmyślonych próbek z polskimi danymi osobowymi.
+Pomiar na korpusie 233 zmyślonych próbek z polskimi danymi osobowymi (2026-11-03).
 
 | Poziom | Skład | OSOBA recall / precision | R95 OSOBA |
 |---|---|---|---|
-| 1 Szybko | reguły + model podstawowy | 0.971 / 0.943 | 0.0736 |
-| 2 Dokładniej | 1 + próg pewności osoby 0.2 + drugi przebieg okien przesuniętych o pół | 0.981 / 0.953 | 0.0599 |
-| 3 Najdokładniej | 2 + słownik imion GUS (CC0), z pakietem rozszerzonym także IP, SWIFT, loginy | 0.981 / 0.953 | 0.0599 |
+| 1 Szybko | reguły + model podstawowy | 0.990 / 0.962 | 0.0452 |
+| 2 Dokładniej | 1 + próg pewności osoby 0.2 + drugi przebieg okien przesuniętych o pół | 0.990 / 0.944 | 0.0452 |
+| 3 Najdokładniej | 2 + słownik imion GUS (CC0), z pakietem rozszerzonym także IP, SWIFT, loginy | 0.990 / 0.936 | 0.0452 |
 
 R95 to górna granica (95%) odsetka danych osobowych, które mogą zostać w tekście. Pełne
 wartości dla każdego typu i poziomu są w `niewidka/dane/r95.json`, a `/api/stan` podaje je
