@@ -66,6 +66,7 @@ NIEWIDKA_KLUCZ_PLIK=~/.config/niewidka/klucz uv run python -m niewidka.api
 - [`docs/KONFIGURACJA.md`](docs/KONFIGURACJA.md): wszystkie ustawienia, plik `niewidka.toml` i zmienne środowiskowe.
 - [`docs/SERWER-INFERENCJI.md`](docs/SERWER-INFERENCJI.md): wspólny serwer modeli w sieci lokalnej.
 - [`docs/MODELE.md`](docs/MODELE.md): modele, poziomy jakości i wyniki pomiarów.
+- [`docs/WYNIKI-TESTOW.md`](docs/WYNIKI-TESTOW.md): test na 30 pismach, co program ukrywa, a czego nie.
 - [`docs/LICENCJE.md`](docs/LICENCJE.md): licencje modeli i bibliotek.
 - [`docs/WYDANIE.md`](docs/WYDANIE.md): wydawanie i podpisywanie pakietów modeli.
 

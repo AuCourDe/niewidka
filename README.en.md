@@ -84,6 +84,7 @@ Maps expire after 30 days by default.
 - [`docs/KONFIGURACJA.en.md`](docs/KONFIGURACJA.en.md): all settings, `niewidka.toml` and environment variables.
 - [`docs/SERWER-INFERENCJI.en.md`](docs/SERWER-INFERENCJI.en.md): shared model server.
 - [`docs/MODELE.en.md`](docs/MODELE.en.md): models, quality levels and measurements.
+- [`docs/WYNIKI-TESTOW.en.md`](docs/WYNIKI-TESTOW.en.md): test on 30 documents, what the program hides and what it misses.
 - [`docs/LICENCJE.en.md`](docs/LICENCJE.en.md): model and library licenses.
 - [`docs/WYDANIE.en.md`](docs/WYDANIE.en.md): releasing and signing model packages.
 
