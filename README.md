@@ -9,8 +9,18 @@ Nic nie wysyła do internetu.
 
 Wklej tekst albo wybierz plik `.txt` lub `.docx`. Program zamieni imiona, nazwiska, PESEL,
 NIP, adresy, telefony, e-maile, numery kont i dokumentów na znaczniki, na przykład
-`[OSOBA_1]` albo `[PESEL_1]`. Taki tekst możesz wysłać do czatu AI. Odpowiedź z czatu wklej
-z powrotem do programu. Niewidka wstawi prawdziwe dane w miejsce znaczników.
+`[OSOBA_1]` albo `[PESEL_1]`. Taki tekst możesz wysłać do dowolnego czatu AI, na przykład
+z prośbą o zredagowanie albo poprawienie pisma.
+
+**W poleceniu dla czatu dopisz, żeby nie usuwał ani nie zmieniał znaczników.** Program
+wstawia prawdziwe dane tylko tam, gdzie znacznik został. Znacznika, który czat usunął albo
+przerobił, nie da się z powrotem połączyć z danymi. Przykładowe polecenie:
+
+> Zredaguj to pismo. Zostaw bez zmian wszystkie znaczniki w nawiasach kwadratowych,
+> na przykład [OSOBA_1] albo [ADRES_1].
+
+Odpowiedź z czatu wklej z powrotem do programu. Niewidka wstawi prawdziwe dane w miejsce
+znaczników.
 
 Niewidka pomaga, ale nie zastępuje człowieka. Przejrzyj podgląd przed wysłaniem tekstu.
 

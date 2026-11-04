@@ -9,8 +9,18 @@ It runs on your computer and sends nothing to the internet.
 
 Paste a text or pick a `.txt` or `.docx` file. Niewidka replaces names, PESEL and NIP
 numbers, addresses, phone numbers, e-mails, bank accounts and ID card numbers with tags such
-as `[OSOBA_1]` or `[PESEL_1]`. Send that text to a chat AI, paste the answer back, and
-Niewidka puts the real data where the tags were.
+as `[OSOBA_1]` or `[PESEL_1]`. You can send that text to any chat AI, for example to have
+the letter edited or improved.
+
+**In your prompt, tell the chat not to remove or change the tags.** The program puts the
+real data back only where a tag is still there. A tag the chat removed or rewrote cannot be
+linked to the data again. Example prompt:
+
+> Edit this letter. Keep every tag in square brackets unchanged, for example [OSOBA_1]
+> or [ADRES_1].
+
+Paste the chat's answer back into the program, and Niewidka puts the real data where the
+tags were.
 
 The program is built for Polish: detection is tuned for Polish names in all their inflected
 forms and for Polish identifiers with checksums. The interface is in Polish.
