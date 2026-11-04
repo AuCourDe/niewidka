@@ -26,7 +26,7 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 |---|---|---|
 | `OSOBA` | imiona i nazwiska, także w odmianie | model językowy, na poziomie 3 także słownik imion GUS |
 | `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numery z sumą kontrolną, numer konta także bez „PL” | reguły i suma kontrolna |
-| `DOKUMENT` | numery dowodów osobistych i paszportów | reguły; dla dowodu także suma kontrolna |
+| `DOKUMENT` | numery dowodów osobistych i paszportów, VIN, numery rejestracyjne pojazdów po „nr rej.”, numery polis po „polisa … nr” | reguły; dla dowodu także suma kontrolna |
 | `ADRES`, `TELEFON`, `EMAIL`, `DATA` | adresy, telefony, e-maile, daty | reguły i model |
 | `IP`, `SWIFT`, `LOGIN` | adresy IP, kody banków, loginy | reguły; pakiet rozszerzony na poziomie 3 |
 | `INNE` | wszystko, co dodasz sam | Twoje poprawki i stałe listy |
@@ -34,15 +34,17 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 Ta sama osoba ma ten sam znacznik w całym tekście, także w innej formie
 („Jana Kowalskiego” to nadal `[OSOBA_1]`). Samo nazwisko („Pani Kowalska”) dostaje numer
 jedynej osoby o tym nazwisku. Gdy w tekście są dwie osoby o tym samym nazwisku, samo nazwisko
-dostaje osobny numer, bo program nie zgaduje, o którą chodzi. Same tytuły („Pan”, „Pani”)
-zostają widoczne.
+dostaje osobny numer, bo program nie zgaduje, o którą chodzi. Popularne zdrobnienie („Kasia”,
+„Bartek”) dołącza do jedynej osoby o pełnym imieniu. Same tytuły („Pan”, „Pani”) i patroni
+po „im.” („Szpital im. Mikołaja Kopernika”) zostają widoczne.
 
 Ten sam numer w dwóch zapisach to jeden znacznik z wariantem: NIP `123-456-32-18` to
 `[NIP_1]`, a ten sam NIP bez kresek to `[NIP_1_F2]`. Przywracanie oddaje każdy zapis tak,
 jak był w oryginale.
 
-Adres obejmuje ulicę z numerem, kod pocztowy i miejscowość. Ulica bez „ul.” jest
-rozpoznawana, gdy stoi tuż przed kodem pocztowym („Lipowa 5, 80-001 Gdańsk”). Słowo
+Adres obejmuje ulicę z numerem, kod pocztowy i miejscowość, także po „przy ulicy”,
+„na osiedlu”. Ulica bez „ul.” jest rozpoznawana, gdy stoi tuż przed kodem pocztowym, w tej
+samej albo następnej linii („Lipowa 5 m. 2, 80-001 Gdańsk”). Słowo
 z wielkiej litery i numer tuż przed kodem też zostaną ukryte jako adres. Daty można
 wyłączyć w ustawieniach.
 

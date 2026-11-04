@@ -27,7 +27,7 @@ Jan Kowalski, PESEL 44051401359, ul. Lipowa 5, Gdańsk
 |---|---|---|
 | `OSOBA` | first and last names, also in inflected forms | language model, at level 3 also the GUS first-name dictionary |
 | `PESEL`, `NIP`, `REGON`, `IBAN`, `KARTA` | numbers with a checksum, an account number also without „PL” | rules and checksum |
-| `DOKUMENT` | ID card and passport numbers | rules; for an ID card also the checksum |
+| `DOKUMENT` | ID card and passport numbers, VIN, vehicle registration plates after „nr rej.”, insurance policy numbers after „polisa … nr” | rules; for an ID card also the checksum |
 | `ADRES`, `TELEFON`, `EMAIL`, `DATA` | addresses, phone numbers, e-mails, dates | rules and model |
 | `IP`, `SWIFT`, `LOGIN` | IP addresses, bank codes, logins | rules; Extended package at level 3 |
 | `INNE` | anything you add yourself | your corrections and permanent lists |
@@ -36,14 +36,17 @@ The same person has the same placeholder throughout the text, also in another fo
 („Jana Kowalskiego”, a grammatical case of the name, is still `[OSOBA_1]`). A bare surname
 („Pani Kowalska”) gets the number of the only person with that surname. When two people in
 the text share a surname, the bare surname gets a separate number, because the program does
-not guess which one is meant. Titles alone („Pan”, „Pani”) stay visible.
+not guess which one is meant. A common diminutive („Kasia”, „Bartek”) joins the only person
+with the full first name. Titles alone („Pan”, „Pani”) and patrons after „im.” („Szpital im.
+Mikołaja Kopernika”) stay visible.
 
 The same number written in two ways is one placeholder with a variant: the NIP `123-456-32-18`
 is `[NIP_1]`, and the same NIP without hyphens is `[NIP_1_F2]`. Restore brings back each
 notation exactly as it was in the original.
 
-An address covers the street with its number, the postal code and the town. A street without
-„ul.” is recognised when it stands right before a postal code („Lipowa 5, 80-001 Gdańsk”).
+An address covers the street with its number, the postal code and the town, also after
+„przy ulicy”, „na osiedlu”. A street without „ul.” is recognised when it stands right before a
+postal code, on the same line or the next one („Lipowa 5 m. 2, 80-001 Gdańsk”).
 A capitalised word with a number right before a postal code is also hidden as an address.
 Dates can be turned off in the settings.
 
