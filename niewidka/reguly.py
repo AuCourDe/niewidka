@@ -119,6 +119,21 @@ _KONTO = (
     rf"|\d{{4}}(?:{_ODSTEP}\d{{4}}){{5}}{_ODSTEP}\d{{2}})(?![A-Za-z0-9])"
 )
 
+# A mistyped account (a digit or a group too few, one or two digits too many) failed the
+# 26-digit pattern and only the 16-digit card window was masked, leaving "PL61" and the tail
+# visible. The same shape with a wrong length is a suspicious IBAN masked in full; the closing
+# lookahead stops it from eating a number that follows a valid account ("... 2874 2024 r.").
+# Separators are required, so a long bare digit run is still not an account.
+# SIMPLIFICATION: only the "NN NNNN ..." grouping; extend when typos in other forms show up.
+_ODSTEP_WYM = _ODSTEP.removesuffix("?")  # grouped print only: a bare digit run is no account
+_KONTO_ZLA_DLUGOSC = (
+    rf"(?<![A-Za-z0-9])(?:PL ?)?\d{{2}}"
+    rf"(?:(?:{_ODSTEP_WYM}\d{{4}}){{4,5}}{_ODSTEP_WYM}\d{{1,3}}"
+    rf"|(?:{_ODSTEP_WYM}\d{{4}}){{5}}"
+    rf"|(?:{_ODSTEP_WYM}\d{{4}}){{5}}{_ODSTEP_WYM}\d{{5,6}})"
+    rf"(?!{_ODSTEP}\d)(?![A-Za-z])"
+)
+
 REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.PESEL,
@@ -150,6 +165,12 @@ REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.IBAN,
         wzorzec=re.compile(_KONTO),
+        walidator=_konto_ok,
+        suma_kontrolna=True,
+    ),
+    Regula(
+        typ=TypEncji.IBAN,
+        wzorzec=re.compile(_KONTO_ZLA_DLUGOSC),
         walidator=_konto_ok,
         suma_kontrolna=True,
     ),

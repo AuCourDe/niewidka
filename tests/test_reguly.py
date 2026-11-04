@@ -1,5 +1,7 @@
 """Tests of detection rules: regular expressions + checksums."""
 
+import pytest
+
 from niewidka.model import TypEncji
 from niewidka.reguly import znajdz
 
@@ -509,3 +511,34 @@ def test_numer_polisy():
 
 def test_slowo_polisa_bez_numeru_nic_nie_lapie():
     assert _znalezione("Polisa obejmuje szkody do 10 tys. zł, nr umowy w załączniku.", TypEncji.DOKUMENT) == []
+
+
+@pytest.mark.parametrize(
+    "konto",
+    [
+        "PL69 1090 1014 0000 0712 1981 287",    # one digit missing
+        "PL61 1090 1014 0000 0712 1981 28",     # two digits missing
+        "PL61 1090 1014 0000 0712 1981",        # a whole group missing
+        "61 1090 1014 0000 0712 1981 287",      # domestic form, one digit missing
+        "PL61 1090 1014 0000 0712 1981 28745",  # one digit too many
+    ],
+)
+def test_konto_zlej_dlugosci_ukryte_w_calosci(konto):
+    # A mistyped account number was masked only by the 16-digit card window:
+    # "PL69" and the tail stayed visible. The whole number is a suspicious IBAN.
+    from niewidka.detektory import RegulyDetektor
+
+    tekst = f"Przelew na konto {konto}, dziękuję."
+    wynik = RegulyDetektor().znajdz(tekst)
+    start = tekst.index(konto)
+    assert [(z.start, z.koniec, z.typ) for z in wynik] == [(start, start + len(konto), TypEncji.IBAN)]
+    assert wynik[0].podejrzana
+
+
+def test_konto_poprawne_nie_zabiera_roku_za_nim():
+    from niewidka.detektory import RegulyDetektor
+
+    tekst = "Konto PL61 1090 1014 0000 0712 1981 2874 2024 r."
+    wynik = RegulyDetektor().znajdz(tekst)
+    assert [tekst[z.start : z.koniec] for z in wynik] == ["PL61 1090 1014 0000 0712 1981 2874"]
+    assert not wynik[0].podejrzana
