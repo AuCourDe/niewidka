@@ -30,7 +30,7 @@ from niewidka.mapa import (
 )
 from niewidka.model import Encja, TypEncji, Zakres
 from niewidka.odmiana import rdzen
-from niewidka.osoby import jest_tytulem, pogrupuj, sam_tytul
+from niewidka.osoby import jest_tytulem, nie_jest_osoba, pogrupuj
 from niewidka.scalanie import scal
 from niewidka.znaczniki import (
     dopisek,
@@ -342,7 +342,7 @@ def ukryj(
             [
                 Encja(zakres=z, tekst=segment.tekst[z.start : z.koniec])
                 for z in detektor_przebiegu.znajdz(segment.tekst)
-                if not (z.typ is TypEncji.OSOBA and sam_tytul(segment.tekst[z.start : z.koniec]))
+                if not (z.typ is TypEncji.OSOBA and nie_jest_osoba(segment.tekst, z.start, z.koniec))
             ]
             for segment in dok.segmenty
         ]

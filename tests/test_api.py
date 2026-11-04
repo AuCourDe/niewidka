@@ -433,12 +433,12 @@ async def test_blad_detektora_fail_closed_500_bez_tresci_w_logach(konfig, caplog
 async def test_ukryj_poziom_suwa_dzialanie_detektora(katalog_modeli, klucz_plik):
     """Level slider changes detection in the API. Q4 at level 1 catches the whole
     "Piotrowi Wiśniewskiemu" (sample osoba-011), so the discriminating sample is inst-061 from the corpus: the first-name dictionary
-    of level 3 adds "Adama Mickiewicza", level 1 skips it."""
+    of level 3 adds "Adama Mickiewicza", level 1 skips it. Without "im.": a patron is not a person."""
     from niewidka.mapa import odszyfruj
 
     konfig = Konfig(klucz_plik=klucz_plik, modele_katalog=katalog_modeli)
     app = create_app(konfig)  # production: no injection, detectors per level
-    tekst = "Muzeum im. Adama Mickiewicza zaprasza."
+    tekst = "Muzeum Adama Mickiewicza zaprasza."
     async with _klient(app) as klient:
         r1 = await klient.post(
             "/api/ukryj", data={"tekst": tekst, "poziom": "1"}, headers=_naglowki(app)

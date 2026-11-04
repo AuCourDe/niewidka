@@ -543,3 +543,10 @@ def test_sam_tytul_nie_jest_osoba():
     wynik, mapa = _ukryj_tekst(tekst, _Frazy("Pan", "Jana Kowalskiego"))
     assert not any("Pan" in formy.values() for formy in mapa.values())
     assert wynik.startswith("Pan\nWzywam Pana [OSOBA_1_F1]")
+
+
+def test_patron_instytucji_nie_jest_osoba():
+    tekst = "SZPITAL IM. MIKOŁAJA KOPERNIKA W GDAŃSKU. Pacjent Jan Nowak."
+    wynik, _ = _ukryj_tekst(tekst, _Frazy("MIKOŁAJA KOPERNIKA", "Jan Nowak"))
+    assert "MIKOŁAJA KOPERNIKA" in wynik
+    assert "Jan Nowak" not in wynik

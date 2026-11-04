@@ -1,7 +1,8 @@
 """Grouping people by inflected forms (stems from `odmiana`).
 
-A different first name + the same surname = different people. An initial joins only
-the single person with that surname. A bare surname or a bare first name joins the
+A different first name + the same surname = different people; a common diminutive counts as
+its full first name ("Bartek Wróbel" = "Bartosz Wróbel"). An initial never joins a full first
+name ("J. Kowalski" may be Józef). A bare surname or a bare first name joins the
 single person it can belong to; without such a person every occurrence of the same
 stem is one group, and with several candidates the bare occurrences form one shared
 ambiguous group (never merged with any of the candidates).
@@ -10,7 +11,7 @@ ambiguous group (never merged with any of the candidates).
 import re
 
 from niewidka.model import Encja, TypEncji
-from niewidka.odmiana import jest_imieniem, rdzen
+from niewidka.odmiana import jest_imieniem, jest_zdrobnieniem, rdzen, rdzen_imienia
 
 _TYTUŁY = frozenset({
     "pan", "pani", "pana", "panu", "panem", "panią", "panie", "państwo", "państwa", "p",
@@ -28,10 +29,18 @@ def jest_tytulem(slowo: str) -> bool:
     return slowo in _TYTUŁY or (len(slowo) > 3 and rdzen(slowo) in _RDZENIE_TYTUŁÓW)
 
 
-def sam_tytul(tekst: str) -> bool:
-    """Text made only of titles ("Pan", "Pani dr") names nobody, so it is no personal data."""
-    slowa = re.findall(r"\w+", tekst)
-    return bool(slowa) and all(jest_tytulem(slowo) for slowo in slowa)
+# "im." right before the span or up to two words before it (a model may split the patron);
+# a word ending a sentence breaks the chain, only an initial may carry a dot
+_PATRON = re.compile(r"(?i)(?<!\w)im\.\s*(?:(?:[^\W\d_]\.|[^\W\d_][\w\-]*)\s+){0,2}$")
+
+
+def nie_jest_osoba(tekst: str, start: int, koniec: int) -> bool:
+    """A person-labelled span that names nobody: only titles ("Pan", "Pani dr") or the patron
+    of an institution or street ("Szpital im. Mikołaja Kopernika")."""
+    slowa = re.findall(r"\w+", tekst[start:koniec])
+    if slowa and all(jest_tytulem(slowo) for slowo in slowa):
+        return True
+    return _PATRON.search(tekst[max(0, start - 50) : start]) is not None
 
 
 def _rozbij(tekst: str) -> tuple[str, str]:
@@ -45,6 +54,8 @@ def _rozbij(tekst: str) -> tuple[str, str]:
     if not słowa:
         return "", rdzen(tekst.strip())
     if len(słowa) == 1:
+        if jest_zdrobnieniem(słowa[0]):
+            return "", rdzen_imienia(słowa[0])
         return "", rdzen(słowa[0])
     if (
         len(słowa) == 2
@@ -54,7 +65,7 @@ def _rozbij(tekst: str) -> tuple[str, str]:
     ):
         return rdzen(słowa[1]), rdzen(słowa[0])
     imię = next((s for s in słowa[:-1] if s[:1].isupper()), "")
-    return (rdzen(imię) if imię else ""), rdzen(słowa[-1])
+    return (rdzen_imienia(imię) if imię else ""), rdzen(słowa[-1])
 
 
 def _przymiotnikowe(słowo: str) -> bool:

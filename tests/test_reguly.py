@@ -450,3 +450,62 @@ def test_adres_bez_prefiksu_nie_lapie_telefonu():
 def test_adres_bez_prefiksu_znane_nadmaskowanie():
     # accepted: any "Word N," right before a postal code reads as a street
     assert _znalezione("Faktura 5, 00-001 Warszawa.", TypEncji.ADRES) == ["Faktura 5, 00-001 Warszawa"]
+
+
+def test_telefon_w_nawiasie():
+    assert _znalezione("Kontakt: Joanna Zając (500 333 444, jz@example.pl).", TypEncji.TELEFON) == [
+        "500 333 444"
+    ]
+    assert _znalezione("Sekretariat: (22) 555 01 42.", TypEncji.TELEFON) == ["(22) 555 01 42"]
+
+
+def test_adres_z_odmienionym_slowem_ulica():
+    assert _znalezione("Kościół na osiedlu Słoneczne 12 w Krakowie.", TypEncji.ADRES) == [
+        "osiedlu Słoneczne 12"
+    ]
+    assert _znalezione("Mieszka przy ulicy Długiej 7/2, 00-238 Warszawa.", TypEncji.ADRES) == [
+        "ulicy Długiej 7/2, 00-238 Warszawa"
+    ]
+    assert _znalezione("Biuro przy alei Pracy 3.", TypEncji.ADRES) == ["alei Pracy 3"]
+
+
+def test_plac_bez_numeru_to_nie_adres():
+    assert _znalezione("Market przy placu Solidarności jest czynny.", TypEncji.ADRES) == []
+
+
+def test_adres_bez_prefiksu_z_numerem_mieszkania():
+    assert _znalezione("zamieszkały: Świętojańska 45 m. 12, 81-391 Gdynia, PESEL", TypEncji.ADRES) == [
+        "Świętojańska 45 m. 12, 81-391 Gdynia"
+    ]
+
+
+def test_numer_rejestracyjny_pojazdu():
+    assert _znalezione("Toyota Corolla, tab. rej. GD12345, oraz Opel nr rej. KR 99182.", TypEncji.DOKUMENT) == [
+        "GD12345",
+        "KR 99182",
+    ]
+    assert _znalezione("numer rejestracyjny WI 7824A", TypEncji.DOKUMENT) == ["WI 7824A"]
+
+
+def test_rejestracja_bez_kontekstu_to_nie_dokument():
+    assert _znalezione("Model GD12345 jest dostępny.", TypEncji.DOKUMENT) == []
+
+
+def test_adres_bez_prefiksu_w_dwoch_liniach_naglowka():
+    tekst = "Poszkodowany:\nKrzysztof Wilczek\nMickiewicza 8\n30-042 Kraków\ntel. 791 223 344"
+    assert _znalezione(tekst, TypEncji.ADRES) == ["Mickiewicza 8\n30-042 Kraków"]
+
+
+def test_numer_vin():
+    assert _znalezione("Toyota Corolla, VIN: JTDKB20U0J3123456, rocznik 2018.", TypEncji.DOKUMENT) == [
+        "JTDKB20U0J3123456"
+    ]
+
+
+def test_numer_polisy():
+    tekst = "pan Roman Lis (polisa OC w PZU S.A. nr POL-99882211/2026), oraz polisy nr 900123456789"
+    assert _znalezione(tekst, TypEncji.DOKUMENT) == ["POL-99882211/2026", "900123456789"]
+
+
+def test_slowo_polisa_bez_numeru_nic_nie_lapie():
+    assert _znalezione("Polisa obejmuje szkody do 10 tys. zł, nr umowy w załączniku.", TypEncji.DOKUMENT) == []

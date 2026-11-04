@@ -356,3 +356,18 @@ def test_sam_tytul_w_wyniku_nie_blokuje():
 
     wynik = _zakryj(b"Pan\nWzywam Pana na rozprawe.")
     assert kontroluj(wynik, "wynik.txt", Atrapa()) == []
+
+
+def test_patron_w_wyniku_nie_blokuje():
+    from niewidka.model import TypEncji, Zakres
+
+    class Atrapa:
+        nazwa = "atrapa"
+        typy = frozenset({TypEncji.OSOBA})
+
+        def znajdz(self, tekst):
+            start = tekst.find("L. Rydygiera")
+            return [Zakres(start, start + 12, TypEncji.OSOBA, 0.9, self.nazwa)] if start != -1 else []
+
+    wynik = _zakryj(b"Szpital im. L. Rydygiera w Toruniu.")
+    assert kontroluj(wynik, "wynik.txt", Atrapa()) == []

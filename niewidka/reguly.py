@@ -167,6 +167,35 @@ REGULY: tuple[Regula, ...] = (
         walidator=None,
         suma_kontrolna=False,
     ),
+    # vehicle registration plate: only right after "rej." / "rejestracyjny", because the bare
+    # shape ("GD12345") is also a product code
+    Regula(
+        typ=TypEncji.DOKUMENT,
+        wzorzec=re.compile(
+            r"(?:(?<=rej\. )|(?<=rej\.)|(?<=rej\.\u00a0)|(?<=rejestracyjny )|(?<=rejestracyjnym )"
+            r"|(?<=rejestracyjnego )|(?<=rejestracyjnej ))"
+            r"[A-Z]{1,3} ?(?=[A-Z0-9]*\d)[A-Z0-9]{3,5}(?![\w])"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    # vehicle identification number: 17 characters without I, O, Q, mixing letters and digits
+    Regula(
+        typ=TypEncji.DOKUMENT,
+        wzorzec=re.compile(r"(?<![A-Za-z0-9])(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])"),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
+    # insurance policy number: "polisa ... nr X" within one clause; only the number is the entity
+    Regula(
+        typ=TypEncji.DOKUMENT,
+        wzorzec=re.compile(
+            r"(?i:polis[a-zęy]*)[^\n;()]{0,40}?(?<!\w)(?i:nr|numer)\.?\s*"
+            r"(?P<wartosc>[A-Z0-9](?=[A-Z0-9/\-]*\d)[A-Z0-9/\-]{4,}[A-Z0-9])"
+        ),
+        walidator=None,
+        suma_kontrolna=False,
+    ),
     # PL phone: optional prefix; landline 2-3-2-2 (in parentheses or
     # with spaces), mobile 3-3-3 (without a prefix only from digit 5-8, so as not to
     # enter 9-digit REGONs) or landline 3-3-3 from 1-4 - the latter
@@ -174,7 +203,7 @@ REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.TELEFON,
         wzorzec=re.compile(
-            r"(?<![\d+(])(?:\+48[ -]?|0048[ -]?)?"
+            r"(?<![\d+])(?:\+48[ -]?|0048[ -]?)?"
             r"(?:\(\d{2}\)[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}"
             r"|\d{2}[ -]\d{3}[ -]\d{2}[ -]\d{2}"
             r"|[5-8]\d{2}[ -]?\d{3}[ -]?\d{3}"
@@ -196,15 +225,17 @@ REGULY: tuple[Regula, ...] = (
     Regula(
         typ=TypEncji.ADRES,
         wzorzec=re.compile(
-            # "Ul." / "Al." at the start of a line too; case-insensitive only for the marker word
-            r"(?<!\w)(?i:ulica|aleja|osiedle|ul\.|al\.|os\.|plac|pl\.)\s+"
+            # "Ul." / "Al." at the start of a line too; case-insensitive only for the marker word,
+            # which may be inflected ("przy ulicy", "na osiedlu")
+            r"(?<!\w)(?i:ulic[aąęy]|alej[aąę]|alei|osiedl(?:e|a|u|em)|ul\.|al\.|os\.|plac(?:u|em)?|pl\.)\s+"
             r"[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*"
             rf"(?:\s+{_NIE_KOD}[A-ZŁŚŻŹĆĄĘÓŃ0-9][\w\-]*)*"
             rf"\s+{_NIE_KOD}\d+[A-Za-z]?(?:\s*(?:/\s*\d+|m\.\s*\d+))?"
             rf"(?:\s*,?\s*{_KOD}(?:\s+{_MIEJSCOWOSC})?)?"
             # a street without the marker word, anchored by the postal code right after it
+            # (on the same line or the next one, as in a letter header)
             rf"|(?:(?<!\w)[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*(?:[ \t]+[A-ZŁŚŻŹĆĄĘÓŃ][\w\-]*){{0,3}}"
-            rf"[ \t]+\d+[A-Za-z]?(?:[ \t]*/[ \t]*\d+)?[ \t]*,?[ \t]*)?{_KOD}\s+{_MIEJSCOWOSC}"
+            rf"[ \t]+\d+[A-Za-z]?(?:[ \t]*(?:/[ \t]*\d+|m\.[ \t]*\d+))?[ \t]*,?[ \t]*\n?[ \t]*)?{_KOD}\s+{_MIEJSCOWOSC}"
         ),
         walidator=None,
         suma_kontrolna=False,
@@ -279,11 +310,13 @@ def znajdz(tekst: str) -> list[Zakres]:
     kandydaci = []
     for regula in REGULY:
         for dopasowanie in regula.wzorzec.finditer(tekst):
-            suma_ok = not regula.walidator or regula.walidator(dopasowanie.group(0))
+            # a rule with context marks only its "wartosc" group ("polisa nr X" -> X)
+            grupa = "wartosc" if "wartosc" in regula.wzorzec.groupindex else 0
+            suma_ok = not regula.walidator or regula.walidator(dopasowanie.group(grupa))
             kandydaci.append(
                 Zakres(
-                    start=dopasowanie.start(),
-                    koniec=dopasowanie.end(),
+                    start=dopasowanie.start(grupa),
+                    koniec=dopasowanie.end(grupa),
                     typ=regula.typ,
                     pewnosc=_pewnosc(regula) if suma_ok else PEWNOŚC_PODEJRZANE,
                     zrodlo="regula",

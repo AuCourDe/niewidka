@@ -96,6 +96,60 @@ def rdzen(slowo: str) -> str:
     return "-".join(_rdzen_czlonu(czlon) for czlon in slowo.lower().split("-"))
 
 
+# common diminutives (nominative and genitive) -> full first name; a bare "Kasia" then joins
+# the only Katarzyna in the text
+_ZDROBNIENIA = {
+    "Anna": "Ania Ani Anka Anki Anusia Anusi",
+    "Katarzyna": "Kasia Kasi Kaśka Kaśki",
+    "Barbara": "Basia Basi Baśka Baśki",
+    "Małgorzata": "Gosia Gosi Małgosia Małgosi",
+    "Agnieszka": "Aga Agi Agusia Agusi",
+    "Joanna": "Asia Asi Joasia Joasi",
+    "Magdalena": "Magda Magdy Madzia Madzi",
+    "Aleksandra": "Ola Oli Olka",
+    "Zuzanna": "Zuzia Zuzi",
+    "Elżbieta": "Ela Eli",
+    "Dorota": "Dorotka Dorotki",
+    "Jan": "Janek Janka Jaś Jasia Jasio",
+    "Tomasz": "Tomek Tomka Tomuś Tomusia",
+    "Bartosz": "Bartek Bartka Bartuś Bartusia",
+    "Franciszek": "Franek Franka Franio Frania",
+    "Aleksander": "Olek Olka Alek Alka",
+    "Jakub": "Kuba Kuby",
+    "Krzysztof": "Krzyś Krzysia Krzysiek Krzyśka",
+    "Mateusz": "Mateuszek Mateuszka",
+    "Michał": "Michałek Michałka",
+    "Piotr": "Piotrek Piotrka Piotruś Piotrusia",
+    "Paweł": "Pawełek Pawełka",
+    "Wojciech": "Wojtek Wojtka",
+    "Stanisław": "Staszek Staszka Stasiek Staśka",
+    "Józef": "Józek Józka",
+    "Andrzej": "Jędrek Jędrka",
+}
+
+
+def _klucz_zdrobnienia(slowo: str) -> str:
+    return rdzen(slowo).replace("ś", "s")
+
+
+@lru_cache(maxsize=1)
+def _pelne_imiona() -> dict[str, str]:
+    return {
+        _klucz_zdrobnienia(zdrobnienie): rdzen(imie)
+        for imie, zdrobnienia in _ZDROBNIENIA.items()
+        for zdrobnienie in zdrobnienia.split()
+    }
+
+
+def rdzen_imienia(slowo: str) -> str:
+    """Stem of a first name with common diminutives mapped to the full name ("Kasi" -> "katarzyn")."""
+    return _pelne_imiona().get(_klucz_zdrobnienia(slowo), rdzen(slowo))
+
+
+def jest_zdrobnieniem(slowo: str) -> bool:
+    return _klucz_zdrobnienia(slowo) in _pelne_imiona()
+
+
 def jest_imieniem(slowo: str) -> bool:
     """Whether the word is a form of a first name from the bundled list."""
     return rdzen(slowo) in _rdzenie_imion()

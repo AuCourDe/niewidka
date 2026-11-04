@@ -19,7 +19,7 @@ from niewidka.formaty import adapter_dla
 from niewidka.mapa import WZORZEC_ZNACZNIKA
 from niewidka.model import TypEncji
 from niewidka.odmiana import temat
-from niewidka.osoby import sam_tytul
+from niewidka.osoby import nie_jest_osoba
 from niewidka.znaczniki import DOPISEK
 
 _NAZWY_TYPOW = frozenset(typ.value for typ in TypEncji)
@@ -65,8 +65,8 @@ def kontroluj(
         for zakres in detektor.znajdz(tekst_bez_znacznikow):
             if tekst_bez_znacznikow[zakres.start : zakres.koniec].strip().upper() in _NAZWY_TYPOW:
                 continue  # label "PESEL"/"NIP" before a masked number, not data
-            if zakres.typ is TypEncji.OSOBA and sam_tytul(tekst_bez_znacznikow[zakres.start : zakres.koniec]):
-                continue  # a bare "Pan" / "Pani" names nobody
+            if zakres.typ is TypEncji.OSOBA and nie_jest_osoba(tekst_bez_znacznikow, zakres.start, zakres.koniec):
+                continue  # a bare "Pan" or a patron ("im. Kopernika") names nobody
             uwagi.append(
                 Ostrzezenie(
                     zakres.typ.value,

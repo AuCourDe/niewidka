@@ -133,3 +133,38 @@ def test_samo_imie_dolacza_do_jedynej_osoby_z_tym_imieniem():
     pogrupuj(encje)
     assert encje[0].klucz_grupy == encje[1].klucz_grupy
     assert encje[2].klucz_grupy == encje[3].klucz_grupy
+
+
+def test_zdrobnienie_dolacza_do_jedynej_osoby_o_pelnym_imieniu():
+    encje = [_osoba("Katarzyna Mazur"), _osoba("Kasia"), _osoba("Kasi"), _osoba("Janusz Mazur")]
+    pogrupuj(encje)
+    assert encje[0].klucz_grupy == encje[1].klucz_grupy == encje[2].klucz_grupy
+    assert encje[3].klucz_grupy != encje[0].klucz_grupy
+
+
+def test_zdrobnienie_z_nazwiskiem_to_ta_sama_osoba():
+    encje = [_osoba("Bartosz Wróbel"), _osoba("Bartek Wróbel"), _osoba("Bartka")]
+    pogrupuj(encje)
+    assert len({e.klucz_grupy for e in encje}) == 1
+
+
+def test_zdrobnienie_przy_dwoch_kandydatach_osobno():
+    encje = [_osoba("Tomasz Lis"), _osoba("Tomasz Mazur"), _osoba("Tomek")]
+    pogrupuj(encje)
+    assert len({e.klucz_grupy for e in encje}) == 3
+
+
+def test_patron_tylko_po_skrocie_im():
+    from niewidka.osoby import nie_jest_osoba
+
+    tekst = "Szkoła im. Marii Konopnickiej; wniosek o zmianę imienia Anna Kowalska."
+    start = tekst.index("Marii")
+    assert nie_jest_osoba(tekst, start, start + len("Marii Konopnickiej"))
+    start = tekst.index("Anna")
+    assert not nie_jest_osoba(tekst, start, start + len("Anna Kowalska"))
+    naglowek = "SZPITAL IM. MIKOŁAJA KOPERNIKA W GDAŃSKU"
+    start = naglowek.index("KOPERNIKA")
+    assert nie_jest_osoba(naglowek, start, len(naglowek))
+    zdanie = "Szkoła im. Konopnickiej. Uczeń Jan Nowak zdał."
+    start = zdanie.index("Jan")
+    assert not nie_jest_osoba(zdanie, start, start + len("Jan Nowak"))
