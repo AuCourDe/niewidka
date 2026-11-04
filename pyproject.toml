@@ -1,6 +1,6 @@
 [project]
 name = "niewidka"
-version = "0.2.0"
+version = "0.2.1"
 description = "Lokalne ukrywanie danych osobowych (pseudonimizacja) w polskich tekstach i dokumentach"
 requires-python = ">=3.11"
 license = "MIT"

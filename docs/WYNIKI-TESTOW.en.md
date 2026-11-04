@@ -1,6 +1,6 @@
 # Anonymisation test results on 30 documents
 
-Test of 2026-11-04 for the `main` branch version after release 0.2.0 (code from commit `27ec6d0`).
+Test of 2026-11-04 for version 0.2.1.
 It checks how much personal data the program hides in realistic Polish documents.
 All data in the documents is fictional.
 

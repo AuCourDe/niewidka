@@ -29,7 +29,7 @@ Niewidka helps, but it does not replace a person. Review the preview before you 
 
 ## Test results
 
-Test of the current version (`main` branch after release 0.2.0) on 30 realistic Polish
+Test of version 0.2.1 on 30 realistic Polish
 documents with fictitious data, level 2:
 
 | What was checked | Hidden |

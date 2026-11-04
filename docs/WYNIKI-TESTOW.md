@@ -1,6 +1,6 @@
 # Wyniki testów anonimizacji na 30 pismach
 
-Test z 2026-11-04 dla wersji z gałęzi `main` po wydaniu 0.2.0 (kod z commita `27ec6d0`).
+Test z 2026-11-04 dla wersji 0.2.1.
 Sprawdza, ile danych osobowych program ukrywa w realistycznych polskich pismach.
 Wszystkie dane w pismach są fikcyjne.
 

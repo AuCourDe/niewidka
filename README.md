@@ -26,7 +26,7 @@ Niewidka pomaga, ale nie zastępuje człowieka. Przejrzyj podgląd przed wysłan
 
 ## Wyniki testu
 
-Test aktualnej wersji (gałąź `main` po wydaniu 0.2.0) na 30 realistycznych pismach z fikcyjnymi
+Test wersji 0.2.1 na 30 realistycznych pismach z fikcyjnymi
 danymi, poziom 2:
 
 | Co sprawdzano | Ukryte |
