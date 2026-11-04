@@ -88,10 +88,30 @@ NIEWIDKA_KLUCZ_PLIK=~/.config/niewidka/klucz uv run python -m niewidka.api
 
 ## What it detects
 
-Personal names (with inflection), PESEL, NIP, REGON, IBAN, payment card and Polish ID card
-numbers (checksum validated), addresses, phone numbers, e-mails, dates, IP addresses,
-SWIFT codes and logins. You can add your own words with „Ukryj wszędzie” (Hide everywhere)
-or with permanent lists in the settings.
+The examples below are real program output at level 2. The data in them is fictional.
+
+| Data | Example in the text | After hiding |
+|---|---|---|
+| first and last name, also inflected | „rozmawiałem z Janem Kowalskim, a potem Kowalski…” | „rozmawiałem z [OSOBA_1_F1], a potem [OSOBA_1_F2]…” |
+| PESEL | PESEL: 44051401359 | PESEL: [PESEL_1] |
+| NIP (tax ID) | NIP 526-025-02-74 | NIP [NIP_1] |
+| REGON (business ID) | REGON 123456785 | REGON [REGON_1] |
+| bank account | PL61 1090 1014 0000 0712 1981 2874 | [IBAN_1] |
+| payment card | 4111 1111 1111 1111 | [KARTA_1] |
+| ID card, passport | Dowód osobisty ABA300000 | Dowód osobisty [DOKUMENT_1] |
+| registration plate, VIN, insurance policy | nr rej. WA 12345 | nr rej. [DOKUMENT_1] |
+| address | przy ul. Długiej 5/12, 00-950 Warszawa | przy [ADRES_1] |
+| phone | 501 234 567 | [TELEFON_1] |
+| e-mail | jan.kowalski@poczta.pl | [EMAIL_1] |
+| date | 14 maja 1944 r. | [DATA_1] r. |
+| IP address | 192.168.10.25 | [IP_1] |
+| SWIFT code, login | level 3 with the Extended package | [SWIFT_1], [LOGIN_1] |
+| your own words | „Ukryj wszędzie” (Hide everywhere) or a permanent list in the settings | [INNE_1] |
+
+The same person always gets the same number, and each inflected form gets its own suffix
+`_F1`, `_F2`, so the program restores exactly the form that stood in the text. PESEL, NIP,
+REGON, bank account, card and ID card numbers are validated with their checksum. A number
+with a wrong check digit is hidden too, because documents contain typos.
 
 Three quality levels trade speed for recall. After hiding, an independent check re-reads
 the output and lists anything that still looks like personal data. By default the export

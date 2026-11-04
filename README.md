@@ -83,6 +83,39 @@ uv run python -m niewidka.klucze nowy-plik ~/.config/niewidka/klucz
 NIEWIDKA_KLUCZ_PLIK=~/.config/niewidka/klucz uv run python -m niewidka.api
 ```
 
+## Co Niewidka ukrywa
+
+Przykłady poniżej to prawdziwy wynik programu na poziomie 2. Dane w przykładach są fikcyjne.
+
+| Dane | Przykład w tekście | Po ukryciu |
+|---|---|---|
+| imię i nazwisko, także w odmianie | „rozmawiałem z Janem Kowalskim, a potem Kowalski…” | „rozmawiałem z [OSOBA_1_F1], a potem [OSOBA_1_F2]…” |
+| PESEL | PESEL: 44051401359 | PESEL: [PESEL_1] |
+| NIP | NIP 526-025-02-74 | NIP [NIP_1] |
+| REGON | REGON 123456785 | REGON [REGON_1] |
+| numer konta | PL61 1090 1014 0000 0712 1981 2874 | [IBAN_1] |
+| numer karty płatniczej | 4111 1111 1111 1111 | [KARTA_1] |
+| dowód osobisty, paszport | Dowód osobisty ABA300000 | Dowód osobisty [DOKUMENT_1] |
+| numer rejestracyjny, VIN, numer polisy | nr rej. WA 12345 | nr rej. [DOKUMENT_1] |
+| adres | przy ul. Długiej 5/12, 00-950 Warszawa | przy [ADRES_1] |
+| telefon | 501 234 567 | [TELEFON_1] |
+| e-mail | jan.kowalski@poczta.pl | [EMAIL_1] |
+| data | 14 maja 1944 r. | [DATA_1] r. |
+| adres IP | 192.168.10.25 | [IP_1] |
+| kod SWIFT, login | na poziomie 3 z pakietem rozszerzonym | [SWIFT_1], [LOGIN_1] |
+| Twoje własne słowa | „Ukryj wszędzie” albo stała lista w ustawieniach | [INNE_1] |
+
+Ta sama osoba ma zawsze ten sam numer, a każda forma odmiany dostaje własną końcówkę `_F1`,
+`_F2`. Dzięki temu program przywraca dokładnie tę formę, która stała w tekście. PESEL, NIP,
+REGON, numer konta, karty i dowodu program sprawdza cyfrą kontrolną. Numer z błędną cyfrą
+też ukrywa, bo w pismach zdarzają się literówki.
+
+Trzy poziomy jakości różnią się szybkością i dokładnością. Po ukryciu niezależna kontrola
+czyta wynik jeszcze raz i wskazuje miejsca, które nadal wyglądają na dane osobowe.
+
+Mapa, która łączy znaczniki z prawdziwymi danymi, jest zaszyfrowana AES-256 i leży na Twoim
+komputerze. Klucz jest w systemowym magazynie haseł albo w pliku wskazanym przez dział IT.
+
 ## Dokumentacja
 
 - [`docs/PRZEWODNIK.md`](docs/PRZEWODNIK.md): co program umie, jak działa i jak go wdrożyć.
