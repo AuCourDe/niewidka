@@ -17,6 +17,19 @@ forms and for Polish identifiers with checksums. The interface is in Polish.
 
 Niewidka helps, but it does not replace a person. Review the preview before you send anything.
 
+## Test results
+
+Test on 30 realistic Polish documents (fictitious data, 455 items to hide), level 2:
+
+| | Before fixes | After fixes |
+|---|---|---|
+| All listed items | 435 of 455 (95.6%) | 443 of 455 (97.4%) |
+| Personal data only | 435 of 447 (97.3%) | 443 of 447 (99.1%) |
+
+After the fixes 4 personal data items stayed visible: two flat numbers without a street
+("m. 10"), a postal code in parentheses and a street crossing without a number. Per-document table with the items left visible:
+[`docs/WYNIKI-TESTOW.en.md`](docs/WYNIKI-TESTOW.en.md).
+
 ## Two versions
 
 | | Desktop | Browser |

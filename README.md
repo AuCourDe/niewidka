@@ -14,6 +14,19 @@ z powrotem do programu. Niewidka wstawi prawdziwe dane w miejsce znaczników.
 
 Niewidka pomaga, ale nie zastępuje człowieka. Przejrzyj podgląd przed wysłaniem tekstu.
 
+## Wyniki testu
+
+Test na 30 realistycznych pismach (fikcyjne dane, 455 pozycji do ukrycia), poziom 2:
+
+| | Przed poprawkami | Po poprawkach |
+|---|---|---|
+| Wszystkie pozycje z listy | 435 z 455 (95,6%) | 443 z 455 (97,4%) |
+| Same dane osobowe | 435 z 447 (97,3%) | 443 z 447 (99,1%) |
+
+Po poprawkach widoczne zostały 4 dane osobowe: dwa numery mieszkań bez ulicy („m. 10”), kod
+pocztowy w nawiasie i skrzyżowanie ulic bez numeru. Tabela dla każdego pisma z listą danych, które zostały widoczne:
+[`docs/WYNIKI-TESTOW.md`](docs/WYNIKI-TESTOW.md).
+
 ## Dwie wersje
 
 | | Wersja okienkowa | Wersja w przeglądarce |
